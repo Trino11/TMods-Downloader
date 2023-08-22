@@ -1,21 +1,61 @@
 {
   "name": "tmods-downloader",
-  "version": "0.1.0",
+  "version": "0.2.2",
+  "main": "./build/electron.js",
+  "author": "Trino",
+  "description": "A minecraft mods manager",
   "private": true,
+  "homepage": "./",
   "dependencies": {
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "7zip-bin": "^5.2.0",
+    "adm-zip": "^0.5.10",
+    "axios": "^1.4.0",
+    "bootstrap": "^5.3.1",
+    "bootstrap-icons": "^1.10.5",
+    "electron-log": "^4.4.8",
+    "electron-squirrel-startup": "^1.0.0",
+    "electron-updater": "^6.1.1",
+    "fs": "^0.0.1-security",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-router-dom": "^6.15.0",
     "react-scripts": "5.0.1",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "start": "concurrently \"npm run start-react\" \"npm run start-electron\"",
+    "start-react": "react-scripts start",
+    "start-electron": ".\\node_modules\\.bin\\electron .",
+    "electron-dev": "cross-env ELECTRON_START_URL=http://localhost:3000 electron .",
+    "build": "npm run build-react && npm run dist",
+    "build-linux": "npm run build-react && npm run dist",
+    "build-react": "react-scripts build",
+    "dist": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.trinohost.tmod_loader",
+    "productName": "Tmods Downloader",
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://git.trinohost.com/api/v4/projects/4/jobs/artifacts/main/raw/dist?job=build"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "verifyUpdateCodeSignature": false
+    },
+    "files": [
+      "electron.js",
+      "node_modules/",
+      "package.json",
+      "build/"
+    ]
   },
   "eslintConfig": {
     "extends": [
@@ -34,5 +74,18 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
+    "@electron-forge/cli": "^6.4.0",
+    "@electron-forge/maker-deb": "^6.4.0",
+    "@electron-forge/maker-rpm": "^6.4.0",
+    "@electron-forge/maker-squirrel": "^6.4.0",
+    "@electron-forge/maker-zip": "^6.4.0",
+    "@electron-forge/plugin-auto-unpack-natives": "^6.4.0",
+    "concurrently": "^8.2.0",
+    "cross-env": "^7.0.3",
+    "electron": "^26.0.0",
+    "electron-builder": "^24.6.3"
   }
 }

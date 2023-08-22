@@ -1,0 +1,17 @@
+image: node:18
+
+build:
+  before_script:
+  - dpkg --add-architecture i386
+  - apt-get update -y
+  - apt-get install -y icnsutils graphicsmagick xz-utils rpm p7zip-full
+  - apt-get install -y wine wine32
+  - npm install 7zip-bin
+  - chmod +x node_modules/app-builder-bin/linux/x64/app-builder
+
+  script:
+    - npm install
+    - npm run build-linux
+  artifacts:
+    paths:
+      - dist/*.*
