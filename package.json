@@ -1,6 +1,6 @@
 {
   "name": "tmods-downloader",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "main": "./build/electron.js",
   "author": "Trino",
   "description": "A minecraft mods manager",
@@ -41,7 +41,7 @@
     "publish": [
       {
         "provider": "generic",
-        "url": "https://git.trinohost.com/api/v4/projects/4/jobs/artifacts/main/raw/dist?job=build"
+        "url": "https://github.com/Trino11/TMods-Downloader/releases/latest/download/Tmods-Downloader.exe"
       }
     ],
     "win": {

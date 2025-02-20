@@ -1,0 +1,45 @@
+name: Build & Release Electron App
+
+on:
+  push:
+    tags:
+      - "v*"  # Runs only when a tag like v1.0.0 is pushed
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install system dependencies
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update -y
+          sudo apt-get install -y icnsutils graphicsmagick xz-utils rpm p7zip-full
+          sudo apt-get install -y wine wine32
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Fix permissions for app-builder
+        run: chmod +x node_modules/app-builder-bin/linux/x64/app-builder
+
+      - name: Build Electron App
+        run: npm run build-linux
+
+      - name: Create GitHub Release & Upload Artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe  # Upload all .exe files from dist
+          tag_name: ${{ github.ref_name }}
+          name: "Release ${{ github.ref_name }}"
+          body: "Latest release of Tmods Downloader."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
