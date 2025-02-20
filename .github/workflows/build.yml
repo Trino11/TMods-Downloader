@@ -42,4 +42,4 @@ jobs:
           name: "Release ${{ github.ref_name }}"
           body: "Latest release of Tmods Downloader."
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
