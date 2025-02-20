@@ -10,8 +10,8 @@ import Shaderpacks from './components/pages/shaderpacks/shaderpacks';
 import { HashRouter as Router, Route, Routes } from 'react-router-dom';
 
 window.tmodsconfig = {
-  MANIFEST_URL: 'https://cdn.trinohost.com/webdavshare/tmods/manifest.json',
-  VERSION: '0.2.2',
+  MANIFEST_URL: 'https://cdn.trinohost.com/tmods/manifest.json',
+  VERSION: '0.3.1',
 };
 
 function App() {

@@ -34,12 +34,15 @@ jobs:
       - name: Build Electron App
         run: npm run build-linux
 
+      - name: Rename .exe file
+        run: mv dist/*.exe dist/Tmods-Downloader.exe
+
       - name: Create GitHub Release & Upload Artifacts
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.exe  # Upload all .exe files from dist
+          files: dist/Tmods-Downloader.exe  # Upload renamed file
           tag_name: ${{ github.ref_name }}
           name: "Release ${{ github.ref_name }}"
           body: "Latest release of Tmods Downloader."
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}  # Use Personal Access Token (PAT)
