@@ -1,6 +1,7 @@
 import axios from 'axios';
 import categories from '../../categories';
 import { realmSafeAdmZip } from '../__fixtures__/modrinthFake';
+import { installBridge, removeBridge } from '../__fixtures__/bridge';
 
 jest.mock('axios', () => ({ get: jest.fn() }));
 
@@ -9,7 +10,7 @@ const os = require('os');
 const path = require('path');
 const AdmZip = require('adm-zip');
 
-// The installer loads Node modules through Electron's window.require and installs
+// The installer loads Node modules through the main-process bridge and installs
 // into ~/AppData/Roaming/.minecraft, so point the home folder at a temp dir.
 let home;
 let minecraftDir;
@@ -25,12 +26,7 @@ beforeEach(() => {
     fs.mkdirSync(minecraftDir, { recursive: true });
 
     const SafeAdmZip = realmSafeAdmZip(fs.mkdtempSync(path.join(home, 'zips-')));
-    window.require = name => {
-        if (name === 'os') {
-            return { ...os, homedir: () => home };
-        }
-        return name === 'adm-zip' ? SafeAdmZip : require(name);
-    };
+    installBridge(home, { AdmZip: SafeAdmZip });
     jest.isolateModules(() => {
         ({
             installBundle,
@@ -45,7 +41,7 @@ beforeEach(() => {
 
 afterEach(() => {
     fs.rmSync(home, { recursive: true, force: true });
-    delete window.require;
+    removeBridge();
 });
 
 function category(id) {

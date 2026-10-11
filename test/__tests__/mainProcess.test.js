@@ -1,7 +1,11 @@
 const {
+    CONTENT_SECURITY_POLICY,
+    DEV_SERVER_URL,
     UPDATE_CHECK_INTERVAL_MS,
-    modrinthUserAgent,
+    externalLinkHandler,
+    isAppUrl,
     startAutoUpdates,
+    tmodsUserAgent,
     useDevServer,
 } = require('../../public/mainProcess');
 
@@ -13,20 +17,59 @@ describe('useDevServer', () => {
     });
 });
 
-describe('modrinthUserAgent', () => {
-    it('adds the TMods User-Agent and keeps the other headers', () => {
-        const callback = jest.fn();
-        modrinthUserAgent('1.2.3')(
-            { requestHeaders: { Accept: 'application/json', 'User-Agent': 'Chrome' } },
-            callback,
-        );
+describe('tmodsUserAgent', () => {
+    it('names the app, its version and where to find it, as Modrinth asks', () => {
+        expect(tmodsUserAgent('1.2.3')).toBe('Trino11/TMods-Downloader/1.2.3 (github.com/Trino11/TMods-Downloader)');
+    });
+});
 
-        expect(callback).toHaveBeenCalledWith({
-            requestHeaders: {
-                Accept: 'application/json',
-                'User-Agent': 'Trino11/TMods-Downloader/1.2.3 (github.com/Trino11/TMods-Downloader)',
-            },
-        });
+describe('isAppUrl', () => {
+    const built = 'file:///C:/Program%20Files/TMods/resources/app.asar/build/index.html';
+
+    it('accepts the built page on any route', () => {
+        expect(isAppUrl(built, built)).toBe(true);
+        expect(isAppUrl(`${built}#/modrinth`, built)).toBe(true);
+    });
+
+    it('refuses other files and other sites', () => {
+        expect(isAppUrl('file:///C:/Users/me/evil.html', built)).toBe(false);
+        expect(isAppUrl('https://example.com/', built)).toBe(false);
+        expect(isAppUrl('not a url', built)).toBe(false);
+    });
+
+    it('accepts any page of the dev server, and only it', () => {
+        expect(isAppUrl('http://localhost:3000/#/settings', DEV_SERVER_URL)).toBe(true);
+        expect(isAppUrl('http://localhost:3001/', DEV_SERVER_URL)).toBe(false);
+        expect(isAppUrl('https://localhost:3000/', DEV_SERVER_URL)).toBe(false);
+    });
+});
+
+describe('externalLinkHandler', () => {
+    it('opens web links in the browser and never a window in the app', () => {
+        const openExternal = jest.fn();
+        const handler = externalLinkHandler(openExternal);
+
+        expect(handler({ url: 'https://modrinth.com/mod/sodium' })).toEqual({ action: 'deny' });
+        expect(openExternal).toHaveBeenCalledWith('https://modrinth.com/mod/sodium');
+    });
+
+    it('opens nothing that is not a web page', () => {
+        const openExternal = jest.fn();
+        const handler = externalLinkHandler(openExternal);
+
+        for (const url of ['file:///C:/Windows/System32/calc.exe', 'http://example.com', 'smb://host/share', 'x']) {
+            expect(handler({ url })).toEqual({ action: 'deny' });
+        }
+        expect(openExternal).not.toHaveBeenCalled();
+    });
+});
+
+describe('CONTENT_SECURITY_POLICY', () => {
+    it("allows only the app's own scripts and no network access from the page", () => {
+        expect(CONTENT_SECURITY_POLICY).toContain("script-src 'self'");
+        expect(CONTENT_SECURITY_POLICY).toContain("connect-src 'self'");
+        expect(CONTENT_SECURITY_POLICY).toContain("object-src 'none'");
+        expect(CONTENT_SECURITY_POLICY).not.toMatch(/script-src[^;]*unsafe/);
     });
 });
 

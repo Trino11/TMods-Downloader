@@ -19,6 +19,13 @@ apps check that release through electron-updater and update themselves.
 The window is a React app built with [Vite](https://vite.dev); `public/electron.js` is the
 Electron main process (its logic lives in `public/mainProcess.js`, tested from `test/`) and is copied into `build/` with the rest of `public/`.
 
+The window has no Node access: it runs sandboxed, with context isolation and web security
+on, under a Content-Security-Policy. `public/preload.js` gives it `window.tmods`, whose calls
+the main process carries out in `public/bridge.js`: file access only inside the Minecraft
+folder, hashing, zips, and web requests (made by the main process, so CORS doesn't apply).
+Services reach it only through `src/modules/services/node.js`, never `window.tmods` or
+`window.require` directly. A new kind of Node access means a new call in `bridge.js`.
+
 - `npm run build-react` builds the app into `build/`.
 - `npm run start-electron` opens Electron on that build.
 - `npm start` builds once (for `build/electron.js`), then runs the Vite dev server on

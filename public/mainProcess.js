@@ -12,12 +12,58 @@ function useDevServer(isPackaged, argv) {
     return !isPackaged && argv.includes('--dev');
 }
 
-// Modrinth asks every app using its API to identify itself in the User-Agent, which
-// the page itself isn't allowed to set. Returns an onBeforeSendHeaders listener.
-function modrinthUserAgent(appVersion) {
-    const userAgent = `Trino11/TMods-Downloader/${appVersion} (github.com/Trino11/TMods-Downloader)`;
-    return (details, callback) => {
-        callback({ requestHeaders: { ...details.requestHeaders, 'User-Agent': userAgent } });
+// Modrinth asks every app using its API to identify itself in the User-Agent. The main
+// process makes the page's web requests, so it sends this on all of them.
+function tmodsUserAgent(appVersion) {
+    return `Trino11/TMods-Downloader/${appVersion} (github.com/Trino11/TMods-Downloader)`;
+}
+
+// The policy the built page runs under (added as a meta tag at build time): its own
+// scripts only, styles inline too (MUI writes them at runtime), images from the web
+// (mod icons), and no network access of its own, since web requests go through the
+// main process.
+const CONTENT_SECURITY_POLICY = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+    "frame-src 'none'",
+].join('; ');
+
+// Whether `url` is the app's own page (`appUrl` is what the window loaded), so only it
+// may use the bridge or be navigated to. The hash is the page's route, so it's ignored.
+function isAppUrl(url, appUrl) {
+    let page;
+    let app;
+    try {
+        page = new URL(url);
+        app = new URL(appUrl);
+    } catch {
+        return false;
+    }
+    if (app.protocol === 'file:') {
+        return page.protocol === 'file:' && page.host === app.host && page.pathname === app.pathname;
+    }
+    return page.origin === app.origin;
+}
+
+// Links that would open a new window go to the system browser instead, if they're web
+// pages; the app never opens windows of its own.
+function externalLinkHandler(openExternal) {
+    return ({ url }) => {
+        try {
+            if (new URL(url).protocol === 'https:') {
+                openExternal(url);
+            }
+        } catch {
+            // Not a URL; nothing to open.
+        }
+        return { action: 'deny' };
     };
 }
 
@@ -117,7 +163,10 @@ module.exports = {
     UPDATE_CHECK_INTERVAL_MS,
     MIN_WINDOW_SIZE,
     useDevServer,
-    modrinthUserAgent,
+    tmodsUserAgent,
+    CONTENT_SECURITY_POLICY,
+    isAppUrl,
+    externalLinkHandler,
     startAutoUpdates,
     defaultWindowBounds,
     initialWindowState,

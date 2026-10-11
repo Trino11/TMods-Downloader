@@ -1,6 +1,7 @@
 import axios from 'axios';
 import categories from '../../categories';
 import { makeVersion, realmSafeAdmZip, required, serveModrinth, hash } from '../__fixtures__/modrinthFake';
+import { installBridge, removeBridge } from '../__fixtures__/bridge';
 
 jest.mock('axios', () => ({ get: jest.fn(), post: jest.fn() }));
 
@@ -21,12 +22,7 @@ beforeEach(() => {
     gameDir = path.join(home, 'game');
     fs.mkdirSync(gameDir, { recursive: true });
     const SafeAdmZip = realmSafeAdmZip(fs.mkdtempSync(path.join(home, 'zips-')));
-    window.require = name => {
-        if (name === 'os') {
-            return { ...os, homedir: () => home };
-        }
-        return name === 'adm-zip' ? SafeAdmZip : require(name);
-    };
+    installBridge(home, { AdmZip: SafeAdmZip });
     jest.isolateModules(() => {
         mods = require('../modrinthMods');
         ({ installBundle } = require('../bundleInstaller'));
@@ -35,7 +31,7 @@ beforeEach(() => {
 
 afterEach(() => {
     fs.rmSync(home, { recursive: true, force: true });
-    delete window.require;
+    removeBridge();
 });
 
 function modFiles() {
