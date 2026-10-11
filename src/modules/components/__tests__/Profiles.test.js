@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import Profiles from '../pages/profiles/Profiles';
 import ProfileSelector from '../profiles/ProfileSelector';
 import { createProfile, deleteProfile, listGameVersions, profileGameDir, updateProfile } from '../../services/profiles';
+import { installFabric, listFabricGameVersions } from '../../services/fabric';
 
 jest.mock('../../services/profiles', () => ({
     DEFAULT_PROFILE_ID: 'default',
@@ -10,6 +11,11 @@ jest.mock('../../services/profiles', () => ({
     deleteProfile: jest.fn(),
     listGameVersions: jest.fn(),
     profileGameDir: jest.fn(),
+}));
+
+jest.mock('../../services/fabric', () => ({
+    installFabric: jest.fn(),
+    listFabricGameVersions: jest.fn(),
 }));
 
 const defaultProfile = { id: 'default', name: 'Default (.minecraft)', gameVersion: '' };
@@ -26,6 +32,8 @@ beforeEach(() => {
     onChange = jest.fn();
     onSelect = jest.fn();
     window.confirm = jest.fn(() => true);
+    listFabricGameVersions.mockResolvedValue(['1.21.1', '1.20.1']);
+    installFabric.mockResolvedValue('fabric-loader-0.16.5-1.20.1');
 });
 
 function renderPage(activeId = 'default') {
@@ -101,4 +109,32 @@ it('switches profile from the sidebar selector', () => {
     fireEvent.change(screen.getByLabelText('Profile'), { target: { value: 'fabric' } });
 
     expect(onSelect).toHaveBeenCalledWith('fabric');
+});
+
+it('installs Fabric and picks it for the profile being made', async () => {
+    renderPage();
+
+    const fabricSelect = await screen.findByLabelText('Fabric Minecraft version');
+    await screen.findByRole('option', { name: '1.20.1' });
+    fireEvent.change(fabricSelect, { target: { value: '1.20.1' } });
+    listGameVersions.mockReturnValue(['latest-release', 'latest-snapshot', 'fabric-loader-0.16.5-1.20.1']);
+    fireEvent.click(screen.getByRole('button', { name: 'Install Fabric' }));
+
+    expect(await screen.findByText(/Installed fabric-loader-0.16.5-1.20.1/)).toBeInTheDocument();
+    expect(installFabric).toHaveBeenCalledWith('1.20.1');
+    expect(screen.getByLabelText('Game version')).toHaveValue('fabric-loader-0.16.5-1.20.1');
+
+    fireEvent.change(screen.getByPlaceholderText('Profile name'), { target: { value: 'Pack' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    expect(createProfile).toHaveBeenCalledWith(expect.objectContaining({ gameVersion: 'fabric-loader-0.16.5-1.20.1' }));
+});
+
+it('says when Fabric could not be installed', async () => {
+    installFabric.mockRejectedValue(new Error('Network Error'));
+    renderPage();
+
+    await screen.findByRole('option', { name: '1.21.1' });
+    fireEvent.click(screen.getByRole('button', { name: 'Install Fabric' }));
+
+    expect(await screen.findByText('Could not install Fabric: Network Error')).toBeInTheDocument();
 });
