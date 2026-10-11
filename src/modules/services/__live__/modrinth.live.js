@@ -10,9 +10,9 @@ import {
 } from '../modrinth';
 import { checkUpdates, downloadVerified, installMod, readModList, sha1 } from '../modrinthMods';
 import { readIndex } from '../mrpack';
+import { zip } from '../node';
 import { FABRIC_API, GAME_VERSION } from './constants';
 
-const AdmZip = require('adm-zip');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -121,7 +121,7 @@ describe('Modrinth API', () => {
         const file = primaryFile(packVersion);
         expect(file.filename).toMatch(/\.mrpack$/);
         const data = await downloadVerified([file.url], file.hashes);
-        const index = readIndex(new AdmZip(data));
+        const index = readIndex(zip.read(data));
         expect(index.dependencies.minecraft).toEqual(expect.any(String));
         for (const entry of index.files) {
             expect(entry.hashes.sha1).toEqual(expect.any(String));

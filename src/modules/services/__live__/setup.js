@@ -1,17 +1,14 @@
 // Runs the page's service modules in plain Node, the way they run in the app, only
-// talking to the real services. Node modules are handed to the services directly
-// instead of through Electron, so these checks don't depend on how the app reaches Node.
+// talking to the real services. Their file, hash and zip calls go to the main process's
+// own bridge code (public/bridge.js), allowed to work in the temp folder, just as the
+// unit tests do; web requests go straight out through axios.
 import axios from 'axios';
+import os from 'os';
 import { version } from '../../../../package.json';
+import { installBridge } from '../__fixtures__/bridge';
 
-jest.mock('../node', () => ({
-    fs: require('fs'),
-    os: require('os'),
-    path: require('path'),
-    crypto: require('crypto'),
-    Buffer: require('buffer').Buffer,
-    AdmZip: require('adm-zip'),
-}));
+global.window = global.window || {};
+installBridge(os.tmpdir());
 
 // The version list keeps its last fetch in localStorage, which Node doesn't have.
 const store = new Map();

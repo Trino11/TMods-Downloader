@@ -2,5 +2,13 @@
 import '@testing-library/jest-dom';
 
 beforeEach(() => {
-    localStorage.clear();
+    // Main-process tests run in plain Node, without a page or its storage.
+    if (typeof localStorage !== 'undefined') {
+        localStorage.clear();
+    }
 });
+
+// Electron's page has TextDecoder; jsdom doesn't.
+if (typeof global.TextDecoder === 'undefined') {
+    global.TextDecoder = require('util').TextDecoder;
+}

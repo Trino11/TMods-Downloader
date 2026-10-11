@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { installBridge, removeBridge } from '../__fixtures__/bridge';
 
 jest.mock('axios', () => ({ get: jest.fn() }));
 
@@ -6,7 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-// Fabric writes into ~/AppData/Roaming/.minecraft through Electron's window.require,
+// Fabric writes into ~/AppData/Roaming/.minecraft through the main-process bridge,
 // so point the home folder at a temp dir and load a fresh copy per test.
 let home;
 let versionsDir;
@@ -32,7 +33,7 @@ function serve(routes) {
 beforeEach(() => {
     home = fs.mkdtempSync(path.join(os.tmpdir(), 'tmods-fabric-'));
     versionsDir = path.join(home, 'AppData', 'Roaming', '.minecraft', 'versions');
-    window.require = name => (name === 'os' ? { ...os, homedir: () => home, platform: () => 'win32' } : require(name));
+    installBridge(home);
     jest.isolateModules(() => {
         fabric = require('../fabric');
     });
@@ -40,7 +41,7 @@ beforeEach(() => {
 
 afterEach(() => {
     fs.rmSync(home, { recursive: true, force: true });
-    delete window.require;
+    removeBridge();
 });
 
 it('lists stable Minecraft versions unless snapshots are asked for', async () => {

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { managedFileNames } from './modrinthMods';
-import { AdmZip, Buffer, crypto, fs, path } from './node';
+import { crypto, fs, path, zip } from './node';
 import { defaultGameDir } from './paths';
 
 // Every function below works on a game folder passed in as `gameDir`, so the same
@@ -112,7 +112,7 @@ function clearFolder(category, gameDir) {
 // a `sha256` for the version, the download must match it.
 export async function installBundle(category, version, gameDir = defaultGameDir) {
     const response = await axios.get(version.url, { responseType: 'arraybuffer' });
-    const data = Buffer.from(response.data);
+    const data = new Uint8Array(response.data);
     if (version.sha256 && sha256(data) !== version.sha256.toLowerCase()) {
         throw new Error(`The download of ${version.id} is corrupt (its checksum doesn't match).`);
     }
@@ -120,13 +120,14 @@ export async function installBundle(category, version, gameDir = defaultGameDir)
     const staging = path.join(stateDir(category, gameDir), 'staging');
     fs.rmSync(staging, { recursive: true, force: true });
     try {
-        let zip;
         try {
-            zip = new AdmZip(data);
-        } catch {
-            throw new Error(`The download of ${version.id} is not a valid zip.`);
+            zip.extract(data, staging);
+        } catch (error) {
+            if (/not a valid zip/i.test(error.message)) {
+                throw new Error(`The download of ${version.id} is not a valid zip.`, { cause: error });
+            }
+            throw error;
         }
-        zip.extractAllTo(staging, true);
 
         if (category.backupFolder) {
             backupFolder(category, gameDir);

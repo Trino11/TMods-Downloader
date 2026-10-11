@@ -1,19 +1,10 @@
-// Where Minecraft lives on this computer.
-import { os, path } from './node';
+// Where Minecraft lives on this computer. The main process works it out (bridge.js), since
+// it's also the only folder the page is allowed to touch.
+import { minecraftDir as launcherDir } from './node';
 
-// The official launcher's own folder on each OS: its profile files
-// (launcher_profiles.json), installed versions, and the default game folder.
-export function gameDirFor(platform, home) {
-    if (platform === 'win32') {
-        return path.join(home, 'AppData', 'Roaming', '.minecraft');
-    }
-    if (platform === 'darwin') {
-        return path.join(home, 'Library', 'Application Support', 'minecraft');
-    }
-    return path.join(home, '.minecraft');
-}
-
-export const defaultGameDir = gameDirFor(os.platform(), os.homedir());
+// The official launcher's own folder: its profile files, installed versions, and the
+// default game folder.
+export const defaultGameDir = launcherDir;
 
 export function minecraftDir() {
     return defaultGameDir;
