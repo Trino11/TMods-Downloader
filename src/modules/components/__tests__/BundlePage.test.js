@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import BundlePage from '../pages/bundle/BundlePage';
 import categories from '../../categories';
 import { fetchVersions } from '../../services/manifest';
-import { listBackups, readInstalledVersion, restoreBackup } from '../../services/bundleInstaller';
+import { installBundle, listBackups, readInstalledVersion, restoreBackup } from '../../services/bundleInstaller';
 
 jest.mock('../../services/manifest', () => ({ fetchVersions: jest.fn() }));
 jest.mock('../../services/bundleInstaller', () => ({
@@ -58,4 +58,31 @@ it('has no backups section for categories that are never backed up', () => {
     render(<BundlePage category={categories.find(c => c.id === 'shaderpacks')} />);
 
     expect(screen.queryByText('Backups')).not.toBeInTheDocument();
+});
+
+it('shows an error when the version list cannot be loaded', async () => {
+    fetchVersions.mockRejectedValue(new Error('Network Error'));
+    render(<BundlePage category={mods} />);
+
+    expect(await screen.findByText('Could not load the list of versions: Network Error')).toBeInTheDocument();
+});
+
+it('shows an error when an install fails', async () => {
+    fetchVersions.mockResolvedValue([{ id: '2.0', url: 'https://example.com/mods.zip' }]);
+    installBundle.mockRejectedValue(new Error('Request failed with status code 404'));
+    render(<BundlePage category={mods} gameDir='/games/fabric' />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /download/i }));
+
+    expect(await screen.findByText('Could not install 2.0: Request failed with status code 404')).toBeInTheDocument();
+});
+
+it('shows an error when a restore fails', () => {
+    listBackups.mockReturnValue([backup]);
+    restoreBackup.mockImplementation(() => { throw new Error('EBUSY: resource busy'); });
+    render(<BundlePage category={mods} />);
+
+    fireEvent.click(screen.getByText('Restore'));
+
+    expect(screen.getByText('Could not restore the backup: EBUSY: resource busy')).toBeInTheDocument();
 });

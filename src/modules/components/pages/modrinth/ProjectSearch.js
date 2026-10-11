@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
@@ -28,9 +28,13 @@ function ProjectSearch({ filters, placeholder, action }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const filterKey = JSON.stringify(filters);
+    // Bumped on every new search, so a "More" request that finishes after the query
+    // changed is dropped instead of mixing old results into the new list.
+    const searchId = useRef(0);
 
     useEffect(() => {
         let cancelled = false;
+        searchId.current++;
         const timer = setTimeout(() => {
             setLoading(true);
             setError('');
@@ -46,14 +50,21 @@ function ProjectSearch({ filters, placeholder, action }) {
     }, [query, filterKey]);
 
     async function loadMore() {
+        const id = searchId.current;
         setLoading(true);
         try {
             const more = await search({ ...filters, query, offset: results.hits.length });
-            setResults({ hits: [...results.hits, ...more.hits], total: more.total });
+            if (id === searchId.current) {
+                setResults(current => ({ hits: [...current.hits, ...more.hits], total: more.total }));
+            }
         } catch (searchError) {
-            setError(`Could not search Modrinth: ${searchError.message}`);
+            if (id === searchId.current) {
+                setError(`Could not search Modrinth: ${searchError.message}`);
+            }
         } finally {
-            setLoading(false);
+            if (id === searchId.current) {
+                setLoading(false);
+            }
         }
     }
 

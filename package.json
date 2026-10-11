@@ -7,7 +7,7 @@
   "private": true,
   "homepage": "./",
   "scripts": {
-    "start": "concurrently -k \"npm run start-react\" \"npm run start-electron\"",
+    "start": "npm run build-react && concurrently -k \"npm run start-react\" \"npm run start-electron -- --dev\"",
     "start-react": "vite",
     "start-electron": "electron .",
     "build": "npm run build-react && npm run dist",

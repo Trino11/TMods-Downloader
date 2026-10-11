@@ -138,7 +138,7 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
                 await updateMod(gameDir, mod.projectId, version);
             }
             const done = new Set(selected.map(update => update.mod.projectId));
-            setUpdates(updates.filter(update => !done.has(update.mod.projectId)));
+            setUpdates(current => current.filter(update => !done.has(update.mod.projectId)));
             return `Updated ${selected.map(update => update.mod.title).join(', ')}.`;
         });
     }
