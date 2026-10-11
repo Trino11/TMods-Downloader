@@ -5,10 +5,8 @@
 // vanilla version and lists Fabric's libraries with their Maven urls, so the launcher
 // downloads both the first time the profile is played.
 import axios from 'axios';
-import { minecraftDir } from './profiles';
-
-const fs = window.require('fs');
-const path = window.require('path');
+import { minecraftDir } from './paths';
+import { fs, path } from './node';
 
 export const META_URL = 'https://meta.fabricmc.net/v2';
 

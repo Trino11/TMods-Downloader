@@ -1,16 +1,11 @@
 import axios from 'axios';
 import { managedFileNames } from './modrinthMods';
-
-const fs = window.require('fs');
-const os = window.require('os');
-const path = window.require('path');
-const { Buffer } = window.require('buffer');
-const AdmZip = window.require('adm-zip');
+import { AdmZip, Buffer, fs, path } from './node';
+import { defaultGameDir } from './paths';
 
 // Every function below works on a game folder passed in as `gameDir`, so the same
 // install, backup and restore logic applies to any profile folder. It defaults to
 // the standard .minecraft folder.
-export const defaultGameDir = path.join(os.homedir(), 'AppData', 'Roaming', '.minecraft');
 
 // How many backups each category keeps; older ones are deleted after a new one is made.
 export const MAX_BACKUPS = 5;

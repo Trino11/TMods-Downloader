@@ -13,11 +13,7 @@ import {
     readModList,
     writeFileSafely,
 } from './modrinthMods';
-
-const fs = window.require('fs');
-const path = window.require('path');
-const { Buffer } = window.require('buffer');
-const AdmZip = window.require('adm-zip');
+import { AdmZip, Buffer, fs, path } from './node';
 
 const INDEX_FILE = 'modrinth.index.json';
 

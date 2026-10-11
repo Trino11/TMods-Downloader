@@ -4,10 +4,8 @@
 //
 // The app's profile list lives in localStorage (like the other settings) and is the
 // source of truth: the launcher entries are rewritten from it whenever they drift.
-import { defaultGameDir } from './bundleInstaller';
-
-const fs = window.require('fs');
-const path = window.require('path');
+import { minecraftDir } from './paths';
+import { fs, path } from './node';
 
 const PROFILES_KEY = 'tmods.profiles';
 const ACTIVE_KEY = 'tmods.activeProfile';
@@ -24,11 +22,6 @@ const LAUNCHER_FILES = ['launcher_profiles.json', 'launcher_profiles_microsoft_s
 // Version ids the launcher resolves on its own, so they work without anything installed.
 export const LATEST_RELEASE = 'latest-release';
 export const LATEST_SNAPSHOT = 'latest-snapshot';
-
-// The official launcher's own folder, where its profile files and versions live.
-export function minecraftDir() {
-    return defaultGameDir;
-}
 
 function profilesRoot() {
     return path.join(minecraftDir(), 'tmods_profiles');

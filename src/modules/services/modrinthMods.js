@@ -12,11 +12,7 @@ import {
     primaryFile,
     versionsFromHashes,
 } from './modrinth';
-
-const fs = window.require('fs');
-const path = window.require('path');
-const crypto = window.require('crypto');
-const { Buffer } = window.require('buffer');
+import { Buffer, crypto, fs, path } from './node';
 
 const DISABLED_SUFFIX = '.disabled';
 
