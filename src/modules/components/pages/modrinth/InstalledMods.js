@@ -3,7 +3,47 @@ import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { ItemList, ItemRow } from '../../utils/ItemList';
+
+// A mod's compatibility problems, each with its one-click fix when there is one.
+function Problems({ problems, busy, onFix }) {
+    return problems.map(problem => (
+        <Stack
+            key={`${problem.kind}:${problem.message}`}
+            direction='row'
+            spacing={1}
+            useFlexGap
+            sx={{ alignItems: 'center', flexWrap: 'wrap', color: 'warning.main' }}
+        >
+            <WarningAmberIcon fontSize='small' />
+            <Typography variant='body2'>{problem.message}</Typography>
+            {problem.fix && (
+                <Button size='small' color='warning' disabled={busy} onClick={() => onFix(problem)}>
+                    {problem.fix.label}
+                </Button>
+            )}
+        </Stack>
+    ));
+}
+
+function CompatSummary({ compat }) {
+    if (compat.status === 'error') {
+        return <Alert severity='warning'>Could not check compatibility: {compat.error}</Alert>;
+    }
+    if (compat.status !== 'done') {
+        return null;
+    }
+    const count = compat.problems.length;
+    return count === 0 ? (
+        <Alert severity='success'>No compatibility problems found.</Alert>
+    ) : (
+        <Alert severity='warning'>
+            {count === 1 ? '1 compatibility problem' : `${count} compatibility problems`} found. They are listed under
+            each mod below.
+        </Alert>
+    );
+}
 
 // The mods TMods installed in this profile, plus jars added by hand.
 function InstalledMods({
@@ -18,8 +58,12 @@ function InstalledMods({
     onToggle,
     onRemove,
     onAdopt,
+    compat,
+    onCheckCompat,
+    onFix,
 }) {
     const updateFor = new Map(updates.map(update => [update.mod.projectId, update.version]));
+    const problemsFor = key => compat.problems.filter(p => (p.mod.tracked ? p.mod.projectId : p.mod.fileName) === key);
 
     return (
         <Stack spacing={3}>
@@ -31,12 +75,20 @@ function InstalledMods({
                 >
                     Check for updates
                 </Button>
+                <Button
+                    variant='outlined'
+                    disabled={busy || !canCheckUpdates || compat.status === 'checking'}
+                    onClick={onCheckCompat}
+                >
+                    {compat.status === 'checking' ? 'Checking compatibility…' : 'Check compatibility'}
+                </Button>
                 {updates.length > 0 && (
                     <Button variant='contained' color='success' disabled={busy} onClick={onUpdateAll}>
                         Update all ({updates.length})
                     </Button>
                 )}
             </Stack>
+            {(mods.length > 0 || unmanaged.length > 0) && <CompatSummary compat={compat} />}
             {mods.length === 0 ? (
                 <Typography sx={{ color: 'text.secondary' }}>
                     No mods from Modrinth in this profile yet. Find some under Search mods.
@@ -92,6 +144,7 @@ function InstalledMods({
                                         Update available: {update.version_number}
                                     </Typography>
                                 )}
+                                <Problems problems={problemsFor(mod.projectId)} busy={busy} onFix={onFix} />
                             </ItemRow>
                         );
                     })}
@@ -120,6 +173,7 @@ function InstalledMods({
                                 <Typography component='code' variant='body2'>
                                     {name}
                                 </Typography>
+                                <Problems problems={problemsFor(name)} busy={busy} onFix={onFix} />
                             </ItemRow>
                         ))}
                     </ItemList>
