@@ -1,5 +1,13 @@
 import axios from 'axios';
-import { fetchLatestVersions, fetchVersions, latestVersion, validateManifestUrl } from '../manifest';
+import {
+    changelogEntries,
+    fetchChannelUpdates,
+    fetchLatestVersions,
+    fetchVersions,
+    latestVersion,
+    validateManifestUrl,
+    versionsSince,
+} from '../manifest';
 import { setManifestUrl } from '../settings';
 
 jest.mock('axios', () => ({ get: jest.fn() }));
@@ -95,4 +103,44 @@ it('fetchLatestVersions reads the manifest once for every category', async () =>
 
     await expect(fetchLatestVersions(['mods', 'configs'])).resolves.toEqual({ mods: { id: '1.0' }, configs: null });
     expect(axios.get).toHaveBeenCalledTimes(1);
+});
+
+describe('changelogs', () => {
+    const v3 = { id: '3.0', changelog: 'Adds shaders' };
+    const v2 = { id: '2.0', changelog: '  ' };
+    const v1 = { id: '1.0', changelog: 'First' };
+    const manifest = { versions: { mods: [v3, v2, v1] } };
+
+    it('lists the versions newer than the installed one, newest first', () => {
+        expect(versionsSince(manifest, 'mods', '1.0')).toEqual([v3, v2]);
+        expect(versionsSince(manifest, 'mods', '2.0')).toEqual([v3]);
+    });
+
+    it('stops at the version the manifest names as latest', () => {
+        expect(versionsSince({ ...manifest, latest: { mods: '2.0' } }, 'mods', '1.0')).toEqual([v2]);
+    });
+
+    it('falls back to the latest version when the installed one is not listed', () => {
+        expect(versionsSince(manifest, 'mods', '')).toEqual([v3]);
+        expect(versionsSince(manifest, 'mods', 'gone')).toEqual([v3]);
+        expect(versionsSince(manifest, 'shaderpacks', '1.0')).toEqual([]);
+    });
+
+    it('keeps only versions with a text changelog', () => {
+        expect(changelogEntries([v3, v2, { id: '0.9', changelog: { html: '<b>x</b>' } }, { id: '0.8' }])).toEqual([
+            { id: '3.0', label: '3.0', text: 'Adds shaders' },
+        ]);
+    });
+
+    it('fetchChannelUpdates returns the latest version and the changelogs since the installed one', async () => {
+        axios.get.mockReset();
+        axios.get.mockResolvedValue({ data: manifest });
+        setManifestUrl('https://example.com/manifest.json');
+
+        await expect(fetchChannelUpdates({ mods: '1.0', configs: '' })).resolves.toEqual({
+            mods: { latest: v3, changes: [{ id: '3.0', label: '3.0', text: 'Adds shaders' }] },
+            configs: { latest: null, changes: [] },
+        });
+        await expect(fetchChannelUpdates({ mods: '3.0' })).resolves.toEqual({ mods: { latest: v3, changes: [] } });
+    });
 });

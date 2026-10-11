@@ -1,8 +1,8 @@
 import { checkChannels, installChannelUpdates } from '../channelUpdates';
-import { fetchLatestVersions } from '../manifest';
+import { fetchChannelUpdates } from '../manifest';
 import { installBundle, readInstalledVersion } from '../bundleInstaller';
 
-jest.mock('../manifest', () => ({ fetchLatestVersions: jest.fn() }));
+jest.mock('../manifest', () => ({ fetchChannelUpdates: jest.fn() }));
 jest.mock('../bundleInstaller', () => ({ installBundle: jest.fn(), readInstalledVersion: jest.fn() }));
 
 const mods = { id: 'mods', label: 'Mods' };
@@ -12,17 +12,28 @@ const installed = { mods: '1.0', configs: '2.0', shaderpacks: '' };
 
 beforeEach(() => {
     readInstalledVersion.mockImplementation(category => installed[category.id]);
-    fetchLatestVersions.mockResolvedValue({ mods: { id: '1.1' }, configs: { id: '2.0' }, shaderpacks: null });
+    fetchChannelUpdates.mockResolvedValue({
+        mods: { latest: { id: '1.1' }, changes: [{ id: '1.1', label: '1.1', text: 'Adds Sodium' }] },
+        configs: { latest: { id: '2.0' }, changes: [] },
+        shaderpacks: { latest: null, changes: [] },
+    });
 });
 
 it('marks the channels whose latest version is not installed', async () => {
     const statuses = await checkChannels([mods, configs, shaders], '/games/a');
 
     expect(readInstalledVersion).toHaveBeenCalledWith(mods, '/games/a');
+    expect(fetchChannelUpdates).toHaveBeenCalledWith({ mods: '1.0', configs: '2.0', shaderpacks: '' });
     expect(statuses).toEqual([
-        { category: mods, installed: '1.0', latest: { id: '1.1' }, outdated: true },
-        { category: configs, installed: '2.0', latest: { id: '2.0' }, outdated: false },
-        { category: shaders, installed: '', latest: null, outdated: false },
+        {
+            category: mods,
+            installed: '1.0',
+            latest: { id: '1.1' },
+            outdated: true,
+            changes: [{ id: '1.1', label: '1.1', text: 'Adds Sodium' }],
+        },
+        { category: configs, installed: '2.0', latest: { id: '2.0' }, outdated: false, changes: [] },
+        { category: shaders, installed: '', latest: null, outdated: false, changes: [] },
     ]);
 });
 

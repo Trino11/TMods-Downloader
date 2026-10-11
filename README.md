@@ -50,19 +50,25 @@ manifest URL set on first launch. It lists zips per category:
         "url": "https://example.com/mods-1.2.0.zip",
         "sha256": "…",
         "target": "Fabric 1.21.1",
-        "description": "Adds Sodium"
+        "description": "Adds Sodium",
+        "changelog": "- Added Sodium\n- Updated Fabric API"
       }
     ]
   }
 }
 ```
 
-`sha256`, `target` (shown on the Mods page) and `description` are optional. With `sha256`, a download that doesn't match it is refused before
+`sha256`, `target` (shown on the Mods page), `description` and `changelog` are optional. With `sha256`, a download that doesn't match it is refused before
 anything is installed.
 
 The Home page checks every category for updates and installs the latest with one click.
 An optional top-level `"latest": { "mods": "1.2.0" }` names the latest version of a
-category; without it, the first version listed is taken as the latest.
+category; without it, the first version listed is taken as the latest. List versions
+newest first: when an update is available, Home shows the `changelog` of every version
+between the installed one and the latest. Changelogs are shown as plain text.
+
+The Modrinth page and Home also show each mod update's changelog, as its author wrote it
+on Modrinth, before you update.
 
 You don't have to write the manifest or host the zips yourself: the
 [publish-bundles](publish-bundles/README.md) GitHub Action builds both from a folder in a

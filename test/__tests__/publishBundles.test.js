@@ -2,7 +2,7 @@ jest.mock('axios', () => ({ get: jest.fn() }));
 
 const axios = require('axios');
 const categories = require('../../src/modules/categories').default;
-const { latestVersion } = require('../../src/modules/services/manifest');
+const { changelogOf, latestVersion } = require('../../src/modules/services/manifest');
 const { realmSafeAdmZip } = require('../../src/modules/services/__fixtures__/modrinthFake');
 
 const crypto = require('crypto');
@@ -63,6 +63,7 @@ describe('buildBundles', () => {
         });
         expect(manifest.versions.mods[1].changelog).toBe('First pack.');
         expect(latestVersion(manifest, 'mods').id).toBe('1.10.0');
+        expect(changelogOf(latestVersion(manifest, 'mods'))).toBe('- Added Lithium\n- Updated Sodium to 0.6');
         expect(uploads.map(upload => upload.name)).toEqual([
             'mods-1.10.0.zip',
             'mods-1.9.0.zip',
