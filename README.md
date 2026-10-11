@@ -1,18 +1,47 @@
 # Releasing
 
-Builds run on GitHub Actions (`.github/workflows/build.yml`) on a Windows runner.
-Every pull request to `main` runs the tests (`npm test`), then builds the installer and
-keeps it as a workflow artifact. The build only starts once the tests pass, so a failing
-test never publishes a release.
+Builds run on GitHub Actions (`.github/workflows/build.yml`) on Windows, macOS and Linux
+runners. Every pull request to `main` runs the tests (`npm test`), then builds all three
+and keeps them as workflow artifacts. The builds only start once the tests pass, so a
+failing test never publishes a release.
 
 To publish a new version:
 
 1. Bump `version` in `package.json` (the UI reads it from there).
 2. Commit, then push a matching tag, e.g. `git tag v0.3.2 && git push origin v0.3.2`.
 
-The workflow fails if the tag does not match `package.json`. Otherwise it creates the
-GitHub Release with `Tmods-Downloader.exe`, its `.blockmap` and `latest.yml`. Installed
-apps check that release through electron-updater and update themselves.
+The workflow fails if the tag does not match `package.json`. Otherwise, once all three
+builds succeed, it creates one GitHub Release with:
+
+- Windows: `Tmods-Downloader.exe`, its `.blockmap` and `latest.yml`.
+- macOS: `Tmods-Downloader-mac.dmg` and `Tmods-Downloader-mac.zip` (universal, for Intel
+  and Apple Silicon), their `.blockmap`s and `latest-mac.yml`.
+- Linux: `Tmods-Downloader.AppImage` and `latest-linux.yml`.
+
+Installed Windows and Linux (AppImage) apps check that release through electron-updater
+and update themselves.
+
+## macOS builds are unsigned
+
+The Mac app isn't signed or notarized, because that needs a paid Apple Developer account.
+So:
+
+- The first time, macOS refuses to open it with a double-click. Right-click the app (or
+  Control-click), choose **Open**, then **Open** again. After that it opens normally. On
+  recent macOS versions you may instead need **System Settings › Privacy & Security ›
+  Open Anyway**.
+- It doesn't update itself, since macOS only installs updates for signed apps. Download
+  the new `.dmg` from the release instead. Signing and auto-updates can be added later
+  with an Apple Developer account.
+
+## Game folder per OS
+
+TMods uses the official Minecraft Launcher's folder, where `launcher_profiles.json` and
+the installed versions live:
+
+- Windows: `%APPDATA%\.minecraft`
+- macOS: `~/Library/Application Support/minecraft`
+- Linux: `~/.minecraft`
 
 # Development
 
@@ -34,7 +63,8 @@ Services reach it only through `src/modules/services/node.js`, never `window.tmo
 - `npm test` runs the Jest tests (files in `__tests__` folders).
 - `npm run lint` runs ESLint (with the React hooks rules) and checks Prettier formatting;
   CI runs it before the tests. `npm run format` fixes formatting.
-- `npm run dist` packages the Windows installer into `dist/` with electron-builder.
+- `npm run dist` packages the app for the OS you run it on into `dist/` with electron-builder
+  (`npx electron-builder --win`, `--mac` or `--linux` picks one).
 
 # Modrinth
 
@@ -57,16 +87,22 @@ manifest URL set on first launch. It lists zips per category:
         "url": "https://example.com/mods-1.2.0.zip",
         "sha256": "…",
         "target": "Fabric 1.21.1",
-        "description": "Adds Sodium"
+        "description": "Adds Sodium",
+        "changelog": "- Added Sodium\n- Updated Fabric API"
       }
     ]
   }
 }
 ```
 
-`sha256`, `target` (shown on the Mods page) and `description` are optional. With `sha256`, a download that doesn't match it is refused before
+`sha256`, `target` (shown on the Mods page), `description` and `changelog` are optional. With `sha256`, a download that doesn't match it is refused before
 anything is installed.
 
 The Home page checks every category for updates and installs the latest with one click.
 An optional top-level `"latest": { "mods": "1.2.0" }` names the latest version of a
-category; without it, the first version listed is taken as the latest.
+category; without it, the first version listed is taken as the latest. List versions
+newest first: when an update is available, Home shows the `changelog` of every version
+between the installed one and the latest. Changelogs are shown as plain text.
+
+The Modrinth page and Home also show each mod update's changelog, as its author wrote it
+on Modrinth, before you update.

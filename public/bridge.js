@@ -10,9 +10,17 @@
 const HASH_ALGORITHMS = ['sha1', 'sha256', 'sha512'];
 const HTTP_METHODS = ['GET', 'HEAD', 'POST'];
 
-// Where the official launcher keeps the game. Profiles TMods makes live inside it too.
-function defaultMinecraftDir(path, homedir) {
-    return path.join(homedir, 'AppData', 'Roaming', '.minecraft');
+// Where the official launcher keeps the game on each OS: its profile files
+// (launcher_profiles.json), installed versions, and the default game folder. Profiles
+// TMods makes live inside it too.
+function defaultMinecraftDir(path, platform, homedir) {
+    if (platform === 'win32') {
+        return path.join(homedir, 'AppData', 'Roaming', '.minecraft');
+    }
+    if (platform === 'darwin') {
+        return path.join(homedir, 'Library', 'Application Support', 'minecraft');
+    }
+    return path.join(homedir, '.minecraft');
 }
 
 // IPC hands binary data over as Uint8Array or ArrayBuffer; Node APIs want Buffers.

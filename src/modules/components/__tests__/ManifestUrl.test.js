@@ -21,6 +21,11 @@ jest.mock('../../services/profiles', () => ({
     setActiveProfile: jest.fn(),
     syncLauncherProfiles: jest.fn(),
 }));
+jest.mock('../../services/logs', () => ({
+    getLogPath: () => Promise.resolve('/logs/main.log'),
+    openLogFile: jest.fn(),
+    showLogInFolder: jest.fn(),
+}));
 jest.mock('../enclosing/navbar', () => () => <nav>navbar</nav>);
 jest.mock('../pages/modrinth/ModrinthPage', () => () => <div>modrinth</div>);
 jest.mock('../pages/home/home', () => () => <div>home</div>);
@@ -137,11 +142,12 @@ describe('Settings page', () => {
             }),
         );
         render(<Settings />);
+        const save = screen.getByRole('button', { name: 'Save' });
 
-        fireEvent.click(screen.getByRole('button'));
+        fireEvent.click(save);
 
         await waitFor(() => expect(urlInput()).toBeDisabled());
-        expect(screen.getByRole('button')).toBeDisabled();
+        expect(save).toBeDisabled();
 
         finish();
         expect(await screen.findByText('Saved.')).toBeInTheDocument();

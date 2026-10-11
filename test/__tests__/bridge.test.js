@@ -28,8 +28,14 @@ const call = (method, ...args) => bridge.call(method, args);
 const inGame = (...parts) => path.join(minecraftDir, ...parts);
 
 describe('defaultMinecraftDir', () => {
-    it("is the launcher's folder in the roaming AppData", () => {
-        expect(defaultMinecraftDir(path.win32, 'C:\\Users\\me')).toBe('C:\\Users\\me\\AppData\\Roaming\\.minecraft');
+    it("is the launcher's folder on each OS", () => {
+        expect(defaultMinecraftDir(path.win32, 'win32', 'C:\\Users\\me')).toBe(
+            'C:\\Users\\me\\AppData\\Roaming\\.minecraft',
+        );
+        expect(defaultMinecraftDir(path.posix, 'darwin', '/Users/me')).toBe(
+            '/Users/me/Library/Application Support/minecraft',
+        );
+        expect(defaultMinecraftDir(path.posix, 'linux', '/home/me')).toBe('/home/me/.minecraft');
     });
 });
 

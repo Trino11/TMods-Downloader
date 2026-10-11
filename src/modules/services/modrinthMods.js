@@ -249,6 +249,23 @@ export async function checkUpdates(gameDir, target) {
         .map(mod => ({ mod, version: latest[mod.sha1] }));
 }
 
+// What updating `mod` to `latest` brings, as changelog entries newest first: every
+// version of the project for `target` published after the installed one, up to
+// `latest`. When the installed version isn't in that list (it was for another game
+// version, say), only `latest` is shown. Changelogs are the authors' Markdown.
+export async function updateChangelog(mod, latest, target) {
+    const versions = await getProjectVersions(mod.projectId, target);
+    const from = versions.findIndex(version => version.id === latest.id);
+    const to = versions.findIndex(version => version.id === mod.versionId);
+    const changes = from !== -1 && to > from ? versions.slice(from, to) : [latest];
+    return changes.map(version => ({
+        id: version.id,
+        label: version.version_number || version.name || version.id,
+        text: typeof version.changelog === 'string' ? version.changelog.trim() : '',
+        date: version.date_published,
+    }));
+}
+
 // Replaces a tracked mod's jar with `version`, keeping it enabled or disabled as it was.
 export async function updateMod(gameDir, projectId, version) {
     const list = readModList(gameDir);

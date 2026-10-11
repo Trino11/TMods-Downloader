@@ -78,6 +78,12 @@ function startAutoUpdates(autoUpdater, log, schedule = setInterval) {
     return schedule(check, UPDATE_CHECK_INTERVAL_MS);
 }
 
+// macOS only installs updates for apps signed with a paid Apple Developer ID, and the
+// Mac builds are unsigned, so they skip update checks rather than fail on every one.
+function canAutoUpdate(platform) {
+    return platform !== 'darwin';
+}
+
 // The window opens at this share of the screen's work area (the screen minus the taskbar)...
 const DEFAULT_SCREEN_SHARE = 0.8;
 // ...and can't be made smaller than this, the smallest size the pages are laid out for.
@@ -158,7 +164,43 @@ function saveWindowState(fs, file, window) {
     }
 }
 
+// IPC channels the Settings page uses to show the app's log file.
+const LOG_CHANNELS = {
+    getPath: 'logs:get-path',
+    openFile: 'logs:open-file',
+    showInFolder: 'logs:show-in-folder',
+};
+
+// Lets the page find and open the log file, which it can't do itself: opening a file
+// in the system's default app is the main process's job. logFile() returns its path.
+// Each handler resolves to an error message, or '' when it worked.
+function registerLogHandlers(ipcMain, shell, fs, path, logFile) {
+    ipcMain.handle(LOG_CHANNELS.getPath, () => logFile());
+    ipcMain.handle(LOG_CHANNELS.openFile, async () => {
+        const file = logFile();
+        if (!fs.existsSync(file)) {
+            return `There is no log file yet at ${file}.`;
+        }
+        // openPath resolves to an error message, or '' on success.
+        return shell.openPath(file);
+    });
+    ipcMain.handle(LOG_CHANNELS.showInFolder, async () => {
+        const file = logFile();
+        if (fs.existsSync(file)) {
+            shell.showItemInFolder(file);
+            return '';
+        }
+        const folder = path.dirname(file);
+        if (!fs.existsSync(folder)) {
+            return `There is no log folder yet at ${folder}.`;
+        }
+        return shell.openPath(folder);
+    });
+}
+
 module.exports = {
+    LOG_CHANNELS,
+    registerLogHandlers,
     DEV_SERVER_URL,
     UPDATE_CHECK_INTERVAL_MS,
     MIN_WINDOW_SIZE,
@@ -167,6 +209,7 @@ module.exports = {
     CONTENT_SECURITY_POLICY,
     isAppUrl,
     externalLinkHandler,
+    canAutoUpdate,
     startAutoUpdates,
     defaultWindowBounds,
     initialWindowState,

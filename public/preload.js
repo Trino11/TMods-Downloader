@@ -18,7 +18,16 @@ function call(method, args) {
 // The main process lists its calls, so this file never needs to change when one is added:
 // "fs.readFile" becomes window.tmods.fs.readFile(...).
 const { methods, ...info } = ipcRenderer.sendSync('tmods:info');
-const api = { ...info, http: request => ipcRenderer.invoke('tmods:http', request) };
+const api = {
+    ...info,
+    http: request => ipcRenderer.invoke('tmods:http', request),
+    // The Settings page's log file buttons (LOG_CHANNELS in mainProcess.js).
+    logs: {
+        getPath: () => ipcRenderer.invoke('logs:get-path'),
+        openFile: () => ipcRenderer.invoke('logs:open-file'),
+        showInFolder: () => ipcRenderer.invoke('logs:show-in-folder'),
+    },
+};
 for (const method of methods) {
     const [group, name] = method.split('.');
     api[group] = api[group] || {};

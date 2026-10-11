@@ -7,7 +7,7 @@ import { createProfile, listGameVersions, updateProfile } from '../../services/p
 import { fetchMojangVersions } from '../../services/gameVersions';
 import { installFabric, listFabricGameVersions } from '../../services/fabric';
 import { detectTarget } from '../../services/gameTarget';
-import { checkUpdates, readModList, setTargetVersion, updateMod } from '../../services/modrinthMods';
+import { checkUpdates, readModList, setTargetVersion, updateChangelog, updateMod } from '../../services/modrinthMods';
 
 jest.mock('axios', () => ({ get: jest.fn() }));
 jest.mock('../../services/channelUpdates', () => ({ checkChannels: jest.fn(), installChannelUpdates: jest.fn() }));
@@ -30,6 +30,7 @@ jest.mock('../../services/modrinthMods', () => ({
     checkUpdates: jest.fn(),
     readModList: jest.fn(),
     setTargetVersion: jest.fn(),
+    updateChangelog: jest.fn(),
     updateMod: jest.fn(),
 }));
 
@@ -167,4 +168,35 @@ it('sets Fabric as the Modrinth target of the default profile', async () => {
     expect(await screen.findByText(/Pick it in the Minecraft Launcher/)).toBeInTheDocument();
     expect(setTargetVersion).toHaveBeenCalledWith('/games/default', 'fabric-loader-0.16.5-1.21.1');
     expect(updateProfile).not.toHaveBeenCalled();
+});
+
+it('shows the changelogs of channel and Modrinth updates', async () => {
+    checkChannels.mockResolvedValue([
+        {
+            category: { ...mods, icon: () => null },
+            installed: '1.0',
+            latest: { id: '1.2' },
+            outdated: true,
+            changes: [
+                { id: '1.2', label: '1.2', text: 'Adds Iris' },
+                { id: '1.1', label: '1.1', text: 'Adds Sodium' },
+            ],
+        },
+    ]);
+    checkUpdates.mockResolvedValue([sodium]);
+    updateChangelog.mockResolvedValue([{ id: 'v2', label: '0.6.1', text: 'Fixes a crash' }]);
+    renderHome();
+
+    await screen.findByText('Sodium');
+    const [channelButton, modButton] = screen.getAllByRole('button', { name: "What's new" });
+
+    fireEvent.click(channelButton);
+    expect(await screen.findByText('Adds Iris')).toBeInTheDocument();
+    expect(screen.getByText('Adds Sodium')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    fireEvent.click(modButton);
+    expect(await screen.findByText('Fixes a crash')).toBeInTheDocument();
+    expect(screen.getByText('Sodium 0.6.1')).toBeInTheDocument();
+    expect(updateChangelog).toHaveBeenCalledWith(sodium.mod, sodium.version, target);
 });

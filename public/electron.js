@@ -11,9 +11,11 @@ const {
     DEV_SERVER_URL,
     MIN_WINDOW_SIZE,
     externalLinkHandler,
+    canAutoUpdate,
     initialWindowState,
     isAppUrl,
     loadWindowState,
+    registerLogHandlers,
     saveWindowState,
     startAutoUpdates,
     tmodsUserAgent,
@@ -83,7 +85,7 @@ function listenToPage() {
         crypto,
         AdmZip,
         platform: process.platform,
-        minecraftDir: defaultMinecraftDir(path, os.homedir()),
+        minecraftDir: defaultMinecraftDir(path, process.platform, os.homedir()),
     });
     const http = createHttp(net.fetch, tmodsUserAgent(app.getVersion()));
     const fromApp = event => Boolean(event.senderFrame) && isAppUrl(event.senderFrame.url, appUrl);
@@ -117,9 +119,12 @@ app.on('web-contents-created', (event, contents) => {
 app.whenReady().then(() => {
     session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => callback(false));
     listenToPage();
+    registerLogHandlers(ipcMain, shell, fs, path, () => log.transports.file.getFile().path);
+    // One line per start, so the log file exists for the Settings page to open.
+    log.info(`TMods Downloader ${app.getVersion()} started`);
     createWindow();
     // There are no releases to update to from a development checkout.
-    if (app.isPackaged) {
+    if (app.isPackaged && canAutoUpdate(process.platform)) {
         log.transports.file.level = 'info';
         startAutoUpdates(autoUpdater, log);
     }

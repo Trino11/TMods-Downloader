@@ -61,6 +61,14 @@ export const minecraftDir = bridge?.minecraftDir;
 // The page's web requests are made by the main process, so CORS doesn't apply.
 export const http = request => bridge.http(request);
 
+// Finding and opening the app's log file (Settings). Each call resolves to the log's
+// path or, for the opening ones, an error message ('' when it worked).
+export const logs = {
+    getPath: () => bridge.logs.getPath(),
+    openFile: () => bridge.logs.openFile(),
+    showInFolder: () => bridge.logs.showInFolder(),
+};
+
 export function bytesToText(bytes) {
     return new TextDecoder('utf-8').decode(bytes);
 }
