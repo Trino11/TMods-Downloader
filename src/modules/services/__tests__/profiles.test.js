@@ -171,7 +171,10 @@ describe('ensureTModsProfile', () => {
         expect(profiles.listProfiles().map(p => p.id)).toEqual(['default', 'tmods']);
         expect(profiles.getActiveProfile().id).toBe('tmods');
         expect(fs.existsSync(profiles.profileGameDir(profile))).toBe(true);
-        expect(readLauncherFile().profiles['tmods-tmods']).toMatchObject({ name: 'TMods', lastVersionId: 'latest-release' });
+        expect(readLauncherFile().profiles['tmods-tmods']).toMatchObject({
+            name: 'TMods',
+            lastVersionId: 'latest-release',
+        });
     });
 
     it('does nothing when a profile already exists', () => {

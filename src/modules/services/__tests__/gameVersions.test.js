@@ -28,8 +28,10 @@ beforeEach(() => {
 });
 
 describe('fetchMojangVersions', () => {
-    it('reads Mojang\'s list and caches it for offline use', async () => {
-        axios.get.mockResolvedValue({ data: { latest: {}, versions: mojang.map(v => ({ ...v, url: 'x', sha1: 'y' })) } });
+    it("reads Mojang's list and caches it for offline use", async () => {
+        axios.get.mockResolvedValue({
+            data: { latest: {}, versions: mojang.map(v => ({ ...v, url: 'x', sha1: 'y' })) },
+        });
 
         await expect(fetchMojangVersions()).resolves.toEqual(mojang);
 
@@ -59,14 +61,20 @@ describe('buildVersionOptions', () => {
         const options = buildVersionOptions(mojang, installed);
 
         expect(options.map(o => o.id)).toEqual([
-            'latest-release', 'latest-snapshot', 'fabric-loader-0.16.5-1.21',
-            '24w14a', '1.21', '1.20.1', 'b1.7.3', 'a1.0.4',
+            'latest-release',
+            'latest-snapshot',
+            'fabric-loader-0.16.5-1.21',
+            '24w14a',
+            '1.21',
+            '1.20.1',
+            'b1.7.3',
+            'a1.0.4',
         ]);
         expect(options.find(o => o.id === '1.20.1')).toEqual({ id: '1.20.1', type: 'release', installed: true });
         expect(options.find(o => o.id === '1.21').installed).toBe(false);
     });
 
-    it('falls back to installed versions when Mojang\'s list is unavailable', () => {
+    it("falls back to installed versions when Mojang's list is unavailable", () => {
         const options = buildVersionOptions([], ['latest-release', 'latest-snapshot', '1.20.1']);
 
         expect(options.map(o => o.id)).toEqual(['latest-release', 'latest-snapshot', '1.20.1']);
@@ -78,7 +86,11 @@ describe('filterVersionOptions', () => {
 
     it('shows releases, aliases and installed versions by default', () => {
         expect(filterVersionOptions(options).map(o => o.id)).toEqual([
-            'latest-release', 'latest-snapshot', 'fabric-loader-0.16.5-1.21', '1.21', '1.20.1',
+            'latest-release',
+            'latest-snapshot',
+            'fabric-loader-0.16.5-1.21',
+            '1.21',
+            '1.20.1',
         ]);
     });
 
@@ -87,12 +99,18 @@ describe('filterVersionOptions', () => {
     });
 
     it('searches anywhere in the id', () => {
-        expect(filterVersionOptions(options, { query: ' 1.21 ' }).map(o => o.id)).toEqual(['fabric-loader-0.16.5-1.21', '1.21']);
+        expect(filterVersionOptions(options, { query: ' 1.21 ' }).map(o => o.id)).toEqual([
+            'fabric-loader-0.16.5-1.21',
+            '1.21',
+        ]);
         expect(filterVersionOptions(options, { query: 'B1', showAll: true }).map(o => o.id)).toEqual(['b1.7.3']);
     });
 
     it('never hides the version already picked', () => {
-        expect(filterVersionOptions(options, { query: '1.20', keep: '24w14a' }).map(o => o.id)).toEqual(['24w14a', '1.20.1']);
+        expect(filterVersionOptions(options, { query: '1.20', keep: '24w14a' }).map(o => o.id)).toEqual([
+            '24w14a',
+            '1.20.1',
+        ]);
     });
 });
 

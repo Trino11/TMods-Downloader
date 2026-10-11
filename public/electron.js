@@ -1,125 +1,61 @@
-#!/usr/bin/env node
-
-const { app, BrowserWindow, ipcMain, session } = require('electron');
+const { app, BrowserWindow, session } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
+const { DEV_SERVER_URL, modrinthUserAgent, startAutoUpdates, useDevServer } = require('./mainProcess');
 
-log.info('Hello, log')
+const isDev = useDevServer(app.isPackaged, process.argv);
 
-let mainWindow;
-
-// const isDev = process.env.NODE_ENV !== 'production';
-const isDev = false;
+let mainWindow = null;
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
-    webPreferences: {
-      nodeIntegration: true,
-      nodeIntegrationInWorker: true,
-      contextIsolation: false,
-      webSecurity: false  // Disables CORS restrictions
+    mainWindow = new BrowserWindow({
+        width: 800,
+        height: 600,
+        webPreferences: {
+            nodeIntegration: true,
+            nodeIntegrationInWorker: true,
+            contextIsolation: false,
+            webSecurity: false, // Disables CORS restrictions
+        },
+    });
+
+    if (isDev) {
+        // Electron and Vite start together, so the dev server may not be up yet: retry.
+        mainWindow.webContents.on('did-fail-load', () => {
+            setTimeout(() => mainWindow && mainWindow.loadURL(DEV_SERVER_URL), 1000);
+        });
+        mainWindow.loadURL(DEV_SERVER_URL);
+    } else {
+        mainWindow.loadFile(path.join(__dirname, 'index.html'));
     }
-  });
 
-  isDev
-    ? mainWindow.loadURL('http://localhost:3000')
-    :mainWindow.loadFile(path.join(__dirname, './index.html'));
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-  });
-
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+    });
 }
 
-// Modrinth asks every app using its API to identify itself in the User-Agent, which
-// the page itself isn't allowed to set.
-function identifyToModrinth() {
-  const userAgent = `Trino11/TMods-Downloader/${app.getVersion()} (github.com/Trino11/TMods-Downloader)`;
-  session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['https://api.modrinth.com/*'] }, (details, callback) => {
-    callback({ requestHeaders: { ...details.requestHeaders, 'User-Agent': userAgent } });
-  });
-}
-
-app.on('ready', () => {
-  identifyToModrinth();
-  createWindow();
+app.whenReady().then(() => {
+    session.defaultSession.webRequest.onBeforeSendHeaders(
+        { urls: ['https://api.modrinth.com/*'] },
+        modrinthUserAgent(app.getVersion()),
+    );
+    createWindow();
+    // There are no releases to update to from a development checkout.
+    if (app.isPackaged) {
+        log.transports.file.level = 'info';
+        startAutoUpdates(autoUpdater, log);
+    }
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
 });
 
 app.on('activate', () => {
-  if (mainWindow === null) {
-    createWindow();
-  }
+    if (mainWindow === null) {
+        createWindow();
+    }
 });
-
-ipcMain.on('app_version', (event) => {
-  sendStatusToWindow('Getting App Version....')
-  event.sender.send('app_version', { version: app.getVersion() })
-})
-
-autoUpdater.autoDownload = true
-autoUpdater.logger = log
-autoUpdater.logger.transports.file.level = 'info'
-
-sendStatusToWindow(autoUpdater)
-
-autoUpdater.on('update-available', () => {
-  sendStatusToWindow('An Update is available....')
-  mainWindow.webContents.send('update_available')
-})
-
-autoUpdater.on('update-downloaded', () => {
-  sendStatusToWindow('Update has been downloaded....')
-  mainWindow.webContents.send('update_downloaded')
-})
-
-ipcMain.on('restart_app', () => {
-  sendStatusToWindow('In onRestart_App')
-  autoUpdater.quitAndInstall()
-})
-
-
-autoUpdater.on('checking-for-update', function () {
-  sendStatusToWindow('Checking for update...')
-})
-
-autoUpdater.on('update-not-available', function (info) {
-  sendStatusToWindow('Update not available.')
-})
-
-autoUpdater.on('error', function (err) {
-  sendStatusToWindow('We have an error in auto-updater: ')
-  sendStatusToWindow(String(err))
-})
-
-autoUpdater.on('download-progress', function (progressObj) {
-  let log_message = 'Download speed: ' + progressObj.bytesPerSecond
-  log_message =
-    log_message + ' - Downloaded ' + parseInt(progressObj.percent) + '%'
-  log_message =
-    log_message + ' (' + progressObj.transferred + '/' + progressObj.total + ')'
-  sendStatusToWindow(log_message)
-})
-
-// Check for an update 10sec after Program Starts
-setTimeout(function () {
-  sendStatusToWindow('We are checking for updates and notifying user...')
-  autoUpdater.checkForUpdatesAndNotify()
-}, 10000)
-
-// Check for an update every 2min.
-setInterval(function () {
-  sendStatusToWindow('We are checking for updates and notifying user...')
-  autoUpdater.checkForUpdatesAndNotify()
-}, 120000)
-
-function sendStatusToWindow(message) {
-  log.info(message)
-}

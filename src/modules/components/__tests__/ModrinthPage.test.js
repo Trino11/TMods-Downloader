@@ -24,9 +24,21 @@ jest.mock('../../services/modrinthMods', () => ({
 }));
 jest.mock('../../services/mrpack', () => ({}));
 
-const fabric = { versionId: 'fabric-loader-0.16.5-1.21.1', gameVersion: '1.21.1', loader: 'fabric', loaderVersion: '0.16.5' };
+const fabric = {
+    versionId: 'fabric-loader-0.16.5-1.21.1',
+    gameVersion: '1.21.1',
+    loader: 'fabric',
+    loaderVersion: '0.16.5',
+};
 const profile = { id: 'fabric', name: 'Fabric', gameVersion: fabric.versionId };
-const sodiumHit = { project_id: 'sodium', title: 'Sodium', author: 'jellysquid', description: 'Fast rendering', downloads: 1000, icon_url: '' };
+const sodiumHit = {
+    project_id: 'sodium',
+    title: 'Sodium',
+    author: 'jellysquid',
+    description: 'Fast rendering',
+    downloads: 1000,
+    icon_url: '',
+};
 
 beforeEach(() => {
     detectTarget.mockImplementation(id => (id === fabric.versionId ? fabric : null));
@@ -37,7 +49,7 @@ beforeEach(() => {
     window.confirm = jest.fn(() => true);
 });
 
-it('searches for the profile\'s loader and installs a mod with its dependencies', async () => {
+it("searches for the profile's loader and installs a mod with its dependencies", async () => {
     installMod.mockResolvedValue(['Sodium', 'Fabric API']);
     render(<ModrinthPage profile={profile} gameDir='/games/fabric' />);
 
@@ -45,7 +57,12 @@ it('searches for the profile\'s loader and installs a mod with its dependencies'
     fireEvent.change(screen.getByPlaceholderText('Search mods'), { target: { value: 'sod' } });
     fireEvent.click(await screen.findByText('Install'));
 
-    expect(search).toHaveBeenLastCalledWith({ projectType: 'mod', loader: 'fabric', gameVersion: '1.21.1', query: 'sod' });
+    expect(search).toHaveBeenLastCalledWith({
+        projectType: 'mod',
+        loader: 'fabric',
+        gameVersion: '1.21.1',
+        query: 'sod',
+    });
     expect(installMod).toHaveBeenCalledWith('/games/fabric', fabric, 'sodium', 'Sodium');
     expect(await screen.findByText('Installed Sodium with Fabric API.')).toBeInTheDocument();
 });
@@ -66,7 +83,9 @@ it('explains what to do when the profile has no mod loader', () => {
 
 it('lets the default profile pick which installed loader it plays with', () => {
     listGameVersions.mockReturnValue(['latest-release', fabric.versionId]);
-    readModList.mockReturnValueOnce({ target: null, mods: [] }).mockReturnValue({ target: { versionId: fabric.versionId }, mods: [] });
+    readModList
+        .mockReturnValueOnce({ target: null, mods: [] })
+        .mockReturnValue({ target: { versionId: fabric.versionId }, mods: [] });
     render(<ModrinthPage profile={{ id: 'default', name: 'Default', gameVersion: '' }} gameDir='/mc' />);
 
     fireEvent.change(screen.getByLabelText(/Which installed version/), { target: { value: fabric.versionId } });
@@ -77,7 +96,10 @@ it('lets the default profile pick which installed loader it plays with', () => {
 });
 
 it('removes an installed mod after confirmation', async () => {
-    readModList.mockReturnValue({ target: null, mods: [{ projectId: 'sodium', title: 'Sodium', versionNumber: '0.6.0', enabled: true }] });
+    readModList.mockReturnValue({
+        target: null,
+        mods: [{ projectId: 'sodium', title: 'Sodium', versionNumber: '0.6.0', enabled: true }],
+    });
     removeMod.mockReturnValue(['Sodium', 'Fabric API']);
     render(<ModrinthPage profile={profile} gameDir='/games/fabric' />);
 

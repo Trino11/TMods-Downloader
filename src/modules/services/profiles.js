@@ -4,10 +4,8 @@
 //
 // The app's profile list lives in localStorage (like the other settings) and is the
 // source of truth: the launcher entries are rewritten from it whenever they drift.
-import { defaultGameDir } from './bundleInstaller';
-
-const fs = window.require('fs');
-const path = window.require('path');
+import { minecraftDir } from './paths';
+import { fs, path } from './node';
 
 const PROFILES_KEY = 'tmods.profiles';
 const ACTIVE_KEY = 'tmods.activeProfile';
@@ -24,11 +22,6 @@ const LAUNCHER_FILES = ['launcher_profiles.json', 'launcher_profiles_microsoft_s
 // Version ids the launcher resolves on its own, so they work without anything installed.
 export const LATEST_RELEASE = 'latest-release';
 export const LATEST_SNAPSHOT = 'latest-snapshot';
-
-// The official launcher's own folder, where its profile files and versions live.
-export function minecraftDir() {
-    return defaultGameDir;
-}
 
 function profilesRoot() {
     return path.join(minecraftDir(), 'tmods_profiles');
@@ -80,7 +73,12 @@ export function activeGameDir() {
 
 // Ids double as folder names, so keep them to safe characters and unique.
 function newProfileId(name, taken) {
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 32) || 'profile';
+    const slug =
+        name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '')
+            .slice(0, 32) || 'profile';
     let id = slug;
     for (let n = 2; taken.has(id) || id === DEFAULT_PROFILE_ID; n++) {
         id = `${slug}-${n}`;
@@ -158,8 +156,11 @@ export function listGameVersions() {
     const versionsDir = path.join(minecraftDir(), 'versions');
     let installed = [];
     if (fs.existsSync(versionsDir)) {
-        installed = fs.readdirSync(versionsDir, { withFileTypes: true })
-            .filter(entry => entry.isDirectory() && fs.existsSync(path.join(versionsDir, entry.name, `${entry.name}.json`)))
+        installed = fs
+            .readdirSync(versionsDir, { withFileTypes: true })
+            .filter(
+                entry => entry.isDirectory() && fs.existsSync(path.join(versionsDir, entry.name, `${entry.name}.json`)),
+            )
             .map(entry => entry.name)
             .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
     }
@@ -209,7 +210,7 @@ export function syncLauncherProfiles() {
             data = JSON.parse(fs.readFileSync(file, 'utf-8'));
         } catch (error) {
             // Never overwrite a file we can't read, the player's own profiles are in it.
-            throw new Error(`Could not read ${path.basename(file)}: ${error.message}`);
+            throw new Error(`Could not read ${path.basename(file)}: ${error.message}`, { cause: error });
         }
         const profiles = data.profiles || {};
         let dirty = !data.profiles;

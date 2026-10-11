@@ -7,12 +7,14 @@
   "private": true,
   "homepage": "./",
   "scripts": {
-    "start": "concurrently -k \"npm run start-react\" \"npm run start-electron\"",
+    "start": "npm run build-react && concurrently -k \"npm run start-react\" \"npm run start-electron -- --dev\"",
     "start-react": "vite",
     "start-electron": "electron .",
     "build": "npm run build-react && npm run dist",
     "build-react": "vite build",
     "test": "jest",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
     "dist": "electron-builder --win --publish never"
   },
   "build": {
@@ -34,7 +36,6 @@
       "artifactName": "Tmods-Downloader.${ext}"
     },
     "files": [
-      "electron.js",
       "node_modules/",
       "package.json",
       "build/"
@@ -43,7 +44,8 @@
   "jest": {
     "testEnvironment": "jsdom",
     "roots": [
-      "<rootDir>/src"
+      "<rootDir>/src",
+      "<rootDir>/test"
     ],
     "setupFilesAfterEnv": [
       "<rootDir>/src/setupTests.js"
@@ -64,6 +66,7 @@
     "@babel/preset-react": "^8.0.1",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@eslint/js": "^10.0.1",
     "@fontsource/roboto": "^5.3.0",
     "@mui/icons-material": "^9.5.0",
     "@mui/material": "^9.5.0",
@@ -76,12 +79,16 @@
     "concurrently": "^10.0.6",
     "electron": "^44.7.0",
     "electron-builder": "^26.15.3",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
     "jest": "^30.5.2",
     "jest-environment-jsdom": "^30.5.2",
+    "prettier": "^3.9.10",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.6",
-    "vite": "^8.3.4",
-    "web-vitals": "^2.1.4"
+    "vite": "^8.3.4"
   }
 }

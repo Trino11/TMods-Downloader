@@ -22,7 +22,7 @@ export async function validateManifestUrl(url) {
     try {
         manifest = await fetchManifest(url);
     } catch (error) {
-        throw new Error(`Could not load the manifest: ${error.message}`);
+        throw new Error(`Could not load the manifest: ${error.message}`, { cause: error });
     }
     if (!manifest || typeof manifest !== 'object' || !manifest.versions || typeof manifest.versions !== 'object') {
         throw new Error('The URL loaded, but it is not a TMods manifest (no "versions" field).');

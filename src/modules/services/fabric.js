@@ -5,10 +5,8 @@
 // vanilla version and lists Fabric's libraries with their Maven urls, so the launcher
 // downloads both the first time the profile is played.
 import axios from 'axios';
-import { minecraftDir } from './profiles';
-
-const fs = window.require('fs');
-const path = window.require('path');
+import { minecraftDir } from './paths';
+import { fs, path } from './node';
 
 export const META_URL = 'https://meta.fabricmc.net/v2';
 
@@ -51,10 +49,12 @@ function checkVersion(label, version) {
 // Reinstalling the same version just rewrites the json.
 export async function installFabric(gameVersion, { loaderVersion } = {}) {
     checkVersion('Minecraft', gameVersion);
-    const loader = loaderVersion || await latestLoaderVersion(gameVersion);
+    const loader = loaderVersion || (await latestLoaderVersion(gameVersion));
     checkVersion('Fabric loader', loader);
 
-    const profile = await get(`/versions/loader/${encodeURIComponent(gameVersion)}/${encodeURIComponent(loader)}/profile/json`);
+    const profile = await get(
+        `/versions/loader/${encodeURIComponent(gameVersion)}/${encodeURIComponent(loader)}/profile/json`,
+    );
     if (!profile || profile.inheritsFrom !== gameVersion || !Array.isArray(profile.libraries)) {
         throw new Error(`Fabric sent an unexpected launcher profile for Minecraft ${gameVersion}.`);
     }

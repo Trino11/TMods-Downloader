@@ -14,13 +14,15 @@ function makeVersion(projectId, id, { deps = [], type = 'release', content } = {
         version_number: id,
         version_type: type,
         dependencies: deps,
-        files: [{
-            url: `https://cdn.modrinth.com/data/${projectId}/versions/${id}/${projectId}-${id}.jar`,
-            filename: `${projectId}-${id}.jar`,
-            primary: true,
-            size: data.length,
-            hashes: { sha1: hash('sha1', data), sha512: hash('sha512', data) },
-        }],
+        files: [
+            {
+                url: `https://cdn.modrinth.com/data/${projectId}/versions/${id}/${projectId}-${id}.jar`,
+                filename: `${projectId}-${id}.jar`,
+                primary: true,
+                size: data.length,
+                hashes: { sha1: hash('sha1', data), sha512: hash('sha512', data) },
+            },
+        ],
         data,
     };
 }

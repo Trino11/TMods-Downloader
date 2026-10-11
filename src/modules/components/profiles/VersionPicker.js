@@ -19,35 +19,54 @@ function VersionPicker({ options, value, onChange }) {
         shown = [{ id: value, type: 'installed', installed: false }, ...shown];
     }
 
-    return <Stack spacing={1} sx={{ width: 300, flexShrink: 0 }}>
-        <TextField
-            id='profileVersion'
-            label='Game version'
-            select
-            fullWidth
-            value={value}
-            onChange={event => onChange(event.target.value)}
-            slotProps={{ select: { native: true } }}
-        >
-            {shown.map(option => <option key={option.id} value={option.id}>{versionLabel(option)}</option>)}
-        </TextField>
-        <TextField
-            type='search'
-            placeholder='Search versions'
-            fullWidth
-            value={query}
-            onChange={event => setQuery(event.target.value)}
-            slotProps={{
-                htmlInput: { 'aria-label': 'Search versions' },
-                input: { startAdornment: <InputAdornment position='start'><SearchIcon fontSize='small' /></InputAdornment> },
-            }}
-        />
-        <FormControlLabel
-            control={<Checkbox id='showAllVersions' size='small' checked={showAll} onChange={event => setShowAll(event.target.checked)} />}
-            label='Snapshots and old versions'
-            slotProps={{ typography: { variant: 'body2' } }}
-        />
-    </Stack>
+    return (
+        <Stack spacing={1} sx={{ width: 300, flexShrink: 0 }}>
+            <TextField
+                id='profileVersion'
+                label='Game version'
+                select
+                fullWidth
+                value={value}
+                onChange={event => onChange(event.target.value)}
+                slotProps={{ select: { native: true } }}
+            >
+                {shown.map(option => (
+                    <option key={option.id} value={option.id}>
+                        {versionLabel(option)}
+                    </option>
+                ))}
+            </TextField>
+            <TextField
+                type='search'
+                placeholder='Search versions'
+                fullWidth
+                value={query}
+                onChange={event => setQuery(event.target.value)}
+                slotProps={{
+                    htmlInput: { 'aria-label': 'Search versions' },
+                    input: {
+                        startAdornment: (
+                            <InputAdornment position='start'>
+                                <SearchIcon fontSize='small' />
+                            </InputAdornment>
+                        ),
+                    },
+                }}
+            />
+            <FormControlLabel
+                control={
+                    <Checkbox
+                        id='showAllVersions'
+                        size='small'
+                        checked={showAll}
+                        onChange={event => setShowAll(event.target.checked)}
+                    />
+                }
+                label='Snapshots and old versions'
+                slotProps={{ typography: { variant: 'body2' } }}
+            />
+        </Stack>
+    );
 }
 
 export default VersionPicker;

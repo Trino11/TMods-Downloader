@@ -1,10 +1,8 @@
 // Works out which Minecraft version and mod loader a launcher version id stands for,
 // e.g. "fabric-loader-0.16.5-1.21.1" is Fabric 0.16.5 on Minecraft 1.21.1. Mods from
 // Modrinth are picked to match it.
-import { minecraftDir } from './profiles';
-
-const fs = window.require('fs');
-const path = window.require('path');
+import { minecraftDir } from './paths';
+import { fs, path } from './node';
 
 // Each loader's installer names its launcher version in its own way:
 // fabric-loader-0.16.5-1.21.1, quilt-loader-0.26.4-1.21.1, 1.20.1-forge-47.2.0 and

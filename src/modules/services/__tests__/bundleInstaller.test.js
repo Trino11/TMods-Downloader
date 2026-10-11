@@ -1,5 +1,6 @@
 import axios from 'axios';
 import categories from '../../categories';
+import { realmSafeAdmZip } from '../__fixtures__/modrinthFake';
 
 jest.mock('axios', () => ({ get: jest.fn() }));
 
@@ -23,9 +24,21 @@ beforeEach(() => {
     minecraftDir = path.join(home, 'AppData', 'Roaming', '.minecraft');
     fs.mkdirSync(minecraftDir, { recursive: true });
 
-    window.require = name => (name === 'os' ? { ...os, homedir: () => home } : require(name));
+    const SafeAdmZip = realmSafeAdmZip(fs.mkdtempSync(path.join(home, 'zips-')));
+    window.require = name => {
+        if (name === 'os') {
+            return { ...os, homedir: () => home };
+        }
+        return name === 'adm-zip' ? SafeAdmZip : require(name);
+    };
     jest.isolateModules(() => {
-        ({ installBundle, readInstalledVersion, listBackups, restoreBackup, MAX_BACKUPS } = require('../bundleInstaller'));
+        ({
+            installBundle,
+            readInstalledVersion,
+            listBackups,
+            restoreBackup,
+            MAX_BACKUPS,
+        } = require('../bundleInstaller'));
     });
     axios.get.mockReset();
 });
@@ -48,6 +61,7 @@ function serveZip(files) {
     axios.get.mockResolvedValue({
         data: buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
     });
+    return buffer;
 }
 
 function write(relative, content) {
@@ -69,7 +83,10 @@ const version = { id: '2.0', url: 'https://example.com/bundle.zip' };
 // Reads a file from the newest backup of a category.
 function readBackup(id, relative, index = 0) {
     const backup = listBackups(category(id))[index];
-    return fs.readFileSync(path.join(minecraftDir, '.tmods_loader', id, 'backups', backup.id, 'files', relative), 'utf-8');
+    return fs.readFileSync(
+        path.join(minecraftDir, '.tmods_loader', id, 'backups', backup.id, 'files', relative),
+        'utf-8',
+    );
 }
 
 describe('installBundle', () => {
@@ -164,13 +181,13 @@ describe('installBundle', () => {
         expect(read('mods/new.jar')).toBe('new');
     });
 
-    it('records the installed version and removes the downloaded zip', async () => {
+    it('records the installed version and removes the staging folder', async () => {
         serveZip({ 'mods/new.jar': 'new' });
 
         await installBundle(category('mods'), version);
 
         expect(readInstalledVersion(category('mods'))).toBe('2.0');
-        expect(exists('.tmods_loader/mods/mods.zip')).toBe(false);
+        expect(exists('.tmods_loader/mods/staging')).toBe(false);
     });
 
     it('leaves files and the installed version alone when the download fails', async () => {
@@ -185,15 +202,42 @@ describe('installBundle', () => {
         expect(readInstalledVersion(category('mods'))).toBe('1.0');
     });
 
-    it('removes the zip and keeps the old version recorded when extraction fails', async () => {
+    it('leaves files, backups and the installed version alone when the zip is broken', async () => {
+        write('mods/current.jar', 'current');
         write('.tmods_loader/mods/downloaded.txt', '1.0');
         const garbage = Buffer.from('this is not a zip');
         axios.get.mockResolvedValue({ data: garbage });
 
-        await expect(installBundle(category('mods'), version)).rejects.toThrow();
+        await expect(installBundle(category('mods'), version)).rejects.toThrow(
+            'The download of 2.0 is not a valid zip.',
+        );
 
-        expect(exists('.tmods_loader/mods/mods.zip')).toBe(false);
+        expect(read('mods/current.jar')).toBe('current');
+        expect(listBackups(category('mods'))).toEqual([]);
+        expect(exists('.tmods_loader/mods/staging')).toBe(false);
         expect(readInstalledVersion(category('mods'))).toBe('1.0');
+    });
+
+    it('installs when the download matches the manifest checksum', async () => {
+        const buffer = serveZip({ 'mods/new.jar': 'new' });
+        const sha256 = require('crypto').createHash('sha256').update(buffer).digest('hex');
+
+        await installBundle(category('mods'), { ...version, sha256: sha256.toUpperCase() });
+
+        expect(read('mods/new.jar')).toBe('new');
+    });
+
+    it('refuses a download that does not match the manifest checksum', async () => {
+        write('mods/current.jar', 'current');
+        serveZip({ 'mods/evil.jar': 'evil' });
+
+        await expect(installBundle(category('mods'), { ...version, sha256: 'ab'.repeat(32) })).rejects.toThrow(
+            'The download of 2.0 is corrupt',
+        );
+
+        expect(read('mods/current.jar')).toBe('current');
+        expect(exists('mods/evil.jar')).toBe(false);
+        expect(listBackups(category('mods'))).toEqual([]);
     });
 });
 

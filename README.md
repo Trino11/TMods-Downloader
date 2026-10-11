@@ -7,7 +7,7 @@ test never publishes a release.
 
 To publish a new version:
 
-1. Bump `version` in `package.json` (and `VERSION` in `src/modules/App.js`, which the UI shows).
+1. Bump `version` in `package.json` (the UI reads it from there).
 2. Commit, then push a matching tag, e.g. `git tag v0.3.2 && git push origin v0.3.2`.
 
 The workflow fails if the tag does not match `package.json`. Otherwise it creates the
@@ -17,13 +17,16 @@ apps check that release through electron-updater and update themselves.
 # Development
 
 The window is a React app built with [Vite](https://vite.dev); `public/electron.js` is the
-Electron main process and is copied into `build/` with the rest of `public/`.
+Electron main process (its logic lives in `public/mainProcess.js`, tested from `test/`) and is copied into `build/` with the rest of `public/`.
 
 - `npm run build-react` builds the app into `build/`.
 - `npm run start-electron` opens Electron on that build.
-- `npm start` runs the Vite dev server on port 3000 alongside Electron, which still
-  loads `build/`, as before.
+- `npm start` builds once (for `build/electron.js`), then runs the Vite dev server on
+  port 3000 alongside Electron, which loads the dev server, so changes reload live.
+  Edits to `public/electron.js` need a restart.
 - `npm test` runs the Jest tests (files in `__tests__` folders).
+- `npm run lint` runs ESLint (with the React hooks rules) and checks Prettier formatting;
+  CI runs it before the tests. `npm run format` fixes formatting.
 - `npm run dist` packages the Windows installer into `dist/` with electron-builder.
 
 # Modrinth
@@ -32,3 +35,27 @@ The Modrinth page searches and installs single mods for the active profile's loa
 game version, straight from the public Modrinth API (no key needed). Installed mods are
 tracked per game folder in `.tmods_loader/modrinth.json`; bundle installs keep them. The
 same page imports `.mrpack` modpacks as new profiles and exports a profile as one.
+
+# Manifest
+
+The bundle pages (Mods, Schematics, Resource packs, Configs, Shaderpacks) read the
+manifest URL set on first launch. It lists zips per category:
+
+```json
+{
+  "versions": {
+    "mods": [
+      {
+        "id": "1.2.0",
+        "url": "https://example.com/mods-1.2.0.zip",
+        "sha256": "…",
+        "target": "Fabric 1.21.1",
+        "description": "Adds Sodium"
+      }
+    ]
+  }
+}
+```
+
+`sha256`, `target` (shown on the Mods page) and `description` are optional. With `sha256`, a download that doesn't match it is refused before
+anything is installed.

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import categories from '../../categories';
-import { makeVersion, required, serveModrinth, hash } from '../__fixtures__/modrinthFake';
+import { makeVersion, realmSafeAdmZip, required, serveModrinth, hash } from '../__fixtures__/modrinthFake';
 
 jest.mock('axios', () => ({ get: jest.fn(), post: jest.fn() }));
 
@@ -20,7 +20,13 @@ beforeEach(() => {
     home = fs.mkdtempSync(path.join(os.tmpdir(), 'tmods-modrinth-'));
     gameDir = path.join(home, 'game');
     fs.mkdirSync(gameDir, { recursive: true });
-    window.require = name => (name === 'os' ? { ...os, homedir: () => home } : require(name));
+    const SafeAdmZip = realmSafeAdmZip(fs.mkdtempSync(path.join(home, 'zips-')));
+    window.require = name => {
+        if (name === 'os') {
+            return { ...os, homedir: () => home };
+        }
+        return name === 'adm-zip' ? SafeAdmZip : require(name);
+    };
     jest.isolateModules(() => {
         mods = require('../modrinthMods');
         ({ installBundle } = require('../bundleInstaller'));
@@ -96,7 +102,9 @@ describe('installMod', () => {
     it('refuses a mod with no version for the loader', async () => {
         serveBasic({ sodium: { title: 'Sodium', versions: [] } });
 
-        await expect(mods.installMod(gameDir, target, 'sodium', 'Sodium')).rejects.toThrow('Sodium has no version for fabric 1.21.1');
+        await expect(mods.installMod(gameDir, target, 'sodium', 'Sodium')).rejects.toThrow(
+            'Sodium has no version for fabric 1.21.1',
+        );
         expect(modFiles()).toEqual([]);
     });
 
@@ -115,7 +123,9 @@ describe('installMod', () => {
         serveBasic({ optifabric: { title: 'OptiFabric', versions: [optifabric] } });
         await mods.installMod(gameDir, target, 'sodium', 'Sodium');
 
-        await expect(mods.installMod(gameDir, target, 'optifabric', 'OptiFabric')).rejects.toThrow("doesn't work together with Sodium");
+        await expect(mods.installMod(gameDir, target, 'optifabric', 'OptiFabric')).rejects.toThrow(
+            "doesn't work together with Sodium",
+        );
     });
 
     it('refuses a file that does not match its checksum', async () => {
@@ -162,9 +172,14 @@ describe('updates', () => {
 
         const updates = await mods.checkUpdates(gameDir, target);
         expect(updates.map(u => [u.mod.projectId, u.version.id])).toEqual([['sodium', '0.6.1']]);
-        expect(axios.post).toHaveBeenCalledWith('https://api.modrinth.com/v2/version_files/update', expect.objectContaining({
-            loaders: ['fabric'], game_versions: ['1.21.1'], algorithm: 'sha1',
-        }));
+        expect(axios.post).toHaveBeenCalledWith(
+            'https://api.modrinth.com/v2/version_files/update',
+            expect.objectContaining({
+                loaders: ['fabric'],
+                game_versions: ['1.21.1'],
+                algorithm: 'sha1',
+            }),
+        );
 
         await mods.updateMod(gameDir, 'sodium', updates[0].version);
 
@@ -238,7 +253,13 @@ describe('jars added by hand', () => {
 
         expect(await mods.adoptUnmanaged(gameDir)).toBe(1);
         const [adopted] = mods.readModList(gameDir).mods;
-        expect(adopted).toMatchObject({ projectId: 'sodium', title: 'Sodium', fileName: 'renamed-sodium.jar', enabled: true, sha1: hash('sha1', sodium.data) });
+        expect(adopted).toMatchObject({
+            projectId: 'sodium',
+            title: 'Sodium',
+            fileName: 'renamed-sodium.jar',
+            enabled: true,
+            sha1: hash('sha1', sodium.data),
+        });
         expect(mods.listUnmanaged(gameDir)).toEqual(['private.jar.disabled']);
     });
 });
@@ -252,7 +273,9 @@ describe('bundles and Modrinth mods together', () => {
             zip.addFile(name, Buffer.from(content));
         }
         const buffer = zip.toBuffer();
-        axios.get.mockResolvedValue({ data: buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) });
+        axios.get.mockResolvedValue({
+            data: buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+        });
     }
 
     it('keeps Modrinth mods, enabled or not, when a bundle replaces the mods folder', async () => {

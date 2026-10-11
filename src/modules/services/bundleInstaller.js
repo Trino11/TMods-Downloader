@@ -1,19 +1,18 @@
 import axios from 'axios';
 import { managedFileNames } from './modrinthMods';
-
-const fs = window.require('fs');
-const os = window.require('os');
-const path = window.require('path');
-const { Buffer } = window.require('buffer');
-const AdmZip = window.require('adm-zip');
+import { AdmZip, Buffer, crypto, fs, path } from './node';
+import { defaultGameDir } from './paths';
 
 // Every function below works on a game folder passed in as `gameDir`, so the same
 // install, backup and restore logic applies to any profile folder. It defaults to
 // the standard .minecraft folder.
-export const defaultGameDir = path.join(os.homedir(), 'AppData', 'Roaming', '.minecraft');
 
 // How many backups each category keeps; older ones are deleted after a new one is made.
 export const MAX_BACKUPS = 5;
+
+function sha256(data) {
+    return crypto.createHash('sha256').update(data).digest('hex');
+}
 
 function stateDir(category, gameDir) {
     return path.join(gameDir, '.tmods_loader', category.id);
@@ -57,7 +56,8 @@ export function listBackups(category, gameDir = defaultGameDir) {
     if (!category.backupFolder || !fs.existsSync(dir)) {
         return [];
     }
-    return fs.readdirSync(dir)
+    return fs
+        .readdirSync(dir)
         .map(id => {
             try {
                 const meta = JSON.parse(fs.readFileSync(path.join(dir, id, 'backup.json'), 'utf-8'));
@@ -106,15 +106,28 @@ function clearFolder(category, gameDir) {
     }
 }
 
-// Downloads a version's zip and extracts it over .minecraft, then records it as installed.
+// Downloads a version's zip and extracts it over the game folder, then records it as
+// installed. The zip is checked and unpacked into a staging folder first, so a failed
+// download or a broken zip never touches the player's files. When the manifest lists
+// a `sha256` for the version, the download must match it.
 export async function installBundle(category, version, gameDir = defaultGameDir) {
     const response = await axios.get(version.url, { responseType: 'arraybuffer' });
+    const data = Buffer.from(response.data);
+    if (version.sha256 && sha256(data) !== version.sha256.toLowerCase()) {
+        throw new Error(`The download of ${version.id} is corrupt (its checksum doesn't match).`);
+    }
 
-    fs.mkdirSync(stateDir(category, gameDir), { recursive: true });
-    const zipFile = path.join(stateDir(category, gameDir), `${category.id}.zip`);
-    fs.writeFileSync(zipFile, Buffer.from(response.data));
-
+    const staging = path.join(stateDir(category, gameDir), 'staging');
+    fs.rmSync(staging, { recursive: true, force: true });
     try {
+        let zip;
+        try {
+            zip = new AdmZip(data);
+        } catch {
+            throw new Error(`The download of ${version.id} is not a valid zip.`);
+        }
+        zip.extractAllTo(staging, true);
+
         if (category.backupFolder) {
             backupFolder(category, gameDir);
             pruneBackups(category, gameDir);
@@ -122,9 +135,9 @@ export async function installBundle(category, version, gameDir = defaultGameDir)
                 clearFolder(category, gameDir);
             }
         }
-        new AdmZip(zipFile).extractAllTo(gameDir, true);
+        fs.cpSync(staging, gameDir, { recursive: true });
     } finally {
-        fs.unlinkSync(zipFile);
+        fs.rmSync(staging, { recursive: true, force: true });
     }
 
     writeInstalledVersion(category, version.id, gameDir);

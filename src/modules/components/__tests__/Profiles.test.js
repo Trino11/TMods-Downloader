@@ -72,7 +72,9 @@ it('creates a profile with the chosen game version', () => {
 });
 
 it('shows the error when creating fails', () => {
-    createProfile.mockImplementation(() => { throw new Error('Could not read launcher_profiles.json: bad'); });
+    createProfile.mockImplementation(() => {
+        throw new Error('Could not read launcher_profiles.json: bad');
+    });
     renderPage();
 
     fireEvent.change(screen.getByPlaceholderText('Profile name'), { target: { value: 'Pack' } });
@@ -90,7 +92,10 @@ it('edits an existing profile', () => {
     fireEvent.change(screen.getByPlaceholderText('Profile name'), { target: { value: 'Fabric 2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    expect(updateProfile).toHaveBeenCalledWith('fabric', expect.objectContaining({ name: 'Fabric 2', gameVersion: '1.21' }));
+    expect(updateProfile).toHaveBeenCalledWith(
+        'fabric',
+        expect.objectContaining({ name: 'Fabric 2', gameVersion: '1.21' }),
+    );
 });
 
 it('deletes after confirmation and says where the files are', () => {
@@ -167,7 +172,7 @@ it('falls back to installed and cached versions offline', async () => {
     expect(versionOptions()).toEqual(['latest-release', 'latest-snapshot', '1.21', '1.20.1']);
 });
 
-it('keeps an edited profile\'s version selectable even when it is no longer known', async () => {
+it("keeps an edited profile's version selectable even when it is no longer known", async () => {
     const custom = { id: 'old', name: 'Old', gameVersion: 'forge-gone' };
     render(<Profiles profiles={[defaultProfile, custom]} activeId='default' onSelect={onSelect} onChange={onChange} />);
     await waitFor(() => expect(versionOptions()).toContain('1.8.9'));

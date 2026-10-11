@@ -66,15 +66,24 @@ function fileEntry(version, extra = {}) {
 
 function buildPack({ index = {}, files = {} } = {}) {
     const zip = new AdmZip();
-    zip.addFile('modrinth.index.json', Buffer.from(JSON.stringify({
-        formatVersion: 1,
-        game: 'minecraft',
-        versionId: '1.0',
-        name: 'Friends Pack',
-        files: [fileEntry(sodium), fileEntry(fabricApi), fileEntry(serverOnly, { env: { client: 'unsupported', server: 'required' } })],
-        dependencies: { minecraft: '1.21.1', 'fabric-loader': '0.16.5' },
-        ...index,
-    })));
+    zip.addFile(
+        'modrinth.index.json',
+        Buffer.from(
+            JSON.stringify({
+                formatVersion: 1,
+                game: 'minecraft',
+                versionId: '1.0',
+                name: 'Friends Pack',
+                files: [
+                    fileEntry(sodium),
+                    fileEntry(fabricApi),
+                    fileEntry(serverOnly, { env: { client: 'unsupported', server: 'required' } }),
+                ],
+                dependencies: { minecraft: '1.21.1', 'fabric-loader': '0.16.5' },
+                ...index,
+            }),
+        ),
+    );
     for (const [name, content] of Object.entries(files)) {
         zip.addFile(name, Buffer.from(content));
     }
@@ -112,9 +121,15 @@ describe('importMrpack', () => {
         serve();
         installVersion('fabric-loader-0.16.5-1.21.1', '1.21.1');
 
-        const { profile, loaderNote } = await mrpack.importMrpack(buildPack({
-            files: { 'overrides/config/sodium.json': '{}', 'client-overrides/config/sodium.json': '{"client":true}', 'overrides/options.txt': 'fov:90' },
-        }));
+        const { profile, loaderNote } = await mrpack.importMrpack(
+            buildPack({
+                files: {
+                    'overrides/config/sodium.json': '{}',
+                    'client-overrides/config/sodium.json': '{"client":true}',
+                    'overrides/options.txt': 'fov:90',
+                },
+            }),
+        );
 
         expect(profile).toMatchObject({ name: 'Friends Pack', gameVersion: 'fabric-loader-0.16.5-1.21.1' });
         expect(loaderNote).toBe('');
@@ -123,7 +138,12 @@ describe('importMrpack', () => {
         expect(fs.readFileSync(path.join(dir, 'config', 'sodium.json'), 'utf-8')).toBe('{"client":true}');
         expect(fs.readFileSync(path.join(dir, 'options.txt'), 'utf-8')).toBe('fov:90');
         // The pack's mods are tracked, so they can be updated and exported.
-        expect(mods.readModList(dir).mods.map(m => m.projectId).sort()).toEqual(['fabric-api', 'sodium']);
+        expect(
+            mods
+                .readModList(dir)
+                .mods.map(m => m.projectId)
+                .sort(),
+        ).toEqual(['fabric-api', 'sodium']);
         expect(profiles.listProfiles().map(p => p.name)).toContain('Friends Pack');
     });
 
@@ -143,21 +163,21 @@ describe('importMrpack', () => {
         const { profile, loaderNote } = await mrpack.importMrpack(buildPack(), { name: 'Mine' });
 
         expect(profile).toMatchObject({ name: 'Mine', gameVersion: '1.21.1' });
-        expect(loaderNote).toBe('Install fabric 0.16.5 for Minecraft 1.21.1, then pick it for this profile in Profiles.');
+        expect(loaderNote).toBe(
+            'Install fabric 0.16.5 for Minecraft 1.21.1, then pick it for this profile in Profiles.',
+        );
     });
 
-    it.each([
-        ['../../evil.jar'],
-        ['/etc/evil'],
-        ['C:/Windows/evil.dll'],
-        ['mods/../../evil.jar'],
-    ])('refuses the unsafe path %s before creating anything', async unsafe => {
-        serve();
-        const pack = buildPack({ index: { files: [fileEntry(sodium, { path: unsafe })] } });
+    it.each([['../../evil.jar'], ['/etc/evil'], ['C:/Windows/evil.dll'], ['mods/../../evil.jar']])(
+        'refuses the unsafe path %s before creating anything',
+        async unsafe => {
+            serve();
+            const pack = buildPack({ index: { files: [fileEntry(sodium, { path: unsafe })] } });
 
-        await expect(mrpack.importMrpack(pack)).rejects.toThrow('unsafe file path');
-        expect(profiles.listProfiles()).toHaveLength(1);
-    });
+            await expect(mrpack.importMrpack(pack)).rejects.toThrow('unsafe file path');
+            expect(profiles.listProfiles()).toHaveLength(1);
+        },
+    );
 
     it('refuses unsafe paths in the overrides', async () => {
         serve();
@@ -171,7 +191,9 @@ describe('importMrpack', () => {
 
     it('refuses downloads from sites outside the allowed list', async () => {
         serve();
-        const pack = buildPack({ index: { files: [fileEntry(sodium, { downloads: ['https://evil.example.com/sodium.jar'] })] } });
+        const pack = buildPack({
+            index: { files: [fileEntry(sodium, { downloads: ['https://evil.example.com/sodium.jar'] })] },
+        });
 
         await expect(mrpack.importMrpack(pack)).rejects.toThrow("site TMods doesn't trust");
         expect(axios.get).not.toHaveBeenCalled();
@@ -196,7 +218,12 @@ describe('importMrpack', () => {
 });
 
 describe('exportMrpack', () => {
-    const target = { versionId: 'fabric-loader-0.16.5-1.21.1', gameVersion: '1.21.1', loader: 'fabric', loaderVersion: '0.16.5' };
+    const target = {
+        versionId: 'fabric-loader-0.16.5-1.21.1',
+        gameVersion: '1.21.1',
+        loader: 'fabric',
+        loaderVersion: '0.16.5',
+    };
 
     it('lists enabled Modrinth mods as downloads and copies hand-added jars and config', async () => {
         serve();
@@ -212,7 +239,10 @@ describe('exportMrpack', () => {
         expect(result).toMatchObject({ mods: 1, extraFiles: ['mine.jar'] });
         const zip = new AdmZip(result.data);
         const index = mrpack.readIndex(zip);
-        expect(index).toMatchObject({ name: 'Shared', dependencies: { minecraft: '1.21.1', 'fabric-loader': '0.16.5' } });
+        expect(index).toMatchObject({
+            name: 'Shared',
+            dependencies: { minecraft: '1.21.1', 'fabric-loader': '0.16.5' },
+        });
         expect(index.files).toEqual([fileEntry(sodium)]);
         expect(zip.readAsText('overrides/mods/mine.jar')).toBe('mine');
         expect(zip.readAsText('overrides/config/a.toml')).toBe('a=1');
