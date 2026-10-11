@@ -5,7 +5,11 @@ const crypto = require('crypto');
 const hash = (algorithm, data) => crypto.createHash(algorithm).update(data).digest('hex');
 
 // Builds a Modrinth version whose single jar has `content` as its bytes.
-function makeVersion(projectId, id, { deps = [], type = 'release', content } = {}) {
+function makeVersion(
+    projectId,
+    id,
+    { deps = [], type = 'release', content, loaders = ['fabric'], gameVersions = ['1.21.1'] } = {},
+) {
     const data = Buffer.from(content ?? `${projectId}@${id}`);
     return {
         id,
@@ -13,6 +17,8 @@ function makeVersion(projectId, id, { deps = [], type = 'release', content } = {
         name: `${projectId} ${id}`,
         version_number: id,
         version_type: type,
+        loaders,
+        game_versions: gameVersions,
         dependencies: deps,
         files: [
             {
@@ -29,6 +35,10 @@ function makeVersion(projectId, id, { deps = [], type = 'release', content } = {
 
 function required(projectId) {
     return { project_id: projectId, version_id: null, dependency_type: 'required' };
+}
+
+function incompatible(projectId) {
+    return { project_id: projectId, version_id: null, dependency_type: 'incompatible' };
 }
 
 function asArrayBuffer(buffer) {
@@ -57,7 +67,16 @@ function serveModrinth(axios, projects, files = {}) {
             if (!project) {
                 throw new Error('404');
             }
-            return { data: project.versions };
+            // Filters like the API does, for versions that say what they're for.
+            const loaders = params.loaders && JSON.parse(params.loaders);
+            const gameVersions = params.game_versions && JSON.parse(params.game_versions);
+            return {
+                data: project.versions.filter(
+                    v =>
+                        (!loaders || v.loaders.some(l => loaders.includes(l))) &&
+                        (!gameVersions || v.game_versions.some(g => gameVersions.includes(g))),
+                ),
+            };
         }
         match = url.match(/\/version\/([^/]+)$/);
         if (match) {
@@ -97,7 +116,7 @@ function serveModrinth(axios, projects, files = {}) {
     });
 }
 
-module.exports = { makeVersion, required, serveModrinth, hash, asArrayBuffer };
+module.exports = { makeVersion, required, incompatible, serveModrinth, hash, asArrayBuffer };
 
 // adm-zip spots buffers with `instanceof Uint8Array`, which fails under jsdom because
 // Node's Buffer comes from another realm (in Electron there is only one). This version
