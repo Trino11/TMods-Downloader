@@ -80,6 +80,18 @@ Every download is checked against its checksum, and two inputs landing on the sa
 stop the publish. Neither `bundle.json`, `CHANGELOG.md` nor the `.mrpack` itself goes
 into the zip.
 
+### Or publish from TMods
+
+TMods can do this for you. In Settings, under "Your bundles repository", enter the
+repository and a
+[fine-grained token](https://github.com/settings/personal-access-tokens/new) that can
+only reach that repository, with Contents set to read and write. TMods checks the token
+and keeps it encrypted on that computer. Then on the Modrinth page's Modpacks tab,
+"Publish to your bundles repository" exports the active profile as a `.mrpack` and
+commits it, with an optional description and changelog in `bundle.json`, as a new version
+folder. It suggests the version after the newest one already published, and refuses to
+overwrite one that exists. The workflow below picks the commit up and publishes it.
+
 ## 3. The workflow
 
 `.github/workflows/publish.yml` (in the template):

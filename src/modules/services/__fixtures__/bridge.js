@@ -33,7 +33,18 @@ function installBridge(home, { AdmZip = require('adm-zip') } = {}) {
         roots: [home],
     });
     const { methods, ...info } = bridge.info;
-    const api = { ...info, http: jest.fn(() => Promise.reject(new Error('No network in tests'))) };
+    const api = {
+        ...info,
+        http: jest.fn(() => Promise.reject(new Error('No network in tests'))),
+        // The bundles repository calls (public/bundlePublisher.js); tests set what they need.
+        github: {
+            status: jest.fn(() => Promise.resolve({ hasToken: false })),
+            saveToken: jest.fn(() => Promise.resolve()),
+            forgetToken: jest.fn(() => Promise.resolve()),
+            versions: jest.fn(() => Promise.resolve([])),
+            publish: jest.fn(() => Promise.reject(new Error('No network in tests'))),
+        },
+    };
     for (const method of methods) {
         const [group, name] = method.split('.');
         api[group] = api[group] || {};

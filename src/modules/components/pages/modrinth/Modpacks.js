@@ -10,6 +10,7 @@ import Typography from '@mui/material/Typography';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import IosShareIcon from '@mui/icons-material/IosShare';
 import ProjectSearch from './ProjectSearch';
+import PublishBundle from './PublishBundle';
 import { exportMrpack, importMrpack, installModrinthModpack } from '../../../services/mrpack';
 
 const modpackFilters = { projectType: 'modpack' };
@@ -62,6 +63,8 @@ function Modpacks({ profile, gameDir, target, busy, run, onProfileCreated }) {
 
     return (
         <Stack spacing={3}>
+            <PublishBundle profile={profile} gameDir={gameDir} target={target} busy={busy} run={run} />
+
             <Card variant='outlined'>
                 <CardContent>
                     <Stack component='form' spacing={1} onSubmit={handleExport}>

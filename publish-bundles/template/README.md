@@ -15,6 +15,9 @@ Make a folder for it under its category (`mods`, `schematics`, `resourcepacks`, 
 or `shaderpacks`). The folder name is the version players see. Then fill it in one of
 these ways, or mix them:
 
+- **Publish a profile from TMods**: set this repository up in TMods' Settings, then use
+  "Publish to your bundles repository" on the Modrinth page's Modpacks tab. It commits a
+  new version folder for you.
 - **Export a profile from TMods** (or the Modrinth app, Prism, packwiz) as a `.mrpack` and
   drop it in the folder. Its mods are downloaded when publishing, and its overrides
   (configs and so on) go in as they are.

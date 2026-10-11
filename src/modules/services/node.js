@@ -69,6 +69,28 @@ export const logs = {
     showInFolder: () => bridge.logs.showInFolder(),
 };
 
+// Electron wraps errors from the main process as "Error invoking remote method 'x': Error: …";
+// only the last part is meant for the player.
+async function unwrapped(call) {
+    try {
+        return await call();
+    } catch (error) {
+        throw new Error(String(error.message).replace(/^Error invoking remote method '[^']*': (Error: )?/, ''), {
+            cause: error,
+        });
+    }
+}
+
+// The player's bundles repository on GitHub. The main process keeps the token; the
+// page can save or forget it, never read it.
+export const github = {
+    status: repo => unwrapped(() => bridge.github.status(repo)),
+    saveToken: token => unwrapped(() => bridge.github.saveToken(token)),
+    forgetToken: () => unwrapped(() => bridge.github.forgetToken()),
+    versions: (repo, category) => unwrapped(() => bridge.github.versions(repo, category)),
+    publish: request => unwrapped(() => bridge.github.publish(request)),
+};
+
 export function bytesToText(bytes) {
     return new TextDecoder('utf-8').decode(bytes);
 }
