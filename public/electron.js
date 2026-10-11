@@ -6,6 +6,7 @@ const log = require('electron-log');
 const {
     DEV_SERVER_URL,
     MIN_WINDOW_SIZE,
+    canAutoUpdate,
     initialWindowState,
     loadWindowState,
     modrinthUserAgent,
@@ -69,7 +70,7 @@ app.whenReady().then(() => {
     );
     createWindow();
     // There are no releases to update to from a development checkout.
-    if (app.isPackaged) {
+    if (app.isPackaged && canAutoUpdate(process.platform)) {
         log.transports.file.level = 'info';
         startAutoUpdates(autoUpdater, log);
     }

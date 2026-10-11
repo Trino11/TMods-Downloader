@@ -32,7 +32,7 @@ function serve(routes) {
 beforeEach(() => {
     home = fs.mkdtempSync(path.join(os.tmpdir(), 'tmods-fabric-'));
     versionsDir = path.join(home, 'AppData', 'Roaming', '.minecraft', 'versions');
-    window.require = name => (name === 'os' ? { ...os, homedir: () => home } : require(name));
+    window.require = name => (name === 'os' ? { ...os, homedir: () => home, platform: () => 'win32' } : require(name));
     jest.isolateModules(() => {
         fabric = require('../fabric');
     });
