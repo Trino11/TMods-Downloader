@@ -11,8 +11,9 @@ import { installFabric, listFabricGameVersions } from '../../../services/fabric'
 
 // Installs Fabric for a Minecraft version straight from Fabric's servers, so a
 // profile can use it without running Fabric's installer. `onInstalled` gets the new
-// launcher version id.
-function FabricInstall({ onInstalled }) {
+// launcher version id; `preferredVersion` is the Minecraft version picked at first when
+// Fabric supports it, and `notice` a success message shown under the row.
+function FabricInstall({ onInstalled, preferredVersion, title = 'Install Fabric', description, notice }) {
     const [versions, setVersions] = useState([]);
     const [gameVersion, setGameVersion] = useState('');
     const [busy, setBusy] = useState(false);
@@ -24,14 +25,14 @@ function FabricInstall({ onInstalled }) {
             .then(list => {
                 if (live) {
                     setVersions(list);
-                    setGameVersion(list[0] || '');
+                    setGameVersion(list.includes(preferredVersion) ? preferredVersion : list[0] || '');
                 }
             })
             .catch(() => live && setError('Could not reach Fabric to list Minecraft versions.'));
         return () => {
             live = false;
         };
-    }, []);
+    }, [preferredVersion]);
 
     async function handleInstall() {
         setBusy(true);
@@ -50,8 +51,13 @@ function FabricInstall({ onInstalled }) {
             <CardContent>
                 <Stack spacing={2}>
                     <Typography variant='subtitle1' component='h2'>
-                        Install Fabric
+                        {title}
                     </Typography>
+                    {description && (
+                        <Typography variant='body2' sx={{ color: 'text.secondary' }}>
+                            {description}
+                        </Typography>
+                    )}
                     <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
                         <TextField
                             id='fabricVersion'
@@ -79,6 +85,7 @@ function FabricInstall({ onInstalled }) {
                         </Button>
                     </Stack>
                     {error && <Alert severity='error'>{error}</Alert>}
+                    {notice && <Alert severity='success'>{notice}</Alert>}
                 </Stack>
             </CardContent>
         </Card>

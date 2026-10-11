@@ -59,3 +59,7 @@ manifest URL set on first launch. It lists zips per category:
 
 `sha256`, `target` (shown on the Mods page) and `description` are optional. With `sha256`, a download that doesn't match it is refused before
 anything is installed.
+
+The Home page checks every category for updates and installs the latest with one click.
+An optional top-level `"latest": { "mods": "1.2.0" }` names the latest version of a
+category; without it, the first version listed is taken as the latest.
