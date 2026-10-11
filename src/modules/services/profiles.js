@@ -13,6 +13,8 @@ const PROFILES_KEY = 'tmods.profiles';
 const ACTIVE_KEY = 'tmods.activeProfile';
 
 export const DEFAULT_PROFILE_ID = 'default';
+// Name of the profile TMods makes for itself when the player has none.
+export const TMODS_PROFILE_NAME = 'TMods';
 const LAUNCHER_KEY_PREFIX = 'tmods-';
 const LAUNCHER_ICON = 'Crafting_Table';
 
@@ -134,6 +136,19 @@ export function deleteProfile(id) {
         setActiveProfile(DEFAULT_PROFILE_ID);
     }
     syncLauncherProfiles();
+}
+
+// TMods always keeps at least one profile of its own: on first start, or once the
+// last one is deleted (the app calls this whenever it reloads the list), it makes a "TMods" profile on the latest release and switches
+// to it. The default .minecraft profile stays selectable. Returns the new profile, or
+// null when there already was one.
+export function ensureTModsProfile() {
+    if (readStored().length > 0) {
+        return null;
+    }
+    const profile = createProfile({ name: TMODS_PROFILE_NAME, gameVersion: LATEST_RELEASE });
+    setActiveProfile(profile.id);
+    return profile;
 }
 
 // Game versions the player can pick: the launcher's "latest" aliases plus every
