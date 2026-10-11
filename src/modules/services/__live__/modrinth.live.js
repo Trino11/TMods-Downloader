@@ -101,7 +101,10 @@ describe('Modrinth API', () => {
             const titles = await installMod(gameDir, target, modMenu.project_id, modMenu.title);
             expect(titles[0]).toBe(modMenu.title);
 
-            const mods = readModList(gameDir);
+            const { mods } = readModList(gameDir);
+            expect(mods.map(mod => mod.projectId)).toEqual(
+                expect.arrayContaining([modMenu.project_id, fabricApi.project_id]),
+            );
             for (const mod of mods) {
                 const jar = fs.readFileSync(path.join(gameDir, 'mods', mod.fileName));
                 expect(sha1(jar)).toBe(mod.sha1);
