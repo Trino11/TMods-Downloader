@@ -3,7 +3,15 @@ import ModrinthPage from '../pages/modrinth/ModrinthPage';
 import { search } from '../../services/modrinth';
 import { detectTarget } from '../../services/gameTarget';
 import { listGameVersions } from '../../services/profiles';
-import { installMod, listUnmanaged, readModList, removeMod, setTargetVersion } from '../../services/modrinthMods';
+import {
+    checkUpdates,
+    installMod,
+    listUnmanaged,
+    readModList,
+    removeMod,
+    setTargetVersion,
+    updateChangelog,
+} from '../../services/modrinthMods';
 import { applyFix, checkBeforeInstall, checkCompatibility } from '../../services/modCompat';
 
 jest.mock('../../services/modrinth', () => ({
@@ -21,6 +29,7 @@ jest.mock('../../services/modrinthMods', () => ({
     removeMod: jest.fn(),
     setModEnabled: jest.fn(),
     setTargetVersion: jest.fn(),
+    updateChangelog: jest.fn(),
     updateMod: jest.fn(),
 }));
 jest.mock('../../services/mrpack', () => ({}));
@@ -159,4 +168,20 @@ it('warns before installing a mod that clashes, and installs it if the player in
 
     expect(await screen.findByText('Installed Sodium.')).toBeInTheDocument();
     expect(installMod).toHaveBeenCalledWith('/games/fabric', fabric, 'sodium', 'Sodium', { allowIncompatible: true });
+});
+
+it('shows what an update brings before installing it', async () => {
+    const sodium = { projectId: 'sodium', title: 'Sodium', versionNumber: '0.6.0', enabled: true };
+    readModList.mockReturnValue({ target: null, mods: [sodium] });
+    const update = { id: 'v2', version_number: '0.7.0' };
+    checkUpdates.mockResolvedValue([{ mod: sodium, version: update }]);
+    updateChangelog.mockResolvedValue([{ id: 'v2', label: '0.7.0', text: 'Faster chunks' }]);
+    render(<ModrinthPage profile={profile} gameDir='/games/fabric' />);
+
+    fireEvent.click(screen.getByText('Installed (1)'));
+    fireEvent.click(screen.getByText('Check for updates'));
+    fireEvent.click(await screen.findByRole('button', { name: "What's new" }));
+
+    expect(await screen.findByText('Faster chunks')).toBeInTheDocument();
+    expect(updateChangelog).toHaveBeenCalledWith(sodium, update, fabric);
 });

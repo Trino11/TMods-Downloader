@@ -1,17 +1,26 @@
 // "Is everything up to date?" for one game folder: compares the bundle installed for
 // each manifest category with the latest one the manifest offers.
-import { fetchLatestVersions } from './manifest';
+import { fetchChannelUpdates } from './manifest';
 import { installBundle, readInstalledVersion } from './bundleInstaller';
 
-// Returns one entry per category: { category, installed, latest, outdated }. `latest`
-// is null when the manifest has nothing for it; `outdated` is true when the latest
-// version isn't the one installed (including when nothing is installed yet).
+// Returns one entry per category: { category, installed, latest, outdated, changes }.
+// `latest` is null when the manifest has nothing for it; `outdated` is true when the
+// latest version isn't the one installed (including when nothing is installed yet);
+// `changes` holds the changelogs of the versions the update brings, newest first.
 export async function checkChannels(categories, gameDir) {
-    const latest = await fetchLatestVersions(categories.map(category => category.id));
+    const installed = Object.fromEntries(
+        categories.map(category => [category.id, readInstalledVersion(category, gameDir)]),
+    );
+    const updates = await fetchChannelUpdates(installed);
     return categories.map(category => {
-        const installed = readInstalledVersion(category, gameDir);
-        const version = latest[category.id];
-        return { category, installed, latest: version, outdated: Boolean(version) && version.id !== installed };
+        const { latest, changes } = updates[category.id];
+        return {
+            category,
+            installed: installed[category.id],
+            latest,
+            outdated: Boolean(latest) && latest.id !== installed[category.id],
+            changes,
+        };
     });
 }
 

@@ -5,6 +5,8 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { ItemList, ItemRow } from '../../utils/ItemList';
+import { ChangelogButton } from '../../utils/Changelog';
+import { updateChangelog } from '../../../services/modrinthMods';
 
 // A mod's compatibility problems, each with its one-click fix when there is one.
 function Problems({ problems, busy, onFix }) {
@@ -50,6 +52,7 @@ function InstalledMods({
     mods,
     unmanaged,
     updates,
+    target,
     busy,
     canCheckUpdates,
     onCheckUpdates,
@@ -102,6 +105,13 @@ function InstalledMods({
                                 key={mod.projectId}
                                 actions={
                                     <>
+                                        {update && (
+                                            <ChangelogButton
+                                                key={update.id}
+                                                title={`What's new in ${mod.title}`}
+                                                load={() => updateChangelog(mod, update, target)}
+                                            />
+                                        )}
                                         {update && (
                                             <Button
                                                 variant='contained'
