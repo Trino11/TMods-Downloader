@@ -2,41 +2,29 @@ import './App.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import Navbar from './components/enclosing/navbar';
 import Home from './components/pages/home/home';
-import Mods from './components/pages/mods/mods';
-import Schematics from './components/pages/schematics/schematics';
-import Resourcepacks from './components/pages/resourcepacks/resourcepacks';
-import Configs from './components/pages/configs/configs';
-import Shaderpacks from './components/pages/shaderpacks/shaderpacks';
+import BundlePage from './components/pages/bundle/BundlePage';
+import categories from './categories';
 import { HashRouter as Router, Route, Routes } from 'react-router-dom';
-
-window.tmodsconfig = {
-  MANIFEST_URL: 'https://cdn.trinohost.com/tmods/manifest.json',
-  VERSION: '0.3.1',
-};
 
 function App() {
   return (
     <Router>
       <div className="App">
         <main>
-          <Navbar></Navbar>
+          <Navbar />
           <div className='content'>
-
             <Routes>
-              <Route path="/" element={<Home/>} />
-              <Route path="/home" element={<Home/>} />
-              <Route path="/mods" element={<Mods/>} />
-              <Route path="/schematics" element={<Schematics/>} />
-              <Route path="/resourcepacks" element={<Resourcepacks/>} />
-              <Route path="/configs" element={<Configs/>} />
-              <Route path="/shaderpacks" element={<Shaderpacks/>} />
+              <Route path="/" element={<Home />} />
+              <Route path="/home" element={<Home />} />
+              {categories.map(category =>
+                // key forces a fresh page per category, otherwise React reuses state across routes
+                <Route key={category.id} path={`/${category.id}`} element={<BundlePage key={category.id} category={category} />} />
+              )}
             </Routes>
-
-          </div >
+          </div>
         </main>
-      </div >
+      </div>
     </Router>
-
   );
 }
 
