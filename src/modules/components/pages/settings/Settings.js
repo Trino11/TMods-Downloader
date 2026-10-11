@@ -4,13 +4,18 @@ import Page from '../../utils/Page';
 import ManifestUrlForm from '../../settings/ManifestUrlForm';
 
 function Settings({ onManifestUrlChange }) {
-    return <Page title='Settings' description='The manifest lists the mods, configs and packs you can download. Changing it is checked before saving.'>
-        <Card variant='outlined'>
-            <CardContent>
-                <ManifestUrlForm onSaved={onManifestUrlChange} />
-            </CardContent>
-        </Card>
-    </Page>
+    return (
+        <Page
+            title='Settings'
+            description='The manifest lists the mods, configs and packs you can download. Changing it is checked before saving.'
+        >
+            <Card variant='outlined'>
+                <CardContent>
+                    <ManifestUrlForm onSaved={onManifestUrlChange} />
+                </CardContent>
+            </Card>
+        </Page>
+    );
 }
 
 export default Settings;

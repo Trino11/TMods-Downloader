@@ -31,13 +31,14 @@ describe('validateManifestUrl', () => {
         async url => {
             await expect(validateManifestUrl(url)).rejects.toThrow('The URL must start with http:// or https://.');
             expect(axios.get).not.toHaveBeenCalled();
-        }
+        },
     );
 
     it('reports a failed download', async () => {
         axios.get.mockRejectedValue(new Error('Network Error'));
-        await expect(validateManifestUrl('https://example.com/manifest.json'))
-            .rejects.toThrow('Could not load the manifest: Network Error');
+        await expect(validateManifestUrl('https://example.com/manifest.json')).rejects.toThrow(
+            'Could not load the manifest: Network Error',
+        );
     });
 
     it.each([
@@ -47,8 +48,7 @@ describe('validateManifestUrl', () => {
         ['versions that is not an object', { versions: 'mods' }],
     ])('rejects %s', async (_, data) => {
         axios.get.mockResolvedValue({ data });
-        await expect(validateManifestUrl('https://example.com/manifest.json'))
-            .rejects.toThrow('not a TMods manifest');
+        await expect(validateManifestUrl('https://example.com/manifest.json')).rejects.toThrow('not a TMods manifest');
     });
 });
 

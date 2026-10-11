@@ -73,7 +73,12 @@ export function activeGameDir() {
 
 // Ids double as folder names, so keep them to safe characters and unique.
 function newProfileId(name, taken) {
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 32) || 'profile';
+    const slug =
+        name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '')
+            .slice(0, 32) || 'profile';
     let id = slug;
     for (let n = 2; taken.has(id) || id === DEFAULT_PROFILE_ID; n++) {
         id = `${slug}-${n}`;
@@ -151,8 +156,11 @@ export function listGameVersions() {
     const versionsDir = path.join(minecraftDir(), 'versions');
     let installed = [];
     if (fs.existsSync(versionsDir)) {
-        installed = fs.readdirSync(versionsDir, { withFileTypes: true })
-            .filter(entry => entry.isDirectory() && fs.existsSync(path.join(versionsDir, entry.name, `${entry.name}.json`)))
+        installed = fs
+            .readdirSync(versionsDir, { withFileTypes: true })
+            .filter(
+                entry => entry.isDirectory() && fs.existsSync(path.join(versionsDir, entry.name, `${entry.name}.json`)),
+            )
             .map(entry => entry.name)
             .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
     }

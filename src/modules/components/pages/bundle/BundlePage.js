@@ -46,7 +46,11 @@ function BundlePage({ category, gameDir }) {
 
     function handleRestore(backup) {
         const label = backup.version ? `version ${backup.version}` : 'the backup';
-        if (!window.confirm(`Replace your current ${category.label.toLowerCase()} with ${label} from ${new Date(backup.createdAt).toLocaleString()}? Your current files are backed up first.`)) {
+        if (
+            !window.confirm(
+                `Replace your current ${category.label.toLowerCase()} with ${label} from ${new Date(backup.createdAt).toLocaleString()}? Your current files are backed up first.`,
+            )
+        ) {
             return;
         }
         setError('');
@@ -60,27 +64,35 @@ function BundlePage({ category, gameDir }) {
         }
     }
 
-    return <Page title={category.label} description={category.description}>
-        <Box>
-            <Button variant='contained' startIcon={downloading ? <Downloadspinner /> : <RefreshIcon />} onClick={refresh}>Refresh</Button>
-        </Box>
-        {error && <Alert severity='error'>{error}</Alert>}
-        {versions.length > 0 &&
-            <ItemList>
-                {versions.map(version =>
-                    <VersionItem
-                        key={version.id}
-                        version={version}
-                        showTarget={category.showTarget}
-                        installed={installed === version.id}
-                        disabled={downloading}
-                        onDownload={() => handleDownload(version)}
-                    />
-                )}
-            </ItemList>}
-        {category.backupFolder &&
-            <BackupList backups={backups} disabled={downloading} onRestore={handleRestore} />}
-    </Page>
+    return (
+        <Page title={category.label} description={category.description}>
+            <Box>
+                <Button
+                    variant='contained'
+                    startIcon={downloading ? <Downloadspinner /> : <RefreshIcon />}
+                    onClick={refresh}
+                >
+                    Refresh
+                </Button>
+            </Box>
+            {error && <Alert severity='error'>{error}</Alert>}
+            {versions.length > 0 && (
+                <ItemList>
+                    {versions.map(version => (
+                        <VersionItem
+                            key={version.id}
+                            version={version}
+                            showTarget={category.showTarget}
+                            installed={installed === version.id}
+                            disabled={downloading}
+                            onDownload={() => handleDownload(version)}
+                        />
+                    ))}
+                </ItemList>
+            )}
+            {category.backupFolder && <BackupList backups={backups} disabled={downloading} onRestore={handleRestore} />}
+        </Page>
+    );
 }
 
 export default BundlePage;

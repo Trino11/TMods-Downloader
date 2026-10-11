@@ -33,26 +33,31 @@ function ManifestUrlForm({ onSaved }) {
         }
     }
 
-    return <Stack component='form' spacing={2} onSubmit={handleSubmit}>
-        <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
-            <TextField
-                id='manifestUrl'
-                label='Manifest URL'
-                type='url'
-                fullWidth
-                placeholder='https://example.com/manifest.json'
-                value={url}
-                onChange={event => { setUrl(event.target.value); setSaved(false); }}
-                disabled={checking}
-                slotProps={{ htmlInput: { required: true }, inputLabel: { shrink: true } }}
-            />
-            <Button type='submit' variant='contained' disabled={checking} sx={{ minWidth: 96, height: 40 }}>
-                {checking ? <Downloadspinner /> : 'Save'}
-            </Button>
+    return (
+        <Stack component='form' spacing={2} onSubmit={handleSubmit}>
+            <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
+                <TextField
+                    id='manifestUrl'
+                    label='Manifest URL'
+                    type='url'
+                    fullWidth
+                    placeholder='https://example.com/manifest.json'
+                    value={url}
+                    onChange={event => {
+                        setUrl(event.target.value);
+                        setSaved(false);
+                    }}
+                    disabled={checking}
+                    slotProps={{ htmlInput: { required: true }, inputLabel: { shrink: true } }}
+                />
+                <Button type='submit' variant='contained' disabled={checking} sx={{ minWidth: 96, height: 40 }}>
+                    {checking ? <Downloadspinner /> : 'Save'}
+                </Button>
+            </Stack>
+            {error && <Alert severity='error'>{error}</Alert>}
+            {saved && <Alert severity='success'>Saved.</Alert>}
         </Stack>
-        {error && <Alert severity='error'>{error}</Alert>}
-        {saved && <Alert severity='success'>Saved.</Alert>}
-    </Stack>
+    );
 }
 
 export default ManifestUrlForm;

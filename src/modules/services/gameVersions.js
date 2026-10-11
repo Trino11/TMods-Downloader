@@ -43,9 +43,7 @@ export function buildVersionOptions(mojangVersions, installed = listGameVersions
     return [
         { id: LATEST_RELEASE, type: 'alias', installed: false },
         { id: LATEST_SNAPSHOT, type: 'alias', installed: false },
-        ...installedIds
-            .filter(id => !known.has(id))
-            .map(id => ({ id, type: 'installed', installed: true })),
+        ...installedIds.filter(id => !known.has(id)).map(id => ({ id, type: 'installed', installed: true })),
         ...mojangVersions.map(version => ({ ...version, installed: installedSet.has(version.id) })),
     ];
 }

@@ -68,40 +68,69 @@ function ProjectSearch({ filters, placeholder, action }) {
         }
     }
 
-    return <Stack spacing={2}>
-        <TextField
-            fullWidth
-            placeholder={placeholder}
-            value={query}
-            onChange={event => setQuery(event.target.value)}
-            slotProps={{
-                htmlInput: { 'aria-label': placeholder },
-                input: { startAdornment: <InputAdornment position='start'><SearchIcon /></InputAdornment> },
-            }}
-        />
-        <Box sx={{ height: 4 }}>{loading && <LinearProgress />}</Box>
-        {error && <Alert severity='error'>{error}</Alert>}
-        {results.hits.length > 0 &&
-            <ItemList>
-                {results.hits.map(hit =>
-                    <ItemRow
-                        key={hit.project_id}
-                        leading={<Avatar variant='rounded' src={hit.icon_url || undefined} alt='' sx={{ width: 48, height: 48 }}><ExtensionIcon /></Avatar>}
-                        actions={action(hit)}
-                    >
-                        <Typography component='span' sx={{ fontWeight: 500 }}>{hit.title}</Typography>{' '}
-                        <Typography variant='body2' component='span' sx={{ color: 'text.secondary' }}>by {hit.author} · {formatDownloads(hit.downloads)} downloads</Typography>
-                        {/* Search gives a plain-text summary; it is never rendered as HTML. */}
-                        <Typography variant='body2'>{hit.description}</Typography>
-                    </ItemRow>
-                )}
-            </ItemList>}
-        {!loading && !error && results.hits.length === 0 && <Typography align='center' sx={{ color: 'text.secondary' }}>Nothing found.</Typography>}
-        {results.hits.length < results.total && results.hits.length >= PAGE_SIZE &&
-            <Box sx={{ textAlign: 'center' }}>
-                <Button variant='outlined' disabled={loading} onClick={loadMore}>More</Button>
-            </Box>}
-    </Stack>
+    return (
+        <Stack spacing={2}>
+            <TextField
+                fullWidth
+                placeholder={placeholder}
+                value={query}
+                onChange={event => setQuery(event.target.value)}
+                slotProps={{
+                    htmlInput: { 'aria-label': placeholder },
+                    input: {
+                        startAdornment: (
+                            <InputAdornment position='start'>
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                    },
+                }}
+            />
+            <Box sx={{ height: 4 }}>{loading && <LinearProgress />}</Box>
+            {error && <Alert severity='error'>{error}</Alert>}
+            {results.hits.length > 0 && (
+                <ItemList>
+                    {results.hits.map(hit => (
+                        <ItemRow
+                            key={hit.project_id}
+                            leading={
+                                <Avatar
+                                    variant='rounded'
+                                    src={hit.icon_url || undefined}
+                                    alt=''
+                                    sx={{ width: 48, height: 48 }}
+                                >
+                                    <ExtensionIcon />
+                                </Avatar>
+                            }
+                            actions={action(hit)}
+                        >
+                            <Typography component='span' sx={{ fontWeight: 500 }}>
+                                {hit.title}
+                            </Typography>{' '}
+                            <Typography variant='body2' component='span' sx={{ color: 'text.secondary' }}>
+                                by {hit.author} · {formatDownloads(hit.downloads)} downloads
+                            </Typography>
+                            {/* Search gives a plain-text summary; it is never rendered as HTML. */}
+                            <Typography variant='body2'>{hit.description}</Typography>
+                        </ItemRow>
+                    ))}
+                </ItemList>
+            )}
+            {!loading && !error && results.hits.length === 0 && (
+                <Typography align='center' sx={{ color: 'text.secondary' }}>
+                    Nothing found.
+                </Typography>
+            )}
+            {results.hits.length < results.total && results.hits.length >= PAGE_SIZE && (
+                <Box sx={{ textAlign: 'center' }}>
+                    <Button variant='outlined' disabled={loading} onClick={loadMore}>
+                        More
+                    </Button>
+                </Box>
+            )}
+        </Stack>
+    );
 }
 
 export default ProjectSearch;

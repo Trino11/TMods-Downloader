@@ -9,7 +9,12 @@ jest.mock('../../services/modrinth', () => ({
 
 function hits(prefix, count) {
     return Array.from({ length: count }, (_, i) => ({
-        project_id: `${prefix}${i}`, title: `${prefix} ${i}`, author: 'someone', description: '', downloads: 1, icon_url: '',
+        project_id: `${prefix}${i}`,
+        title: `${prefix} ${i}`,
+        author: 'someone',
+        description: '',
+        downloads: 1,
+        icon_url: '',
     }));
 }
 
@@ -17,9 +22,13 @@ it('drops "More" results that arrive after the query changed', async () => {
     let finishMore;
     search.mockImplementation(({ query, offset }) => {
         if (offset) {
-            return new Promise(resolve => { finishMore = () => resolve({ hits: hits('stale', 2), total: 40 }); });
+            return new Promise(resolve => {
+                finishMore = () => resolve({ hits: hits('stale', 2), total: 40 });
+            });
         }
-        return Promise.resolve(query ? { hits: hits('fresh', 1), total: 1 } : { hits: hits('first', PAGE_SIZE), total: 40 });
+        return Promise.resolve(
+            query ? { hits: hits('fresh', 1), total: 1 } : { hits: hits('first', PAGE_SIZE), total: 40 },
+        );
     });
     render(<ProjectSearch filters={{ projectType: 'mod' }} placeholder='Search mods' action={() => null} />);
 

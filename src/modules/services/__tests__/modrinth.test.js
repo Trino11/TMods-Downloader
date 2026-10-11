@@ -34,7 +34,12 @@ describe('search', () => {
 
 describe('pickVersion', () => {
     it('takes the newest release, else the newest version', () => {
-        expect(pickVersion([{ id: 'b', version_type: 'beta' }, { id: 'r', version_type: 'release' }]).id).toBe('r');
+        expect(
+            pickVersion([
+                { id: 'b', version_type: 'beta' },
+                { id: 'r', version_type: 'release' },
+            ]).id,
+        ).toBe('r');
         expect(pickVersion([{ id: 'b', version_type: 'beta' }]).id).toBe('b');
         expect(pickVersion([])).toBeUndefined();
     });

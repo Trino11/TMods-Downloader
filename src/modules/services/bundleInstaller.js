@@ -56,7 +56,8 @@ export function listBackups(category, gameDir = defaultGameDir) {
     if (!category.backupFolder || !fs.existsSync(dir)) {
         return [];
     }
-    return fs.readdirSync(dir)
+    return fs
+        .readdirSync(dir)
         .map(id => {
             try {
                 const meta = JSON.parse(fs.readFileSync(path.join(dir, id, 'backup.json'), 'utf-8'));

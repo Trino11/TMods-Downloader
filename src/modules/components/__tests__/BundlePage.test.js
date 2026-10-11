@@ -79,7 +79,9 @@ it('shows an error when an install fails', async () => {
 
 it('shows an error when a restore fails', () => {
     listBackups.mockReturnValue([backup]);
-    restoreBackup.mockImplementation(() => { throw new Error('EBUSY: resource busy'); });
+    restoreBackup.mockImplementation(() => {
+        throw new Error('EBUSY: resource busy');
+    });
     render(<BundlePage category={mods} />);
 
     fireEvent.click(screen.getByText('Restore'));

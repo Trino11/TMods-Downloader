@@ -23,7 +23,10 @@ jest.mock('../../services/profiles', () => ({
 }));
 jest.mock('../enclosing/navbar', () => () => <nav>navbar</nav>);
 jest.mock('../pages/modrinth/ModrinthPage', () => () => <div>modrinth</div>);
-jest.mock('../../services/fabric', () => ({ installFabric: jest.fn(), listFabricGameVersions: jest.fn(() => new Promise(() => {})) }));
+jest.mock('../../services/fabric', () => ({
+    installFabric: jest.fn(),
+    listFabricGameVersions: jest.fn(() => new Promise(() => {})),
+}));
 
 beforeEach(() => {
     validateManifestUrl.mockReset();
@@ -66,7 +69,9 @@ describe('first launch', () => {
     });
 
     it('shows the error and saves nothing when the URL is rejected', async () => {
-        validateManifestUrl.mockRejectedValue(new Error('The URL loaded, but it is not a TMods manifest (no "versions" field).'));
+        validateManifestUrl.mockRejectedValue(
+            new Error('The URL loaded, but it is not a TMods manifest (no "versions" field).'),
+        );
         render(<App />);
 
         typeUrl('https://example.com/page.html');
@@ -125,7 +130,11 @@ describe('Settings page', () => {
 
     it('disables the form while the URL is being checked', async () => {
         let finish;
-        validateManifestUrl.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+        validateManifestUrl.mockReturnValue(
+            new Promise(resolve => {
+                finish = resolve;
+            }),
+        );
         render(<Settings />);
 
         fireEvent.click(screen.getByRole('button'));

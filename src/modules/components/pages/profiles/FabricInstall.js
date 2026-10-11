@@ -28,7 +28,9 @@ function FabricInstall({ onInstalled }) {
                 }
             })
             .catch(() => live && setError('Could not reach Fabric to list Minecraft versions.'));
-        return () => { live = false; };
+        return () => {
+            live = false;
+        };
     }, []);
 
     async function handleInstall() {
@@ -43,31 +45,44 @@ function FabricInstall({ onInstalled }) {
         }
     }
 
-    return <Card variant='outlined'>
-        <CardContent>
-            <Stack spacing={2}>
-                <Typography variant='subtitle1' component='h2'>Install Fabric</Typography>
-                <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
-                    <TextField
-                        id='fabricVersion'
-                        label='Fabric Minecraft version'
-                        select
-                        value={gameVersion}
-                        onChange={event => setGameVersion(event.target.value)}
-                        disabled={busy || versions.length === 0}
-                        slotProps={{ select: { native: true } }}
-                        sx={{ width: 300 }}
-                    >
-                        {versions.map(version => <option key={version} value={version}>{version}</option>)}
-                    </TextField>
-                    <Button variant='contained' onClick={handleInstall} disabled={busy || !gameVersion} startIcon={busy ? <Downloadspinner /> : null}>
-                        {busy ? 'Installing...' : 'Install Fabric'}
-                    </Button>
+    return (
+        <Card variant='outlined'>
+            <CardContent>
+                <Stack spacing={2}>
+                    <Typography variant='subtitle1' component='h2'>
+                        Install Fabric
+                    </Typography>
+                    <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
+                        <TextField
+                            id='fabricVersion'
+                            label='Fabric Minecraft version'
+                            select
+                            value={gameVersion}
+                            onChange={event => setGameVersion(event.target.value)}
+                            disabled={busy || versions.length === 0}
+                            slotProps={{ select: { native: true } }}
+                            sx={{ width: 300 }}
+                        >
+                            {versions.map(version => (
+                                <option key={version} value={version}>
+                                    {version}
+                                </option>
+                            ))}
+                        </TextField>
+                        <Button
+                            variant='contained'
+                            onClick={handleInstall}
+                            disabled={busy || !gameVersion}
+                            startIcon={busy ? <Downloadspinner /> : null}
+                        >
+                            {busy ? 'Installing...' : 'Install Fabric'}
+                        </Button>
+                    </Stack>
+                    {error && <Alert severity='error'>{error}</Alert>}
                 </Stack>
-                {error && <Alert severity='error'>{error}</Alert>}
-            </Stack>
-        </CardContent>
-    </Card>
+            </CardContent>
+        </Card>
+    );
 }
 
 export default FabricInstall;

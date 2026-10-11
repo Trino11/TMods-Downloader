@@ -5,14 +5,7 @@
 import { createProfile, deleteProfile, listGameVersions, profileGameDir } from './profiles';
 import { detectTarget } from './gameTarget';
 import { getProjectVersions, pickVersion, primaryFile } from './modrinth';
-import {
-    adoptUnmanaged,
-    downloadVerified,
-    listUnmanaged,
-    modsDir,
-    readModList,
-    writeFileSafely,
-} from './modrinthMods';
+import { adoptUnmanaged, downloadVerified, listUnmanaged, modsDir, readModList, writeFileSafely } from './modrinthMods';
 import { AdmZip, Buffer, fs, path } from './node';
 
 const INDEX_FILE = 'modrinth.index.json';
@@ -44,8 +37,12 @@ const DOWNLOADS_AT_ONCE = 4;
 function safeTarget(gameDir, relative) {
     const normalized = String(relative).replace(/\\/g, '/');
     const parts = normalized.split('/');
-    if (!normalized || normalized.startsWith('/') || /^[a-zA-Z]:/.test(normalized)
-        || parts.some(part => part === '..' || part === '')) {
+    if (
+        !normalized ||
+        normalized.startsWith('/') ||
+        /^[a-zA-Z]:/.test(normalized) ||
+        parts.some(part => part === '..' || part === '')
+    ) {
         throw new Error(`The pack contains an unsafe file path: ${relative}`);
     }
     const target = path.join(gameDir, ...parts);
@@ -75,13 +72,13 @@ export function readIndex(zip) {
     try {
         index = JSON.parse(entry.getData().toString('utf-8'));
     } catch {
-        throw new Error('The modpack\'s modrinth.index.json is not valid JSON.');
+        throw new Error("The modpack's modrinth.index.json is not valid JSON.");
     }
     if (index.formatVersion !== 1 || index.game !== 'minecraft') {
-        throw new Error('This modpack is in a format TMods doesn\'t know.');
+        throw new Error("This modpack is in a format TMods doesn't know.");
     }
     if (!index.dependencies?.minecraft) {
-        throw new Error('The modpack doesn\'t say which Minecraft version it is for.');
+        throw new Error("The modpack doesn't say which Minecraft version it is for.");
     }
     return index;
 }
@@ -127,7 +124,7 @@ export async function importMrpack(data, { name } = {}) {
     try {
         zip = new AdmZip(Buffer.from(data));
     } catch {
-        throw new Error('This file is not a modpack (it isn\'t a zip).');
+        throw new Error("This file is not a modpack (it isn't a zip).");
     }
     const index = readIndex(zip);
     const gameVersion = index.dependencies.minecraft;
@@ -145,9 +142,12 @@ export async function importMrpack(data, { name } = {}) {
             throw new Error(`The pack downloads ${file.path} from a site TMods doesn't trust.`);
         }
     }
-    const overrides = ['overrides/', 'client-overrides/'].flatMap(prefix => zip.getEntries()
-        .filter(entry => !entry.isDirectory && entry.entryName.startsWith(prefix))
-        .map(entry => ({ entry, relative: entry.entryName.slice(prefix.length) })));
+    const overrides = ['overrides/', 'client-overrides/'].flatMap(prefix =>
+        zip
+            .getEntries()
+            .filter(entry => !entry.isDirectory && entry.entryName.startsWith(prefix))
+            .map(entry => ({ entry, relative: entry.entryName.slice(prefix.length) })),
+    );
     for (const { relative } of overrides) {
         safeTarget(probe, relative);
     }
@@ -176,7 +176,7 @@ export async function importMrpack(data, { name } = {}) {
     try {
         await adoptUnmanaged(gameDir);
     } catch (error) {
-        console.error('Could not look up the modpack\'s mods on Modrinth:', error);
+        console.error("Could not look up the modpack's mods on Modrinth:", error);
     }
 
     let loaderNote = '';

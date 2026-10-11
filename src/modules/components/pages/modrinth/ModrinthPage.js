@@ -44,39 +44,56 @@ function describeTarget(target) {
 function TargetBar({ profile, versionId, target, onPick }) {
     const [choice, setChoice] = useState('');
     if (target) {
-        return <Alert severity='success' icon={false}>Mods are picked for <strong>{describeTarget(target)}</strong>.</Alert>;
+        return (
+            <Alert severity='success' icon={false}>
+                Mods are picked for <strong>{describeTarget(target)}</strong>.
+            </Alert>
+        );
     }
     if (profile.id !== DEFAULT_PROFILE_ID) {
-        return <Alert severity='warning'>
-            This profile plays {versionId}, which has no mod loader. Install Fabric, Forge, NeoForge or Quilt with its
-            installer, then pick that version for the profile in Profiles.
-        </Alert>;
+        return (
+            <Alert severity='warning'>
+                This profile plays {versionId}, which has no mod loader. Install Fabric, Forge, NeoForge or Quilt with
+                its installer, then pick that version for the profile in Profiles.
+            </Alert>
+        );
     }
     const loaderVersions = listGameVersions().filter(id => detectTarget(id));
     if (loaderVersions.length === 0) {
-        return <Alert severity='warning'>
-            No mod loader is installed. Install Fabric, Forge, NeoForge or Quilt with its installer, then come back here.
-        </Alert>;
+        return (
+            <Alert severity='warning'>
+                No mod loader is installed. Install Fabric, Forge, NeoForge or Quilt with its installer, then come back
+                here.
+            </Alert>
+        );
     }
-    return <Card variant='outlined'>
-        <CardContent>
-            <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
-                <TextField
-                    id='loaderVersion'
-                    label='Which installed version do you play this folder with?'
-                    select
-                    fullWidth
-                    value={choice}
-                    onChange={event => setChoice(event.target.value)}
-                    slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
-                >
-                    <option value=''>Pick a version</option>
-                    {loaderVersions.map(id => <option key={id} value={id}>{id}</option>)}
-                </TextField>
-                <Button variant='contained' disabled={!choice} onClick={() => onPick(choice)}>Use</Button>
-            </Stack>
-        </CardContent>
-    </Card>;
+    return (
+        <Card variant='outlined'>
+            <CardContent>
+                <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
+                    <TextField
+                        id='loaderVersion'
+                        label='Which installed version do you play this folder with?'
+                        select
+                        fullWidth
+                        value={choice}
+                        onChange={event => setChoice(event.target.value)}
+                        slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+                    >
+                        <option value=''>Pick a version</option>
+                        {loaderVersions.map(id => (
+                            <option key={id} value={id}>
+                                {id}
+                            </option>
+                        ))}
+                    </TextField>
+                    <Button variant='contained' disabled={!choice} onClick={() => onPick(choice)}>
+                        Use
+                    </Button>
+                </Stack>
+            </CardContent>
+        </Card>
+    );
 }
 
 // Single mods and modpacks from Modrinth for the active profile. App remounts the page
@@ -92,7 +109,10 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
 
     const versionId = profile.id === DEFAULT_PROFILE_ID ? list.target?.versionId : profile.gameVersion;
     const target = useMemo(() => detectTarget(versionId), [versionId]);
-    const searchFilters = useMemo(() => target && { projectType: 'mod', loader: target.loader, gameVersion: target.gameVersion }, [target]);
+    const searchFilters = useMemo(
+        () => target && { projectType: 'mod', loader: target.loader, gameVersion: target.gameVersion },
+        [target],
+    );
     const installedIds = new Set(list.mods.map(mod => mod.projectId));
 
     function reload() {
@@ -106,7 +126,7 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
         setError('');
         setNotice('');
         try {
-            setNotice(await action() || '');
+            setNotice((await action()) || '');
         } catch (actionError) {
             setError(actionError.message);
         } finally {
@@ -162,54 +182,75 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
         reload();
     }
 
-    return <Page title='Modrinth'>
-        <TargetBar profile={profile} versionId={versionId} target={target} onPick={handlePickTarget} />
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs value={tab} onChange={(event, id) => setTab(id)}>
-                {TABS.map(({ id, label }) =>
-                    <Tab key={id} value={id} label={id === 'installed' ? `${label} (${list.mods.length})` : label} />
-                )}
-            </Tabs>
-        </Box>
-        {busy && <LinearProgress />}
-        {error && <Alert severity='error'>{error}</Alert>}
-        {notice && <Alert severity='success'>{notice}</Alert>}
+    return (
+        <Page title='Modrinth'>
+            <TargetBar profile={profile} versionId={versionId} target={target} onPick={handlePickTarget} />
+            <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                <Tabs value={tab} onChange={(event, id) => setTab(id)}>
+                    {TABS.map(({ id, label }) => (
+                        <Tab
+                            key={id}
+                            value={id}
+                            label={id === 'installed' ? `${label} (${list.mods.length})` : label}
+                        />
+                    ))}
+                </Tabs>
+            </Box>
+            {busy && <LinearProgress />}
+            {error && <Alert severity='error'>{error}</Alert>}
+            {notice && <Alert severity='success'>{notice}</Alert>}
 
-        {tab === 'search' && (target
-            ? <ProjectSearch
-                filters={searchFilters}
-                placeholder='Search mods'
-                action={hit => installedIds.has(hit.project_id)
-                    ? <Button variant='outlined' disabled>Installed</Button>
-                    : <Button variant='contained' disabled={busy} onClick={() => install(hit)}>Install</Button>}
-            />
-            : <Typography sx={{ color: 'text.secondary' }}>Set up a mod loader above to search for mods.</Typography>)}
+            {tab === 'search' &&
+                (target ? (
+                    <ProjectSearch
+                        filters={searchFilters}
+                        placeholder='Search mods'
+                        action={hit =>
+                            installedIds.has(hit.project_id) ? (
+                                <Button variant='outlined' disabled>
+                                    Installed
+                                </Button>
+                            ) : (
+                                <Button variant='contained' disabled={busy} onClick={() => install(hit)}>
+                                    Install
+                                </Button>
+                            )
+                        }
+                    />
+                ) : (
+                    <Typography sx={{ color: 'text.secondary' }}>
+                        Set up a mod loader above to search for mods.
+                    </Typography>
+                ))}
 
-        {tab === 'installed' &&
-            <InstalledMods
-                mods={list.mods}
-                unmanaged={unmanaged}
-                updates={updates}
-                busy={busy}
-                canCheckUpdates={Boolean(target)}
-                onCheckUpdates={handleCheckUpdates}
-                onUpdate={(mod, version) => applyUpdates([{ mod, version }])}
-                onUpdateAll={() => applyUpdates(updates)}
-                onToggle={mod => run(async () => setModEnabled(gameDir, mod.projectId, !mod.enabled))}
-                onRemove={handleRemove}
-                onAdopt={handleAdopt}
-            />}
+            {tab === 'installed' && (
+                <InstalledMods
+                    mods={list.mods}
+                    unmanaged={unmanaged}
+                    updates={updates}
+                    busy={busy}
+                    canCheckUpdates={Boolean(target)}
+                    onCheckUpdates={handleCheckUpdates}
+                    onUpdate={(mod, version) => applyUpdates([{ mod, version }])}
+                    onUpdateAll={() => applyUpdates(updates)}
+                    onToggle={mod => run(async () => setModEnabled(gameDir, mod.projectId, !mod.enabled))}
+                    onRemove={handleRemove}
+                    onAdopt={handleAdopt}
+                />
+            )}
 
-        {tab === 'modpacks' &&
-            <Modpacks
-                profile={profile}
-                gameDir={gameDir}
-                target={target}
-                busy={busy}
-                run={run}
-                onProfileCreated={onProfilesChange}
-            />}
-    </Page>
+            {tab === 'modpacks' && (
+                <Modpacks
+                    profile={profile}
+                    gameDir={gameDir}
+                    target={target}
+                    busy={busy}
+                    run={run}
+                    onProfileCreated={onProfilesChange}
+                />
+            )}
+        </Page>
+    );
 }
 
 export default ModrinthPage;

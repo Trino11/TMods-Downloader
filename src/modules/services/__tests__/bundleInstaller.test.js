@@ -32,7 +32,13 @@ beforeEach(() => {
         return name === 'adm-zip' ? SafeAdmZip : require(name);
     };
     jest.isolateModules(() => {
-        ({ installBundle, readInstalledVersion, listBackups, restoreBackup, MAX_BACKUPS } = require('../bundleInstaller'));
+        ({
+            installBundle,
+            readInstalledVersion,
+            listBackups,
+            restoreBackup,
+            MAX_BACKUPS,
+        } = require('../bundleInstaller'));
     });
     axios.get.mockReset();
 });
@@ -77,7 +83,10 @@ const version = { id: '2.0', url: 'https://example.com/bundle.zip' };
 // Reads a file from the newest backup of a category.
 function readBackup(id, relative, index = 0) {
     const backup = listBackups(category(id))[index];
-    return fs.readFileSync(path.join(minecraftDir, '.tmods_loader', id, 'backups', backup.id, 'files', relative), 'utf-8');
+    return fs.readFileSync(
+        path.join(minecraftDir, '.tmods_loader', id, 'backups', backup.id, 'files', relative),
+        'utf-8',
+    );
 }
 
 describe('installBundle', () => {
@@ -199,7 +208,9 @@ describe('installBundle', () => {
         const garbage = Buffer.from('this is not a zip');
         axios.get.mockResolvedValue({ data: garbage });
 
-        await expect(installBundle(category('mods'), version)).rejects.toThrow('The download of 2.0 is not a valid zip.');
+        await expect(installBundle(category('mods'), version)).rejects.toThrow(
+            'The download of 2.0 is not a valid zip.',
+        );
 
         expect(read('mods/current.jar')).toBe('current');
         expect(listBackups(category('mods'))).toEqual([]);
@@ -220,8 +231,9 @@ describe('installBundle', () => {
         write('mods/current.jar', 'current');
         serveZip({ 'mods/evil.jar': 'evil' });
 
-        await expect(installBundle(category('mods'), { ...version, sha256: 'ab'.repeat(32) }))
-            .rejects.toThrow('The download of 2.0 is corrupt');
+        await expect(installBundle(category('mods'), { ...version, sha256: 'ab'.repeat(32) })).rejects.toThrow(
+            'The download of 2.0 is corrupt',
+        );
 
         expect(read('mods/current.jar')).toBe('current');
         expect(exists('mods/evil.jar')).toBe(false);

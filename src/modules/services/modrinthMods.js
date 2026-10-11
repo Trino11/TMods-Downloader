@@ -86,7 +86,8 @@ export function listUnmanaged(gameDir) {
         return [];
     }
     const managed = managedFileNames(gameDir);
-    return fs.readdirSync(dir)
+    return fs
+        .readdirSync(dir)
         .filter(name => /\.jar(\.disabled)?$/.test(name) && !managed.has(name))
         .sort();
 }
@@ -191,7 +192,9 @@ async function planInstall(rootVersion, target, installedIds) {
 
     const all = new Set([...installedIds, ...plan.keys()]);
     for (const version of plan.values()) {
-        const clash = version.dependencies.find(dep => dep.dependency_type === 'incompatible' && all.has(dep.project_id));
+        const clash = version.dependencies.find(
+            dep => dep.dependency_type === 'incompatible' && all.has(dep.project_id),
+        );
         if (clash) {
             throw new Error(`It doesn't work together with ${await projectTitle(clash.project_id)}.`);
         }
@@ -219,7 +222,9 @@ export async function installMod(gameDir, target, projectId, title) {
     }
 
     const entries = plan.map(planned => ({
-        ...entryFor(planned, titles.get(planned.project_id) || planned.name, { asDependency: planned.project_id !== projectId }),
+        ...entryFor(planned, titles.get(planned.project_id) || planned.name, {
+            asDependency: planned.project_id !== projectId,
+        }),
         enabled: true,
     }));
     // Download everything before writing anything, so a failed download leaves no strays.
@@ -235,7 +240,10 @@ export async function installMod(gameDir, target, projectId, title) {
 // Finds newer versions of the tracked mods for `target`. Returns [{ mod, version }].
 export async function checkUpdates(gameDir, target) {
     const { mods } = readModList(gameDir);
-    const latest = await latestVersionsFromHashes(mods.map(mod => mod.sha1), target);
+    const latest = await latestVersionsFromHashes(
+        mods.map(mod => mod.sha1),
+        target,
+    );
     return mods
         .filter(mod => latest[mod.sha1] && latest[mod.sha1].id !== mod.versionId)
         .map(mod => ({ mod, version: latest[mod.sha1] }));
@@ -302,14 +310,19 @@ export async function adoptUnmanaged(gameDir) {
     if (found.length === 0) {
         return 0;
     }
-    const titles = new Map((await getProjects(found.map(file => versions[file.sha1].project_id))).map(p => [p.id, p.title]));
+    const titles = new Map(
+        (await getProjects(found.map(file => versions[file.sha1].project_id))).map(p => [p.id, p.title]),
+    );
 
     for (const file of found) {
         const version = versions[file.sha1];
         const remoteFile = version.files.find(f => f.hashes.sha1 === file.sha1) || primaryFile(version);
         const enabled = !file.name.endsWith(DISABLED_SUFFIX);
         list.mods.push({
-            ...entryFor({ ...version, files: [{ ...remoteFile, primary: true }] }, titles.get(version.project_id) || version.name),
+            ...entryFor(
+                { ...version, files: [{ ...remoteFile, primary: true }] },
+                titles.get(version.project_id) || version.name,
+            ),
             // Keep the name it has on disk, which may differ from Modrinth's.
             fileName: enabled ? file.name : file.name.slice(0, -DISABLED_SUFFIX.length),
             sha1: file.sha1,

@@ -44,7 +44,12 @@ afterEach(() => {
 });
 
 it('lists stable Minecraft versions unless snapshots are asked for', async () => {
-    serve({ '/versions/game': [{ version: '1.21.2-pre1', stable: false }, { version: '1.21.1', stable: true }] });
+    serve({
+        '/versions/game': [
+            { version: '1.21.2-pre1', stable: false },
+            { version: '1.21.1', stable: true },
+        ],
+    });
 
     expect(await fabric.listFabricGameVersions()).toEqual(['1.21.1']);
     expect(await fabric.listFabricGameVersions({ snapshots: true })).toEqual(['1.21.2-pre1', '1.21.1']);
@@ -68,7 +73,7 @@ it('fails clearly when a version has no stable loader', async () => {
     await expect(fabric.latestLoaderVersion('1.0')).rejects.toThrow('no stable loader for Minecraft 1.0');
 });
 
-it('writes the launcher version json the way Fabric\'s installer does', async () => {
+it("writes the launcher version json the way Fabric's installer does", async () => {
     serve({
         '/versions/loader/1.21.1': [{ loader: { version: '0.16.5', stable: true } }],
         '/versions/loader/1.21.1/0.16.5/profile/json': profileJson,
@@ -95,15 +100,21 @@ it('installs a given loader version without looking up the latest', async () => 
 });
 
 it('refuses versions that would escape the versions folder', async () => {
-    await expect(fabric.installFabric('../1.21.1', { loaderVersion: '0.16.5' })).rejects.toThrow('Invalid Minecraft version');
-    await expect(fabric.installFabric('1.21.1', { loaderVersion: '..\\x' })).rejects.toThrow('Invalid Fabric loader version');
+    await expect(fabric.installFabric('../1.21.1', { loaderVersion: '0.16.5' })).rejects.toThrow(
+        'Invalid Minecraft version',
+    );
+    await expect(fabric.installFabric('1.21.1', { loaderVersion: '..\\x' })).rejects.toThrow(
+        'Invalid Fabric loader version',
+    );
     expect(axios.get).not.toHaveBeenCalled();
 });
 
 it('rejects a profile that is not for the asked version and writes nothing', async () => {
     serve({ '/versions/loader/1.21.1/0.16.5/profile/json': { ...profileJson, inheritsFrom: '1.20.1' } });
 
-    await expect(fabric.installFabric('1.21.1', { loaderVersion: '0.16.5' })).rejects.toThrow('unexpected launcher profile');
+    await expect(fabric.installFabric('1.21.1', { loaderVersion: '0.16.5' })).rejects.toThrow(
+        'unexpected launcher profile',
+    );
     expect(fs.existsSync(versionsDir)).toBe(false);
 });
 
@@ -115,5 +126,10 @@ it('is recognised as Fabric by the Modrinth page', async () => {
     jest.isolateModules(() => {
         gameTarget = require('../gameTarget');
     });
-    expect(gameTarget.detectTarget(id)).toEqual({ versionId: id, gameVersion: '1.21.1', loader: 'fabric', loaderVersion: '0.16.5' });
+    expect(gameTarget.detectTarget(id)).toEqual({
+        versionId: id,
+        gameVersion: '1.21.1',
+        loader: 'fabric',
+        loaderVersion: '0.16.5',
+    });
 });
