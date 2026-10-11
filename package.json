@@ -6,33 +6,13 @@
   "description": "A minecraft mods manager",
   "private": true,
   "homepage": "./",
-  "dependencies": {
-    "@testing-library/jest-dom": "^5.17.0",
-    "@testing-library/react": "^13.4.0",
-    "@testing-library/user-event": "^13.5.0",
-    "7zip-bin": "^5.2.0",
-    "adm-zip": "^0.5.10",
-    "axios": "^1.4.0",
-    "bootstrap": "^5.3.1",
-    "bootstrap-icons": "^1.10.5",
-    "electron-log": "^4.4.8",
-    "electron-squirrel-startup": "^1.0.0",
-    "electron-updater": "^6.1.1",
-    "fs": "^0.0.1-security",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.15.0",
-    "react-scripts": "5.0.1",
-    "web-vitals": "^2.1.4"
-  },
   "scripts": {
-    "start": "concurrently \"npm run start-react\" \"npm run start-electron\"",
-    "start-react": "react-scripts start",
-    "start-electron": ".\\node_modules\\.bin\\electron .",
-    "electron-dev": "cross-env ELECTRON_START_URL=http://localhost:3000 electron .",
+    "start": "concurrently -k \"npm run start-react\" \"npm run start-electron\"",
+    "start-react": "vite",
+    "start-electron": "electron .",
     "build": "npm run build-react && npm run dist",
-    "build-react": "react-scripts build",
-    "test": "react-scripts test",
+    "build-react": "vite build",
+    "test": "jest",
     "dist": "electron-builder --win --publish never"
   },
   "build": {
@@ -60,35 +40,45 @@
       "build/"
     ]
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
+  "jest": {
+    "testEnvironment": "jsdom",
+    "roots": [
+      "<rootDir>/src"
     ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+    "setupFilesAfterEnv": [
+      "<rootDir>/src/setupTests.js"
+    ],
+    "moduleNameMapper": {
+      "\\.(css|svg|png|jpg|woff2?)$": "<rootDir>/test/styleStub.js"
+    },
+    "resetMocks": true
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.10",
+    "electron-log": "^5.4.4",
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
-    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
-    "@electron-forge/cli": "^6.4.0",
-    "@electron-forge/maker-deb": "^6.4.0",
-    "@electron-forge/maker-rpm": "^6.4.0",
-    "@electron-forge/maker-squirrel": "^6.4.0",
-    "@electron-forge/maker-zip": "^6.4.0",
-    "@electron-forge/plugin-auto-unpack-natives": "^6.4.0",
-    "concurrently": "^8.2.0",
-    "cross-env": "^7.0.3",
-    "electron": "^26.0.0",
-    "electron-builder": "^24.6.3"
+    "@babel/core": "^8.0.7",
+    "@babel/preset-env": "^8.0.7",
+    "@babel/preset-react": "^8.0.1",
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^13.5.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "axios": "^1.20.0",
+    "babel-jest": "^30.5.2",
+    "bootstrap": "^5.3.8",
+    "bootstrap-icons": "^1.13.2",
+    "concurrently": "^10.0.6",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
+    "jest": "^30.5.2",
+    "jest-environment-jsdom": "^30.5.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.6",
+    "vite": "^8.3.4",
+    "web-vitals": "^2.1.4"
   }
 }
