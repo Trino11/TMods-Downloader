@@ -5,10 +5,11 @@ import BackupList from './BackupList';
 import { fetchVersions } from '../../../services/manifest';
 import { installBundle, listBackups, readInstalledVersion, restoreBackup } from '../../../services/bundleInstaller';
 
-function BundlePage({ category }) {
+// `gameDir` is the active profile's game folder; App remounts the page when it changes.
+function BundlePage({ category, gameDir }) {
     const [versions, setVersions] = useState([]);
-    const [installed, setInstalled] = useState(() => readInstalledVersion(category));
-    const [backups, setBackups] = useState(() => listBackups(category));
+    const [installed, setInstalled] = useState(() => readInstalledVersion(category, gameDir));
+    const [backups, setBackups] = useState(() => listBackups(category, gameDir));
     const [downloading, setDownloading] = useState(false);
 
     const refresh = useCallback(() => {
@@ -22,12 +23,12 @@ function BundlePage({ category }) {
     async function handleDownload(version) {
         setDownloading(true);
         try {
-            await installBundle(category, version);
+            await installBundle(category, version, gameDir);
             setInstalled(version.id);
         } catch (error) {
             console.error(`Error installing ${category.id} ${version.id}:`, error);
         } finally {
-            setBackups(listBackups(category));
+            setBackups(listBackups(category, gameDir));
             setDownloading(false);
         }
     }
@@ -38,12 +39,12 @@ function BundlePage({ category }) {
             return;
         }
         try {
-            restoreBackup(category, backup.id);
-            setInstalled(readInstalledVersion(category));
+            restoreBackup(category, backup.id, gameDir);
+            setInstalled(readInstalledVersion(category, gameDir));
         } catch (error) {
             console.error(`Error restoring ${category.id} backup ${backup.id}:`, error);
         } finally {
-            setBackups(listBackups(category));
+            setBackups(listBackups(category, gameDir));
         }
     }
 

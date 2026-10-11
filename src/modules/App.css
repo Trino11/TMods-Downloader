@@ -115,3 +115,14 @@ p.card-c{
   text-align: center;
   margin-top: 20px;
 }
+
+/*Profiles*/
+.profileSelector {
+  margin-top: 10px;
+}
+
+.settingsRow .profileVersion {
+  height: 50px;
+  max-width: 220px;
+  margin-left: 5px;
+}
