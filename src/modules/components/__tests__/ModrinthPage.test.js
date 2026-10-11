@@ -1,16 +1,28 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import ModrinthPage from '../pages/modrinth/ModrinthPage';
 import { search } from '../../services/modrinth';
-import { detectTarget } from '../../services/gameTarget';
+import { detectTarget, gameVersionOf } from '../../services/gameTarget';
 import { listGameVersions } from '../../services/profiles';
-import { installMod, listUnmanaged, readModList, removeMod, setTargetVersion } from '../../services/modrinthMods';
+import {
+    adoptUnmanaged,
+    installMod,
+    listUnmanaged,
+    readModList,
+    removeMod,
+    setTargetVersion,
+} from '../../services/modrinthMods';
 
 jest.mock('../../services/modrinth', () => ({
     ...jest.requireActual('../../services/modrinth'),
     search: jest.fn(),
 }));
-jest.mock('../../services/gameTarget', () => ({ detectTarget: jest.fn() }));
-jest.mock('../../services/profiles', () => ({ DEFAULT_PROFILE_ID: 'default', listGameVersions: jest.fn() }));
+jest.mock('../../services/gameTarget', () => ({ detectTarget: jest.fn(), gameVersionOf: jest.fn() }));
+jest.mock('../../services/profiles', () => ({
+    DEFAULT_PROFILE_ID: 'default',
+    LATEST_RELEASE: 'latest-release',
+    LATEST_SNAPSHOT: 'latest-snapshot',
+    listGameVersions: jest.fn(),
+}));
 jest.mock('../../services/modrinthMods', () => ({
     adoptUnmanaged: jest.fn(),
     checkUpdates: jest.fn(),
@@ -42,6 +54,7 @@ const sodiumHit = {
 
 beforeEach(() => {
     detectTarget.mockImplementation(id => (id === fabric.versionId ? fabric : null));
+    gameVersionOf.mockImplementation(id => (id === '1.21.1' ? '1.21.1' : null));
     readModList.mockReturnValue({ target: null, mods: [] });
     listUnmanaged.mockReturnValue([]);
     listGameVersions.mockReturnValue([]);
@@ -74,11 +87,90 @@ it('marks mods that are already installed', async () => {
     expect(await screen.findByText('Installed', { selector: 'button[disabled]' })).toBeInTheDocument();
 });
 
-it('explains what to do when the profile has no mod loader', () => {
+it('explains what to do when the profile version is unknown', () => {
     render(<ModrinthPage profile={{ ...profile, gameVersion: 'latest-release' }} gameDir='/games/fabric' />);
 
-    expect(screen.getByText(/which has no mod loader/)).toBeInTheDocument();
+    expect(screen.getByText(/doesn't know which Minecraft version/)).toBeInTheDocument();
     expect(screen.queryByPlaceholderText('Search mods')).not.toBeInTheDocument();
+});
+
+it('offers resource packs but not mods on a profile with no mod loader', async () => {
+    const packHit = { ...sodiumHit, project_id: 'faithful', title: 'Faithful' };
+    search.mockResolvedValue({ hits: [packHit], total: 1 });
+    installMod.mockResolvedValue(['Faithful']);
+    render(<ModrinthPage profile={{ ...profile, gameVersion: '1.21.1' }} gameDir='/games/vanilla' />);
+
+    expect(screen.getByText(/which has no mod loader, so only resource packs and shaders/)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Search mods')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Resource packs' }));
+    fireEvent.click(await screen.findByText('Install'));
+
+    expect(search).toHaveBeenLastCalledWith({
+        projectType: 'resourcepack',
+        loader: undefined,
+        gameVersion: '1.21.1',
+        query: '',
+    });
+    expect(installMod).toHaveBeenCalledWith(
+        '/games/vanilla',
+        { loader: 'minecraft', gameVersion: '1.21.1' },
+        'faithful',
+        'Faithful',
+        'resourcepack',
+    );
+    expect(await screen.findByText('Installed Faithful.')).toBeInTheDocument();
+});
+
+it('searches shaders for the picked shader mod', async () => {
+    const shaderHit = { ...sodiumHit, project_id: 'complementary', title: 'Complementary' };
+    search.mockResolvedValue({ hits: [shaderHit], total: 1 });
+    installMod.mockResolvedValue(['Complementary']);
+    render(<ModrinthPage profile={profile} gameDir='/games/fabric' />);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Shaders' }));
+    await screen.findByText('Complementary');
+    expect(search).toHaveBeenLastCalledWith({
+        projectType: 'shader',
+        loader: 'iris',
+        gameVersion: '1.21.1',
+        query: '',
+    });
+
+    fireEvent.change(screen.getByLabelText('Shader mod'), { target: { value: 'optifine' } });
+    await waitFor(() => expect(search).toHaveBeenLastCalledWith(expect.objectContaining({ loader: 'optifine' })));
+    fireEvent.click(screen.getByText('Install'));
+
+    expect(installMod).toHaveBeenCalledWith(
+        '/games/fabric',
+        { loader: 'optifine', gameVersion: '1.21.1' },
+        'complementary',
+        'Complementary',
+        'shader',
+    );
+});
+
+it('lists installed items by kind and recognises hand-added packs', async () => {
+    readModList.mockReturnValue({
+        target: null,
+        mods: [
+            { projectId: 'sodium', kind: 'mod', title: 'Sodium', versionNumber: '0.6.0', enabled: true },
+            { projectId: 'faithful', kind: 'resourcepack', title: 'Faithful', versionNumber: '1.0', enabled: false },
+        ],
+    });
+    listUnmanaged.mockImplementation((dir, kind) => (kind === 'shader' ? ['BSL.zip'] : []));
+    adoptUnmanaged.mockResolvedValue(1);
+    render(<ModrinthPage profile={profile} gameDir='/games/fabric' />);
+
+    fireEvent.click(screen.getByText('Installed (2)'));
+    const packs = screen.getByRole('heading', { name: 'Resource packs' }).parentElement;
+    expect(within(packs).getByText('Faithful')).toBeInTheDocument();
+    expect(within(packs).getByText('Enable')).toBeInTheDocument();
+    const shaders = screen.getByRole('heading', { name: 'Shaders' }).parentElement;
+    expect(within(shaders).getByText('BSL.zip')).toBeInTheDocument();
+    fireEvent.click(within(shaders).getByText('Recognise'));
+
+    expect(adoptUnmanaged).toHaveBeenCalledWith('/games/fabric', 'shader');
+    expect(await screen.findByText('Recognised 1 shader(s) from Modrinth.')).toBeInTheDocument();
 });
 
 it('lets the default profile pick which installed loader it plays with', () => {

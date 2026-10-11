@@ -4,44 +4,17 @@ import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { ItemList, ItemRow } from '../../utils/ItemList';
+import { KINDS } from '../../../services/modrinth';
 
-// The mods TMods installed in this profile, plus jars added by hand.
-function InstalledMods({
-    mods,
-    unmanaged,
-    updates,
-    busy,
-    canCheckUpdates,
-    onCheckUpdates,
-    onUpdate,
-    onUpdateAll,
-    onToggle,
-    onRemove,
-    onAdopt,
-}) {
-    const updateFor = new Map(updates.map(update => [update.mod.projectId, update.version]));
-
+// The tracked entries of one kind, plus the files of that kind added by hand.
+function KindSection({ kind, mods, unmanaged, updateFor, busy, onUpdate, onToggle, onRemove, onAdopt }) {
+    const { label, noun } = KINDS[kind];
     return (
-        <Stack spacing={3}>
-            <Stack direction='row' spacing={1}>
-                <Button
-                    variant='contained'
-                    disabled={busy || !canCheckUpdates || mods.length === 0}
-                    onClick={onCheckUpdates}
-                >
-                    Check for updates
-                </Button>
-                {updates.length > 0 && (
-                    <Button variant='contained' color='success' disabled={busy} onClick={onUpdateAll}>
-                        Update all ({updates.length})
-                    </Button>
-                )}
-            </Stack>
-            {mods.length === 0 ? (
-                <Typography sx={{ color: 'text.secondary' }}>
-                    No mods from Modrinth in this profile yet. Find some under Search mods.
-                </Typography>
-            ) : (
+        <Stack component='section' spacing={2}>
+            <Typography variant='h6' component='h2'>
+                {label}
+            </Typography>
+            {mods.length > 0 && (
                 <ItemList>
                     {mods.map(mod => {
                         const update = updateFor.get(mod.projectId);
@@ -98,15 +71,14 @@ function InstalledMods({
                 </ItemList>
             )}
             {unmanaged.length > 0 && (
-                <section>
-                    <Typography variant='h6' component='h2' gutterBottom>
+                <Stack spacing={2}>
+                    <Typography variant='subtitle1' component='h3'>
                         Added by hand
                     </Typography>
                     <Alert
                         severity='info'
-                        sx={{ mb: 2 }}
                         action={
-                            <Button color='inherit' disabled={busy} onClick={onAdopt}>
+                            <Button color='inherit' disabled={busy} onClick={() => onAdopt(kind)}>
                                 Recognise
                             </Button>
                         }
@@ -123,8 +95,64 @@ function InstalledMods({
                             </ItemRow>
                         ))}
                     </ItemList>
-                </section>
+                </Stack>
             )}
+            {mods.length === 0 && unmanaged.length === 0 && (
+                <Typography sx={{ color: 'text.secondary' }}>
+                    No {noun}s from Modrinth in this profile yet. Find some under {label}.
+                </Typography>
+            )}
+        </Stack>
+    );
+}
+
+// What TMods installed in this profile, by kind, plus files added by hand.
+// `unmanaged` maps each kind to the file names added by hand.
+function InstalledMods({
+    mods,
+    unmanaged,
+    updates,
+    busy,
+    canCheckUpdates,
+    onCheckUpdates,
+    onUpdate,
+    onUpdateAll,
+    onToggle,
+    onRemove,
+    onAdopt,
+}) {
+    const updateFor = new Map(updates.map(update => [update.mod.projectId, update.version]));
+
+    return (
+        <Stack spacing={3}>
+            <Stack direction='row' spacing={1}>
+                <Button
+                    variant='contained'
+                    disabled={busy || !canCheckUpdates || mods.length === 0}
+                    onClick={onCheckUpdates}
+                >
+                    Check for updates
+                </Button>
+                {updates.length > 0 && (
+                    <Button variant='contained' color='success' disabled={busy} onClick={onUpdateAll}>
+                        Update all ({updates.length})
+                    </Button>
+                )}
+            </Stack>
+            {Object.keys(KINDS).map(kind => (
+                <KindSection
+                    key={kind}
+                    kind={kind}
+                    mods={mods.filter(mod => (mod.kind || 'mod') === kind)}
+                    unmanaged={unmanaged[kind] || []}
+                    updateFor={updateFor}
+                    busy={busy}
+                    onUpdate={onUpdate}
+                    onToggle={onToggle}
+                    onRemove={onRemove}
+                    onAdopt={onAdopt}
+                />
+            ))}
         </Stack>
     );
 }

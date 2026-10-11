@@ -56,7 +56,7 @@ function Modpacks({ profile, gameDir, target, busy, run, onProfileCreated }) {
             const extra = result.extraFiles.length
                 ? ` ${result.extraFiles.length} jar(s) added by hand are copied into the pack.`
                 : '';
-            return `Exported ${result.mods} mod(s) from Modrinth.${extra}`;
+            return `Exported ${result.mods} file(s) from Modrinth.${extra}`;
         });
     }
 

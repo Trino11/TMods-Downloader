@@ -4,8 +4,9 @@ const crypto = require('crypto');
 
 const hash = (algorithm, data) => crypto.createHash(algorithm).update(data).digest('hex');
 
-// Builds a Modrinth version whose single jar has `content` as its bytes.
-function makeVersion(projectId, id, { deps = [], type = 'release', content } = {}) {
+// Builds a Modrinth version whose single file (a jar, or a zip for packs: `ext`) has
+// `content` as its bytes.
+function makeVersion(projectId, id, { deps = [], type = 'release', content, ext = 'jar', loaders } = {}) {
     const data = Buffer.from(content ?? `${projectId}@${id}`);
     return {
         id,
@@ -14,10 +15,11 @@ function makeVersion(projectId, id, { deps = [], type = 'release', content } = {
         version_number: id,
         version_type: type,
         dependencies: deps,
+        ...(loaders ? { loaders } : {}),
         files: [
             {
-                url: `https://cdn.modrinth.com/data/${projectId}/versions/${id}/${projectId}-${id}.jar`,
-                filename: `${projectId}-${id}.jar`,
+                url: `https://cdn.modrinth.com/data/${projectId}/versions/${id}/${projectId}-${id}.${ext}`,
+                filename: `${projectId}-${id}.${ext}`,
                 primary: true,
                 size: data.length,
                 hashes: { sha1: hash('sha1', data), sha512: hash('sha512', data) },

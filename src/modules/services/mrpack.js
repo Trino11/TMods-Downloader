@@ -4,7 +4,7 @@
 // Importing one makes a new profile; exporting turns a profile into a file to share.
 import { createProfile, deleteProfile, listGameVersions, profileGameDir } from './profiles';
 import { detectTarget } from './gameTarget';
-import { getProjectVersions, pickVersion, primaryFile } from './modrinth';
+import { KINDS, getProjectVersions, pickVersion, primaryFile } from './modrinth';
 import { adoptUnmanaged, downloadVerified, listUnmanaged, modsDir, readModList, writeFileSafely } from './modrinthMods';
 import { AdmZip, Buffer, fs, path } from './node';
 
@@ -171,12 +171,15 @@ export async function importMrpack(data, { name } = {}) {
         throw error;
     }
 
-    // Track the pack's mods so they can be updated and exported. Not being able to look
-    // them up right now doesn't undo the install; they show as added by hand.
-    try {
-        await adoptUnmanaged(gameDir);
-    } catch (error) {
-        console.error("Could not look up the modpack's mods on Modrinth:", error);
+    // Track the pack's mods, resource packs and shaders so they can be updated and
+    // exported. Not being able to look them up right now doesn't undo the install; they
+    // show as added by hand.
+    for (const kind of Object.keys(KINDS)) {
+        try {
+            await adoptUnmanaged(gameDir, kind);
+        } catch (error) {
+            console.error(`Could not look up the modpack's ${KINDS[kind].label.toLowerCase()} on Modrinth:`, error);
+        }
     }
 
     let loaderNote = '';
@@ -206,7 +209,8 @@ function addFolder(zip, folder, zipPath) {
     }
 }
 
-// Packs a game folder into a .mrpack: enabled Modrinth mods as download links, and
+// Packs a game folder into a .mrpack: enabled Modrinth mods, resource packs and shaders
+// as download links, and
 // hand-added jars and the config folder as overrides. `target` is the folder's
 // detected loader. Returns { data, mods, extraFiles }.
 export function exportMrpack(gameDir, target, { name, version = '1.0.0', includeConfig = true }) {
@@ -220,7 +224,7 @@ export function exportMrpack(gameDir, target, { name, version = '1.0.0', include
         versionId: version,
         name: name || 'TMods modpack',
         files: mods.map(mod => ({
-            path: `mods/${mod.fileName}`,
+            path: `${KINDS[mod.kind].folder}/${mod.fileName}`,
             hashes: { sha1: mod.sha1, sha512: mod.sha512 },
             downloads: [mod.url],
             fileSize: mod.size,
