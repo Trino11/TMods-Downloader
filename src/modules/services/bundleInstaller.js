@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { managedFileNames } from './modrinthMods';
 
 const fs = window.require('fs');
 const os = window.require('os');
@@ -89,6 +90,22 @@ function backupFolder(category, gameDir) {
     fs.writeFileSync(path.join(target, 'backup.json'), JSON.stringify(meta), 'utf-8');
 }
 
+// Empties the category's folder so the bundle replaces it, except for mods installed
+// from Modrinth: the bundle doesn't know about them, so they stay.
+function clearFolder(category, gameDir) {
+    const folder = path.join(gameDir, category.backupFolder);
+    const keep = category.backupFolder === 'mods' ? managedFileNames(gameDir) : new Set();
+    if (keep.size === 0) {
+        fs.rmSync(folder, { recursive: true, force: true });
+        return;
+    }
+    for (const name of fs.readdirSync(folder)) {
+        if (!keep.has(name)) {
+            fs.rmSync(path.join(folder, name), { recursive: true, force: true });
+        }
+    }
+}
+
 // Downloads a version's zip and extracts it over .minecraft, then records it as installed.
 export async function installBundle(category, version, gameDir = defaultGameDir) {
     const response = await axios.get(version.url, { responseType: 'arraybuffer' });
@@ -102,7 +119,7 @@ export async function installBundle(category, version, gameDir = defaultGameDir)
             backupFolder(category, gameDir);
             pruneBackups(category, gameDir);
             if (category.clearFolder) {
-                fs.rmSync(path.join(gameDir, category.backupFolder), { recursive: true, force: true });
+                clearFolder(category, gameDir);
             }
         }
         new AdmZip(zipFile).extractAllTo(gameDir, true);

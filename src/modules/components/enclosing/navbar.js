@@ -24,6 +24,7 @@ function Navbar({ profiles, activeProfileId, onSelectProfile }) {
         <ul className="nav nav-pills flex-column mb-auto">
             <NavItem to="/home" icon="bi-house-fill" label="Home" />
             <NavItem to="/profiles" icon="bi-person-badge-fill" label="Profiles" />
+            <NavItem to="/modrinth" icon="bi-search" label="Modrinth" />
             {categories.map(category =>
                 <NavItem key={category.id} to={`/${category.id}`} icon={category.icon} label={category.label} />
             )}
