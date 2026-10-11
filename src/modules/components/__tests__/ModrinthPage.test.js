@@ -12,6 +12,7 @@ import {
     setTargetVersion,
     updateChangelog,
 } from '../../services/modrinthMods';
+import { applyFix, checkBeforeInstall, checkCompatibility } from '../../services/modCompat';
 
 jest.mock('../../services/modrinth', () => ({
     ...jest.requireActual('../../services/modrinth'),
@@ -32,6 +33,11 @@ jest.mock('../../services/modrinthMods', () => ({
     updateMod: jest.fn(),
 }));
 jest.mock('../../services/mrpack', () => ({}));
+jest.mock('../../services/modCompat', () => ({
+    applyFix: jest.fn(),
+    checkBeforeInstall: jest.fn(),
+    checkCompatibility: jest.fn(),
+}));
 
 const fabric = {
     versionId: 'fabric-loader-0.16.5-1.21.1',
@@ -56,6 +62,8 @@ beforeEach(() => {
     listGameVersions.mockReturnValue([]);
     search.mockResolvedValue({ hits: [sodiumHit], total: 1 });
     window.confirm = jest.fn(() => true);
+    checkBeforeInstall.mockResolvedValue([]);
+    checkCompatibility.mockResolvedValue([]);
 });
 
 it("searches for the profile's loader and installs a mod with its dependencies", async () => {
@@ -72,8 +80,9 @@ it("searches for the profile's loader and installs a mod with its dependencies",
         gameVersion: '1.21.1',
         query: 'sod',
     });
-    expect(installMod).toHaveBeenCalledWith('/games/fabric', fabric, 'sodium', 'Sodium');
     expect(await screen.findByText('Installed Sodium with Fabric API.')).toBeInTheDocument();
+    expect(checkBeforeInstall).toHaveBeenCalledWith('/games/fabric', fabric, 'sodium');
+    expect(installMod).toHaveBeenCalledWith('/games/fabric', fabric, 'sodium', 'Sodium', {});
 });
 
 it('marks mods that are already installed', async () => {
@@ -117,6 +126,48 @@ it('removes an installed mod after confirmation', async () => {
 
     expect(removeMod).toHaveBeenCalledWith('/games/fabric', 'sodium');
     expect(await screen.findByText('Removed Sodium, Fabric API.')).toBeInTheDocument();
+});
+
+const irisMod = { projectId: 'iris', title: 'Iris', versionNumber: '1.6.0', enabled: true };
+
+it('shows compatibility problems under each mod and fixes them in one click', async () => {
+    readModList.mockReturnValue({ target: null, mods: [irisMod] });
+    const problem = {
+        mod: { projectId: 'iris', fileName: 'iris.jar', tracked: true, title: 'Iris' },
+        kind: 'mismatch',
+        message: 'Made for Minecraft 1.20.1, but this profile plays 1.21.1.',
+        fix: { type: 'switchVersion', label: 'Switch to 1.8.0' },
+    };
+    checkCompatibility.mockResolvedValueOnce([problem]).mockResolvedValue([]);
+    applyFix.mockResolvedValue('Switched Iris to 1.8.0.');
+    render(<ModrinthPage profile={profile} gameDir='/games/fabric' />);
+
+    fireEvent.click(screen.getByText('Installed (1)'));
+
+    expect(await screen.findByText(problem.message)).toBeInTheDocument();
+    expect(screen.getByText(/1 compatibility problem found/)).toBeInTheDocument();
+    expect(checkCompatibility).toHaveBeenCalledWith('/games/fabric', fabric);
+    fireEvent.click(screen.getByText('Switch to 1.8.0'));
+
+    expect(await screen.findByText('Switched Iris to 1.8.0.')).toBeInTheDocument();
+    expect(applyFix).toHaveBeenCalledWith('/games/fabric', fabric, problem);
+    expect(await screen.findByText('No compatibility problems found.')).toBeInTheDocument();
+});
+
+it('warns before installing a mod that clashes, and installs it if the player insists', async () => {
+    checkBeforeInstall.mockResolvedValue(["It says it doesn't work together with Iris, which is installed."]);
+    installMod.mockResolvedValue(['Sodium']);
+    render(<ModrinthPage profile={profile} gameDir='/games/fabric' />);
+
+    fireEvent.click(await screen.findByText('Install'));
+
+    expect(await screen.findByText('Install Sodium anyway?')).toBeInTheDocument();
+    expect(screen.getByText(/doesn't work together with Iris/)).toBeInTheDocument();
+    expect(installMod).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Install anyway'));
+
+    expect(await screen.findByText('Installed Sodium.')).toBeInTheDocument();
+    expect(installMod).toHaveBeenCalledWith('/games/fabric', fabric, 'sodium', 'Sodium', { allowIncompatible: true });
 });
 
 it('shows what an update brings before installing it', async () => {
