@@ -1,6 +1,7 @@
 const {
     UPDATE_CHECK_INTERVAL_MS,
     modrinthUserAgent,
+    canAutoUpdate,
     startAutoUpdates,
     useDevServer,
 } = require('../../public/mainProcess');
@@ -69,5 +70,13 @@ describe('startAutoUpdates', () => {
 
         expect(event).toBe('error');
         expect(log.error).toHaveBeenCalledWith('Auto-update failed:', expect.any(Error));
+    });
+});
+
+describe('canAutoUpdate', () => {
+    test('updates on Windows and Linux but not on the unsigned Mac build', () => {
+        expect(canAutoUpdate('win32')).toBe(true);
+        expect(canAutoUpdate('linux')).toBe(true);
+        expect(canAutoUpdate('darwin')).toBe(false);
     });
 });

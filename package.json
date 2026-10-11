@@ -15,7 +15,7 @@
     "test": "jest",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "dist": "electron-builder --win --publish never"
+    "dist": "electron-builder --publish never"
   },
   "build": {
     "appId": "com.trinohost.tmod_loader",
@@ -34,6 +34,33 @@
       ],
       "verifyUpdateCodeSignature": false,
       "artifactName": "Tmods-Downloader.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "category": "public.app-category.games",
+      "identity": null,
+      "artifactName": "Tmods-Downloader-mac.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Game",
+      "artifactName": "Tmods-Downloader.${ext}",
+      "syncDesktopName": true
     },
     "files": [
       "node_modules/",
@@ -90,5 +117,6 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.6",
     "vite": "^8.3.4"
-  }
+  },
+  "desktopName": "tmods-downloader.desktop"
 }

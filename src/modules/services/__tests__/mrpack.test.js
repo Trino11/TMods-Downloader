@@ -24,7 +24,7 @@ beforeEach(() => {
     AdmZip = realmSafeAdmZip(zipTemp);
     window.require = name => {
         if (name === 'os') {
-            return { ...os, homedir: () => home };
+            return { ...os, homedir: () => home, platform: () => 'win32' };
         }
         return name === 'adm-zip' ? AdmZip : require(name);
     };

@@ -16,7 +16,7 @@ beforeEach(() => {
     minecraftDir = path.join(home, 'AppData', 'Roaming', '.minecraft');
     localStorage.clear();
 
-    window.require = name => (name === 'os' ? { ...os, homedir: () => home } : require(name));
+    window.require = name => (name === 'os' ? { ...os, homedir: () => home, platform: () => 'win32' } : require(name));
     jest.isolateModules(() => {
         profiles = require('../profiles');
     });

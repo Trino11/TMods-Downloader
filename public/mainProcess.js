@@ -32,6 +32,12 @@ function startAutoUpdates(autoUpdater, log, schedule = setInterval) {
     return schedule(check, UPDATE_CHECK_INTERVAL_MS);
 }
 
+// macOS only installs updates for apps signed with a paid Apple Developer ID, and the
+// Mac builds are unsigned, so they skip update checks rather than fail on every one.
+function canAutoUpdate(platform) {
+    return platform !== 'darwin';
+}
+
 // The window opens at this share of the screen's work area (the screen minus the taskbar)...
 const DEFAULT_SCREEN_SHARE = 0.8;
 // ...and can't be made smaller than this, the smallest size the pages are laid out for.
@@ -118,6 +124,7 @@ module.exports = {
     MIN_WINDOW_SIZE,
     useDevServer,
     modrinthUserAgent,
+    canAutoUpdate,
     startAutoUpdates,
     defaultWindowBounds,
     initialWindowState,
