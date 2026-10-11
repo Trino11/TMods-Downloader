@@ -348,7 +348,7 @@ describe('resource packs and shaders', () => {
     it('installs a resource pack into resourcepacks/ for the game version alone', async () => {
         servePacks();
 
-        expect(await mods.installMod(gameDir, packTarget, 'faithful', 'Faithful', 'resourcepack')).toEqual([
+        expect(await mods.installMod(gameDir, packTarget, 'faithful', 'Faithful', { kind: 'resourcepack' })).toEqual([
             'Faithful',
         ]);
 
@@ -370,7 +370,7 @@ describe('resource packs and shaders', () => {
     it('installs a shader into shaderpacks/ without pulling in dependencies', async () => {
         servePacks();
 
-        await mods.installMod(gameDir, shaderTarget, 'bsl', 'BSL Shaders', 'shader');
+        await mods.installMod(gameDir, shaderTarget, 'bsl', 'BSL Shaders', { kind: 'shader' });
 
         expect(folder('shaderpacks')).toEqual(['bsl-8.2.zip']);
         expect(modFiles()).toEqual([]);
@@ -379,7 +379,7 @@ describe('resource packs and shaders', () => {
 
     it('disables, updates and removes packs in their own folder', async () => {
         servePacks();
-        await mods.installMod(gameDir, packTarget, 'faithful', 'Faithful', 'resourcepack');
+        await mods.installMod(gameDir, packTarget, 'faithful', 'Faithful', { kind: 'resourcepack' });
         mods.setModEnabled(gameDir, 'faithful', false);
         expect(folder('resourcepacks')).toEqual(['faithful-1.0.zip.disabled']);
 
@@ -396,7 +396,7 @@ describe('resource packs and shaders', () => {
 
     it("loads a pack's changelog for its own loader and the profile's game version", async () => {
         servePacks([faithful2, faithful1]);
-        await mods.installMod(gameDir, packTarget, 'faithful', 'Faithful', 'resourcepack');
+        await mods.installMod(gameDir, packTarget, 'faithful', 'Faithful', { kind: 'resourcepack' });
         axios.get.mockClear();
         const [entry] = mods.readModList(gameDir).mods;
 
@@ -410,8 +410,8 @@ describe('resource packs and shaders', () => {
     it('checks mods and each pack loader separately for updates', async () => {
         servePacks();
         await mods.installMod(gameDir, target, 'sodium', 'Sodium');
-        await mods.installMod(gameDir, packTarget, 'faithful', 'Faithful', 'resourcepack');
-        await mods.installMod(gameDir, shaderTarget, 'bsl', 'BSL Shaders', 'shader');
+        await mods.installMod(gameDir, packTarget, 'faithful', 'Faithful', { kind: 'resourcepack' });
+        await mods.installMod(gameDir, shaderTarget, 'bsl', 'BSL Shaders', { kind: 'shader' });
         axios.post.mockClear();
 
         await mods.checkUpdates(gameDir, target);
@@ -427,7 +427,7 @@ describe('resource packs and shaders', () => {
     it('skips mods but still checks packs when the profile has no loader', async () => {
         servePacks();
         await mods.installMod(gameDir, target, 'sodium', 'Sodium');
-        await mods.installMod(gameDir, packTarget, 'faithful', 'Faithful', 'resourcepack');
+        await mods.installMod(gameDir, packTarget, 'faithful', 'Faithful', { kind: 'resourcepack' });
         axios.post.mockClear();
 
         await mods.checkUpdates(gameDir, null, '1.21.1');

@@ -3,10 +3,50 @@ import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { ItemList, ItemRow } from '../../utils/ItemList';
 import { ChangelogButton } from '../../utils/Changelog';
 import { KINDS } from '../../../services/modrinth';
 import { updateChangelog } from '../../../services/modrinthMods';
+
+// A mod's compatibility problems, each with its one-click fix when there is one.
+function Problems({ problems, busy, onFix }) {
+    return problems.map(problem => (
+        <Stack
+            key={`${problem.kind}:${problem.message}`}
+            direction='row'
+            spacing={1}
+            useFlexGap
+            sx={{ alignItems: 'center', flexWrap: 'wrap', color: 'warning.main' }}
+        >
+            <WarningAmberIcon fontSize='small' />
+            <Typography variant='body2'>{problem.message}</Typography>
+            {problem.fix && (
+                <Button size='small' color='warning' disabled={busy} onClick={() => onFix(problem)}>
+                    {problem.fix.label}
+                </Button>
+            )}
+        </Stack>
+    ));
+}
+
+function CompatSummary({ compat }) {
+    if (compat.status === 'error') {
+        return <Alert severity='warning'>Could not check compatibility: {compat.error}</Alert>;
+    }
+    if (compat.status !== 'done') {
+        return null;
+    }
+    const count = compat.problems.length;
+    return count === 0 ? (
+        <Alert severity='success'>No compatibility problems found.</Alert>
+    ) : (
+        <Alert severity='warning'>
+            {count === 1 ? '1 compatibility problem' : `${count} compatibility problems`} found. They are listed under
+            each mod below.
+        </Alert>
+    );
+}
 
 // The tracked entries of one kind, plus the files of that kind added by hand.
 function KindSection({
@@ -21,6 +61,8 @@ function KindSection({
     onToggle,
     onRemove,
     onAdopt,
+    problemsFor,
+    onFix,
 }) {
     const { label, noun } = KINDS[kind];
     return (
@@ -86,6 +128,7 @@ function KindSection({
                                         Update available: {update.version_number}
                                     </Typography>
                                 )}
+                                <Problems problems={problemsFor(mod.projectId)} busy={busy} onFix={onFix} />
                             </ItemRow>
                         );
                     })}
@@ -113,6 +156,7 @@ function KindSection({
                                 <Typography component='code' variant='body2'>
                                     {name}
                                 </Typography>
+                                {kind === 'mod' && <Problems problems={problemsFor(name)} busy={busy} onFix={onFix} />}
                             </ItemRow>
                         ))}
                     </ItemList>
@@ -143,8 +187,15 @@ function InstalledMods({
     onToggle,
     onRemove,
     onAdopt,
+    canCheckCompat,
+    compat,
+    onCheckCompat,
+    onFix,
 }) {
     const updateFor = new Map(updates.map(update => [update.mod.projectId, update.version]));
+    // Compatibility is checked for mods only; packs and shaders need no loader.
+    const problemsFor = key => compat.problems.filter(p => (p.mod.tracked ? p.mod.projectId : p.mod.fileName) === key);
+    const hasMods = mods.some(mod => (mod.kind || 'mod') === 'mod') || (unmanaged.mod || []).length > 0;
 
     return (
         <Stack spacing={3}>
@@ -156,12 +207,20 @@ function InstalledMods({
                 >
                     Check for updates
                 </Button>
+                <Button
+                    variant='outlined'
+                    disabled={busy || !canCheckCompat || compat.status === 'checking'}
+                    onClick={onCheckCompat}
+                >
+                    {compat.status === 'checking' ? 'Checking compatibility…' : 'Check compatibility'}
+                </Button>
                 {updates.length > 0 && (
                     <Button variant='contained' color='success' disabled={busy} onClick={onUpdateAll}>
                         Update all ({updates.length})
                     </Button>
                 )}
             </Stack>
+            {hasMods && <CompatSummary compat={compat} />}
             {Object.keys(KINDS).map(kind => (
                 <KindSection
                     key={kind}
@@ -176,6 +235,8 @@ function InstalledMods({
                     onToggle={onToggle}
                     onRemove={onRemove}
                     onAdopt={onAdopt}
+                    problemsFor={problemsFor}
+                    onFix={onFix}
                 />
             ))}
         </Stack>

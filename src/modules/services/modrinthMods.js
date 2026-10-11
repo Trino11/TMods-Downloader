@@ -181,7 +181,9 @@ async function projectTitle(projectId) {
 
 // Works out everything installing `rootVersion` needs: the version itself plus every
 // required dependency not installed yet, picked for the same loader and game version.
-async function planInstall(rootVersion, target, installedIds) {
+// Refuses mods that say they don't work with an installed one; `allowIncompatible` lets
+// the root mod through (the player was warned and chose to install it anyway).
+async function planInstall(rootVersion, target, installedIds, allowIncompatible) {
     const plan = new Map([[rootVersion.project_id, rootVersion]]);
     const queue = [rootVersion];
     while (queue.length > 0) {
@@ -213,6 +215,9 @@ async function planInstall(rootVersion, target, installedIds) {
 
     const all = new Set([...installedIds, ...plan.keys()]);
     for (const version of plan.values()) {
+        if (allowIncompatible && version === rootVersion) {
+            continue;
+        }
         const clash = version.dependencies.find(
             dep => dep.dependency_type === 'incompatible' && all.has(dep.project_id),
         );
@@ -226,8 +231,16 @@ async function planInstall(rootVersion, target, installedIds) {
 // Installs the newest version of a project that fits `target` ({ loader, gameVersion },
 // the loader being Modrinth's: a mod loader for mods, "minecraft" for resource packs, a
 // shader loader for shaders). Mods come with their required dependencies; packs and
-// shaders are single files. Returns the titles of everything installed.
-export async function installMod(gameDir, target, projectId, title, kind = 'mod') {
+// shaders (`kind`) are single files. Returns the titles of everything installed.
+// `asDependency` marks the mod itself as pulled in for another one, so removing that one
+// removes it too; `allowIncompatible` installs it even if it clashes with an installed mod.
+export async function installMod(
+    gameDir,
+    target,
+    projectId,
+    title,
+    { kind = 'mod', asDependency = false, allowIncompatible = false } = {},
+) {
     const noun = KINDS[kind].noun;
     const list = readModList(gameDir);
     const installedIds = new Set(list.mods.map(mod => mod.projectId));
@@ -239,7 +252,7 @@ export async function installMod(gameDir, target, projectId, title, kind = 'mod'
         throw new Error(`${title || `This ${noun}`} has no version for ${targetLabel(target)}.`);
     }
 
-    const plan = kind === 'mod' ? await planInstall(version, target, installedIds) : [version];
+    const plan = kind === 'mod' ? await planInstall(version, target, installedIds, allowIncompatible) : [version];
     const extra = kind === 'mod' ? {} : { kind, loader: target.loader };
     const titles = new Map((await getProjects(plan.map(v => v.project_id))).map(p => [p.id, p.title]));
     if (title) {
@@ -249,7 +262,7 @@ export async function installMod(gameDir, target, projectId, title, kind = 'mod'
     const entries = plan.map(planned => ({
         ...entryFor(planned, titles.get(planned.project_id) || planned.name, {
             ...extra,
-            asDependency: planned.project_id !== projectId,
+            asDependency: asDependency || planned.project_id !== projectId,
         }),
         enabled: true,
     }));

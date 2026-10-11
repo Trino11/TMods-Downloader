@@ -1,0 +1,5 @@
+{
+  "target": "Fabric 1.21.1",
+  "description": "Sodium only",
+  "changelog": "First pack."
+}

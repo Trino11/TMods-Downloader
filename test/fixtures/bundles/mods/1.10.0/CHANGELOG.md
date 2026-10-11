@@ -1,0 +1,2 @@
+- Added Lithium
+- Updated Sodium to 0.6

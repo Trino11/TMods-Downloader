@@ -99,3 +99,8 @@ between the installed one and the latest. Changelogs are shown as plain text.
 
 The Modrinth page and Home also show each mod update's changelog, as its author wrote it
 on Modrinth, before you update.
+
+You don't have to write the manifest or host the zips yourself: the
+[publish-bundles](publish-bundles/README.md) GitHub Action builds both from a folder in a
+bundles repository and publishes them as a GitHub Release, with a manifest URL that never
+changes.

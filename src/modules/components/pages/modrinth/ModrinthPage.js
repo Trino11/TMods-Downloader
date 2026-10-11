@@ -1,9 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import LinearProgress from '@mui/material/LinearProgress';
 import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
@@ -15,6 +19,7 @@ import ProjectSearch from './ProjectSearch';
 import InstalledMods from './InstalledMods';
 import Modpacks from './Modpacks';
 import { KINDS, LOADERS, SHADER_LOADERS } from '../../../services/modrinth';
+import { applyFix, checkBeforeInstall, checkCompatibility } from '../../../services/modCompat';
 import { detectTarget, gameVersionOf } from '../../../services/gameTarget';
 import { DEFAULT_PROFILE_ID, LATEST_RELEASE, LATEST_SNAPSHOT, listGameVersions } from '../../../services/profiles';
 import {
@@ -42,6 +47,8 @@ const KIND_IDS = Object.keys(KINDS);
 function listAllUnmanaged(gameDir) {
     return Object.fromEntries(KIND_IDS.map(kind => [kind, listUnmanaged(gameDir, kind)]));
 }
+
+const COMPAT_UNCHECKED = { status: 'idle', problems: [], error: '' };
 
 function describeTarget(target) {
     return `${LOADERS[target.loader]} ${target.loaderVersion} · Minecraft ${target.gameVersion}`;
@@ -144,7 +151,30 @@ function ShaderLoaderPicker({ value, onChange, hasLoader }) {
     );
 }
 
-// Single mods, resource packs, shaders and modpacks from Modrinth for the active profile. App remounts the page
+// Asks before installing a mod that may not work with this profile.
+function InstallWarning({ pending, onCancel, onConfirm }) {
+    return (
+        <Dialog open={Boolean(pending)} onClose={onCancel}>
+            <DialogTitle>Install {pending?.hit.title} anyway?</DialogTitle>
+            <DialogContent>
+                <Stack spacing={1}>
+                    {pending?.warnings.map(warning => (
+                        <Typography key={warning}>{warning}</Typography>
+                    ))}
+                </Stack>
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={onCancel}>Cancel</Button>
+                <Button color='warning' onClick={onConfirm}>
+                    Install anyway
+                </Button>
+            </DialogActions>
+        </Dialog>
+    );
+}
+
+// Single mods, resource packs, shaders and modpacks from Modrinth for the active
+// profile. App remounts the page
 // when the profile changes.
 function ModrinthPage({ profile, gameDir, onProfilesChange }) {
     const [tab, setTab] = useState('mod');
@@ -155,6 +185,11 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
+    const [compat, setCompat] = useState(COMPAT_UNCHECKED);
+    const [pendingInstall, setPendingInstall] = useState(null);
+    // Bumped whenever the folder changes, so a compatibility check that finishes after
+    // that is dropped instead of showing problems that may be gone.
+    const compatRun = useRef(0);
 
     const versionId = profile.id === DEFAULT_PROFILE_ID ? list.target?.versionId : profile.gameVersion;
     const target = useMemo(() => detectTarget(versionId), [versionId]);
@@ -193,6 +228,24 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
     function reload() {
         setList(readModList(gameDir));
         setUnmanaged(listAllUnmanaged(gameDir));
+        compatRun.current++;
+        setCompat(COMPAT_UNCHECKED);
+    }
+
+    // Checks the installed mods against the profile. Runs when the Installed tab opens and
+    // after every change to the folder made while it is open.
+    function checkCompat() {
+        if (!target) {
+            return;
+        }
+        const id = ++compatRun.current;
+        setCompat({ status: 'checking', problems: [], error: '' });
+        checkCompatibility(gameDir, target)
+            .then(problems => id === compatRun.current && setCompat({ status: 'done', problems, error: '' }))
+            .catch(
+                checkError =>
+                    id === compatRun.current && setCompat({ status: 'error', problems: [], error: checkError.message }),
+            );
     }
 
     // Runs one action at a time; it returns the message to show when it succeeds.
@@ -207,19 +260,39 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
         } finally {
             reload();
             setBusy(false);
+            if (tab === 'installed') {
+                checkCompat();
+            }
         }
     }
 
     function install(hit, kind) {
         run(async () => {
-            const titles =
-                kind === 'mod'
-                    ? await installMod(gameDir, target, hit.project_id, hit.title)
-                    : await installMod(gameDir, installTargets[kind], hit.project_id, hit.title, kind);
-            return titles.length > 1
-                ? `Installed ${titles[0]} with ${titles.slice(1).join(', ')}.`
-                : `Installed ${titles[0]}.`;
+            // Packs and shaders need no mod loader, so there is nothing to check for them.
+            if (kind !== 'mod') {
+                return installNow(hit, { kind });
+            }
+            const warnings = await checkBeforeInstall(gameDir, target, hit.project_id).catch(() => []);
+            if (warnings.length > 0) {
+                setPendingInstall({ hit, warnings });
+                return '';
+            }
+            return installNow(hit);
         });
+    }
+
+    function confirmInstall() {
+        const { hit } = pendingInstall;
+        setPendingInstall(null);
+        run(() => installNow(hit, { allowIncompatible: true }));
+    }
+
+    async function installNow(hit, options = {}) {
+        const kindTarget = options.kind ? installTargets[options.kind] : target;
+        const titles = await installMod(gameDir, kindTarget, hit.project_id, hit.title, options);
+        return titles.length > 1
+            ? `Installed ${titles[0]} with ${titles.slice(1).join(', ')}.`
+            : `Installed ${titles[0]}.`;
     }
 
     function handleCheckUpdates() {
@@ -313,7 +386,15 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
                 onPick={handlePickTarget}
             />
             <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-                <Tabs value={tab} onChange={(event, id) => setTab(id)}>
+                <Tabs
+                    value={tab}
+                    onChange={(event, id) => {
+                        setTab(id);
+                        if (id === 'installed') {
+                            checkCompat();
+                        }
+                    }}
+                >
                     {TABS.map(({ id, label }) => (
                         <Tab
                             key={id}
@@ -344,6 +425,10 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
                     onToggle={mod => run(async () => setModEnabled(gameDir, mod.projectId, !mod.enabled))}
                     onRemove={handleRemove}
                     onAdopt={handleAdopt}
+                    canCheckCompat={Boolean(target)}
+                    compat={compat}
+                    onCheckCompat={checkCompat}
+                    onFix={problem => run(() => applyFix(gameDir, target, problem))}
                 />
             )}
 
@@ -357,6 +442,11 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
                     onProfileCreated={onProfilesChange}
                 />
             )}
+            <InstallWarning
+                pending={pendingInstall}
+                onCancel={() => setPendingInstall(null)}
+                onConfirm={confirmInstall}
+            />
         </Page>
     );
 }

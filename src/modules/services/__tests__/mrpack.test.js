@@ -305,7 +305,9 @@ describe('exportMrpack', () => {
         const pack = makeVersion('faithful', '1.0', { ext: 'zip', loaders: ['minecraft'] });
         serveModrinth(axios, { faithful: { title: 'Faithful', versions: [pack] } });
         const gameDir = path.join(home, 'game');
-        await mods.installMod(gameDir, { loader: 'minecraft', gameVersion: '1.21.1' }, 'faithful', 'F', 'resourcepack');
+        await mods.installMod(gameDir, { loader: 'minecraft', gameVersion: '1.21.1' }, 'faithful', 'F', {
+            kind: 'resourcepack',
+        });
 
         const index = mrpack.readIndex(new AdmZip(mrpack.exportMrpack(gameDir, target, { name: 'P' }).data));
 
