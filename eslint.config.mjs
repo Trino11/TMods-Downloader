@@ -26,8 +26,8 @@ export default [
         languageOptions: { globals: { ...globals.jest, ...globals.node } },
     },
     {
-        // The Electron main process and build configs run in Node.
-        files: ['public/*.js', '*.config.{js,mjs}', 'test/**'],
+        // The Electron main process, build configs and the bundle publisher run in Node.
+        files: ['public/*.js', '*.config.{js,mjs}', 'test/**', 'publish-bundles/**'],
         languageOptions: { sourceType: 'commonjs', globals: { ...globals.node } },
     },
     {
