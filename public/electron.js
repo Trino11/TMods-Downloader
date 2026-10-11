@@ -52,7 +52,6 @@ ipcMain.on('app_version', (event) => {
   event.sender.send('app_version', { version: app.getVersion() })
 })
 
-// autoUpdater.requestHeaders = { 'PRIVATE-TOKEN': 'eFTVsRVwxUeXuB_vWb8s' }
 autoUpdater.autoDownload = true
 autoUpdater.logger = log
 autoUpdater.logger.transports.file.level = 'info'

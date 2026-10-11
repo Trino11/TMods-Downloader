@@ -31,24 +31,26 @@
     "start-electron": ".\\node_modules\\.bin\\electron .",
     "electron-dev": "cross-env ELECTRON_START_URL=http://localhost:3000 electron .",
     "build": "npm run build-react && npm run dist",
-    "build-linux": "npm run build-react && npm run dist",
     "build-react": "react-scripts build",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win --publish never"
   },
   "build": {
     "appId": "com.trinohost.tmod_loader",
     "productName": "Tmods Downloader",
     "publish": [
       {
-        "provider": "generic",
-        "url": "https://github.com/Trino11/TMods-Downloader/releases/latest/download/Tmods-Downloader.exe"
+        "provider": "github",
+        "owner": "Trino11",
+        "repo": "TMods-Downloader",
+        "releaseType": "release"
       }
     ],
     "win": {
       "target": [
         "nsis"
       ],
-      "verifyUpdateCodeSignature": false
+      "verifyUpdateCodeSignature": false,
+      "artifactName": "Tmods-Downloader.${ext}"
     },
     "files": [
       "electron.js",
