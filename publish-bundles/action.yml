@@ -1,0 +1,94 @@
+name: Publish TMods bundles
+description: Zips a folder of TMods bundles, writes the manifest the app reads, and publishes both as a GitHub Release.
+
+inputs:
+  source:
+    description: Folder holding one subfolder per category (mods, schematics, resourcepacks, configs, shaderpacks).
+    default: bundles
+  tag:
+    description: Tag for the new release. Defaults to bundles-<UTC date and time>.
+    default: ''
+  dry-run:
+    description: Build and check everything, but don't create a release.
+    default: 'false'
+  token:
+    description: Token allowed to create releases (needs contents write).
+    default: ${{ github.token }}
+
+outputs:
+  manifest-url:
+    description: The stable URL to paste into TMods; it always serves the latest release's manifest.
+    value: ${{ steps.build.outputs.manifest-url }}
+  tag:
+    description: The release tag that was (or in a dry run, would have been) created.
+    value: ${{ steps.tag.outputs.tag }}
+  changed:
+    description: Whether anything changed since the last release ('false' means no release was made).
+    value: ${{ steps.build.outputs.changed }}
+  out-dir:
+    description: Folder with manifest.json, the zips to upload (assets/) and the release notes.
+    value: ${{ steps.tag.outputs.out }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Pick the release tag
+      id: tag
+      shell: bash
+      env:
+        TAG: ${{ inputs.tag }}
+      run: |
+        echo "tag=${TAG:-bundles-$(date -u +%Y%m%d-%H%M%S)}" >> "$GITHUB_OUTPUT"
+        echo "out=${RUNNER_TEMP}/tmods-bundles" >> "$GITHUB_OUTPUT"
+
+    # Bundles that haven't changed keep the URL they were first published under, so
+    # each release only uploads what's new. No previous release is fine.
+    - name: Download the previous manifest
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        rm -rf "${RUNNER_TEMP}/tmods-previous"
+        if gh release download --repo "$GITHUB_REPOSITORY" --pattern manifest.json --dir "${RUNNER_TEMP}/tmods-previous" 2>/dev/null; then
+          echo "Reusing unchanged bundles from the latest release."
+        else
+          echo "No previous manifest found; every bundle will be uploaded."
+        fi
+
+    - name: Build bundles and manifest
+      id: build
+      shell: bash
+      env:
+        SOURCE: ${{ inputs.source }}
+        TAG: ${{ steps.tag.outputs.tag }}
+        OUT: ${{ steps.tag.outputs.out }}
+      run: >
+        node "$GITHUB_ACTION_PATH/build-bundles.js"
+        --source "$SOURCE" --out "$OUT" --repo "$GITHUB_REPOSITORY" --tag "$TAG"
+        --server-url "$GITHUB_SERVER_URL" --previous "${RUNNER_TEMP}/tmods-previous/manifest.json"
+
+    - name: Publish the release
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        TAG: ${{ steps.tag.outputs.tag }}
+        OUT: ${{ steps.tag.outputs.out }}
+        DRY_RUN: ${{ inputs.dry-run }}
+        CHANGED: ${{ steps.build.outputs.changed }}
+      run: |
+        if [ "$CHANGED" != "true" ]; then
+          echo "Nothing changed since the last release; not publishing."
+          exit 0
+        fi
+        if [ "$DRY_RUN" = "true" ]; then
+          echo "Dry run: would create release $TAG with:"
+          ls -l "$OUT/assets"
+          exit 0
+        fi
+        gh release create "$TAG" "$OUT"/assets/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+          --title "Bundles $TAG" --notes-file "$OUT/notes.md" --latest

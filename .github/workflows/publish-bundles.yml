@@ -1,0 +1,54 @@
+# Runs the publish-bundles action on the example bundles in a dry run, so a change
+# that breaks it shows up here before a bundles repo picks it up. Nothing is released.
+name: Publish bundles (dry run)
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run the action in a dry run
+        id: publish
+        uses: ./publish-bundles
+        with:
+          source: test/fixtures/bundles
+          tag: bundles-dry-run
+          dry-run: true
+
+      - name: Check the output
+        shell: bash
+        env:
+          OUT: ${{ steps.publish.outputs.out-dir }}
+          MANIFEST_URL: ${{ steps.publish.outputs.manifest-url }}
+          CHANGED: ${{ steps.publish.outputs.changed }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$MANIFEST_URL" = "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/manifest.json"
+          test "$CHANGED" = "true"
+          manifest="$OUT/assets/manifest.json"
+          test "$(jq -r '.latest.mods' "$manifest")" = "1.10.0"
+          jq -e '.versions.mods[0].changelog | length > 0' "$manifest"
+          # Every listed zip is there, matches its sha256 and unpacks cleanly.
+          jq -r '.versions[][] | "\(.sha256)  \(.url | split("/") | last)"' "$manifest" > "$OUT/sums"
+          (cd "$OUT/assets" && sha256sum --check ../sums && for zip in *.zip; do unzip -tq "$zip"; done)
+          # A dry run never creates a release.
+          if gh release view bundles-dry-run --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::The dry run created a release"; exit 1
+          fi
+
+      - name: Show the release notes it would write
+        run: cat "${{ steps.publish.outputs.out-dir }}/notes.md"

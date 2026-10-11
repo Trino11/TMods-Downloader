@@ -63,3 +63,8 @@ anything is installed.
 The Home page checks every category for updates and installs the latest with one click.
 An optional top-level `"latest": { "mods": "1.2.0" }` names the latest version of a
 category; without it, the first version listed is taken as the latest.
+
+You don't have to write the manifest or host the zips yourself: the
+[publish-bundles](publish-bundles/README.md) GitHub Action builds both from a folder in a
+bundles repository and publishes them as a GitHub Release, with a manifest URL that never
+changes.
