@@ -5,11 +5,13 @@ import { detectTarget, gameVersionOf } from '../../services/gameTarget';
 import { listGameVersions } from '../../services/profiles';
 import {
     adoptUnmanaged,
+    checkUpdates,
     installMod,
     listUnmanaged,
     readModList,
     removeMod,
     setTargetVersion,
+    updateChangelog,
 } from '../../services/modrinthMods';
 
 jest.mock('../../services/modrinth', () => ({
@@ -32,6 +34,7 @@ jest.mock('../../services/modrinthMods', () => ({
     removeMod: jest.fn(),
     setModEnabled: jest.fn(),
     setTargetVersion: jest.fn(),
+    updateChangelog: jest.fn(),
     updateMod: jest.fn(),
 }));
 jest.mock('../../services/mrpack', () => ({}));
@@ -200,4 +203,20 @@ it('removes an installed mod after confirmation', async () => {
 
     expect(removeMod).toHaveBeenCalledWith('/games/fabric', 'sodium');
     expect(await screen.findByText('Removed Sodium, Fabric API.')).toBeInTheDocument();
+});
+
+it('shows what an update brings before installing it', async () => {
+    const sodium = { projectId: 'sodium', title: 'Sodium', versionNumber: '0.6.0', enabled: true };
+    readModList.mockReturnValue({ target: null, mods: [sodium] });
+    const update = { id: 'v2', version_number: '0.7.0' };
+    checkUpdates.mockResolvedValue([{ mod: sodium, version: update }]);
+    updateChangelog.mockResolvedValue([{ id: 'v2', label: '0.7.0', text: 'Faster chunks' }]);
+    render(<ModrinthPage profile={profile} gameDir='/games/fabric' />);
+
+    fireEvent.click(screen.getByText('Installed (1)'));
+    fireEvent.click(screen.getByText('Check for updates'));
+    fireEvent.click(await screen.findByRole('button', { name: "What's new" }));
+
+    expect(await screen.findByText('Faster chunks')).toBeInTheDocument();
+    expect(updateChangelog).toHaveBeenCalledWith(sodium, update, fabric, '1.21.1');
 });

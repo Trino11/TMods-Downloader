@@ -263,6 +263,16 @@ export async function installMod(gameDir, target, projectId, title, kind = 'mod'
     return entries.map(entry => entry.title);
 }
 
+// The { loader, gameVersion } an entry's versions are looked up for: the profile's mod
+// loader for mods, and for packs and shaders the loader they were installed for on the
+// profile's game version. Null when that isn't known.
+export function targetFor(mod, target, gameVersion = target?.gameVersion) {
+    const kind = kindOf(mod);
+    const loader = kind === 'mod' ? target?.loader : mod.loader || KINDS[kind].loader;
+    const version = kind === 'mod' ? target?.gameVersion : gameVersion;
+    return loader && version ? { loader, gameVersion: version } : null;
+}
+
 // Finds newer versions of everything tracked. Mods are checked against `target` (the
 // profile's mod loader, null when it has none, which skips them); resource packs and
 // shaders against `gameVersion` and the loader they were installed for. Returns
@@ -270,14 +280,13 @@ export async function installMod(gameDir, target, projectId, title, kind = 'mod'
 export async function checkUpdates(gameDir, target, gameVersion = target?.gameVersion) {
     const groups = new Map();
     for (const mod of readModList(gameDir).mods) {
-        const loader = mod.kind === 'mod' ? target?.loader : mod.loader || KINDS[mod.kind].loader;
-        const version = mod.kind === 'mod' ? target?.gameVersion : gameVersion;
-        if (!loader || !version) {
+        const modTarget = targetFor(mod, target, gameVersion);
+        if (!modTarget) {
             continue;
         }
-        const key = `${loader} ${version}`;
+        const key = `${modTarget.loader} ${modTarget.gameVersion}`;
         if (!groups.has(key)) {
-            groups.set(key, { loader, gameVersion: version, mods: [] });
+            groups.set(key, { ...modTarget, mods: [] });
         }
         groups.get(key).mods.push(mod);
     }
@@ -295,6 +304,23 @@ export async function checkUpdates(gameDir, target, gameVersion = target?.gameVe
         }
     }
     return found;
+}
+
+// What updating `mod` to `latest` brings, as changelog entries newest first: every
+// version of the project for `target` published after the installed one, up to
+// `latest`. When the installed version isn't in that list (it was for another game
+// version, say), only `latest` is shown. Changelogs are the authors' Markdown.
+export async function updateChangelog(mod, latest, target, gameVersion = target?.gameVersion) {
+    const versions = await getProjectVersions(mod.projectId, targetFor(mod, target, gameVersion) || {});
+    const from = versions.findIndex(version => version.id === latest.id);
+    const to = versions.findIndex(version => version.id === mod.versionId);
+    const changes = from !== -1 && to > from ? versions.slice(from, to) : [latest];
+    return changes.map(version => ({
+        id: version.id,
+        label: version.version_number || version.name || version.id,
+        text: typeof version.changelog === 'string' ? version.changelog.trim() : '',
+        date: version.date_published,
+    }));
 }
 
 // Replaces a tracked mod's jar with `version`, keeping it enabled or disabled as it was.

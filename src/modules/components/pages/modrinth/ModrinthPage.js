@@ -334,6 +334,8 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
                     mods={list.mods}
                     unmanaged={unmanaged}
                     updates={updates}
+                    target={target}
+                    gameVersion={gameVersion}
                     busy={busy}
                     canCheckUpdates={Boolean(target || gameVersion)}
                     onCheckUpdates={handleCheckUpdates}

@@ -27,7 +27,7 @@ beforeEach(() => {
     const SafeAdmZip = realmSafeAdmZip(fs.mkdtempSync(path.join(home, 'zips-')));
     window.require = name => {
         if (name === 'os') {
-            return { ...os, homedir: () => home };
+            return { ...os, homedir: () => home, platform: () => 'win32' };
         }
         return name === 'adm-zip' ? SafeAdmZip : require(name);
     };

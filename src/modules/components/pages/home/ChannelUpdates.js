@@ -10,12 +10,13 @@ import DownloadIcon from '@mui/icons-material/Download';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import Downloadspinner from '../../utils/Downloadspinner';
 import { ItemList, ItemRow } from '../../utils/ItemList';
+import { ChangelogButton } from '../../utils/Changelog';
 import categories from '../../../categories';
 import { checkChannels, installChannelUpdates } from '../../../services/channelUpdates';
 import { installBundle } from '../../../services/bundleInstaller';
 import { detectTarget, gameVersionOf } from '../../../services/gameTarget';
 import { DEFAULT_PROFILE_ID } from '../../../services/profiles';
-import { checkUpdates, readModList, updateMod } from '../../../services/modrinthMods';
+import { checkUpdates, readModList, updateChangelog, updateMod } from '../../../services/modrinthMods';
 
 function StatusChip({ status }) {
     if (!status.latest) {
@@ -35,6 +36,20 @@ function describe(status) {
         return `Installed ${status.installed}`;
     }
     return status.installed ? `${status.installed} → ${status.latest.id}` : `Latest is ${status.latest.id}`;
+}
+
+// The changelogs of every pending Modrinth update, each version labelled with its project.
+async function loadModChangelogs(updates, target, gameVersion) {
+    const all = await Promise.all(
+        updates.map(async ({ mod, version }) =>
+            (await updateChangelog(mod, version, target, gameVersion)).map(entry => ({
+                ...entry,
+                id: `${mod.projectId}:${entry.id}`,
+                label: `${mod.title} ${entry.label}`,
+            })),
+        ),
+    );
+    return all.flat();
 }
 
 // Quick action: checks every manifest channel (and what came from Modrinth) of the active
@@ -173,9 +188,22 @@ function ChannelUpdates({ profile, gameDir }) {
                                     leading={<status.category.icon color='action' />}
                                     actions={
                                         status.outdated && (
-                                            <Button size='small' disabled={disabled} onClick={() => installOne(status)}>
-                                                Install
-                                            </Button>
+                                            <>
+                                                {status.changes?.length > 0 && (
+                                                    <ChangelogButton
+                                                        size='small'
+                                                        title={`What's new in ${status.category.label}`}
+                                                        entries={status.changes}
+                                                    />
+                                                )}
+                                                <Button
+                                                    size='small'
+                                                    disabled={disabled}
+                                                    onClick={() => installOne(status)}
+                                                >
+                                                    Install
+                                                </Button>
+                                            </>
                                         )
                                     }
                                 >
@@ -191,9 +219,18 @@ function ChannelUpdates({ profile, gameDir }) {
                             {modUpdates.length > 0 && (
                                 <ItemRow
                                     actions={
-                                        <Button size='small' disabled={disabled} onClick={updateMods}>
-                                            Update
-                                        </Button>
+                                        <>
+                                            <ChangelogButton
+                                                // A new button (and so a fresh load) for each set of updates.
+                                                key={modUpdates.map(({ version }) => version.id).join()}
+                                                size='small'
+                                                title="What's new in your Modrinth mods"
+                                                load={() => loadModChangelogs(modUpdates, target, gameVersion)}
+                                            />
+                                            <Button size='small' disabled={disabled} onClick={updateMods}>
+                                                Update
+                                            </Button>
+                                        </>
                                     }
                                 >
                                     <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>

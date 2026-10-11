@@ -5,19 +5,27 @@ import Typography from '@mui/material/Typography';
 import CheckIcon from '@mui/icons-material/Check';
 import DownloadIcon from '@mui/icons-material/Download';
 import { ItemRow } from '../../utils/ItemList';
+import { ChangelogButton } from '../../utils/Changelog';
+import { changelogEntries } from '../../../services/manifest';
 
 function VersionItem({ version, showTarget, installed, disabled, onDownload }) {
+    const changelog = changelogEntries([version]);
     return (
         <ItemRow
             actions={
-                <Button
-                    variant={installed ? 'outlined' : 'contained'}
-                    startIcon={installed ? <CheckIcon /> : <DownloadIcon />}
-                    disabled={disabled}
-                    onClick={onDownload}
-                >
-                    {installed ? 'Downloaded' : 'Download'}
-                </Button>
+                <>
+                    {changelog.length > 0 && (
+                        <ChangelogButton title={`What's new in ${version.id}`} entries={changelog} />
+                    )}
+                    <Button
+                        variant={installed ? 'outlined' : 'contained'}
+                        startIcon={installed ? <CheckIcon /> : <DownloadIcon />}
+                        disabled={disabled}
+                        onClick={onDownload}
+                    >
+                        {installed ? 'Downloaded' : 'Download'}
+                    </Button>
+                </>
             }
         >
             <Stack direction='row' spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>

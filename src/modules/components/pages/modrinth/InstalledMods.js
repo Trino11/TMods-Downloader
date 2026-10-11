@@ -4,10 +4,24 @@ import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { ItemList, ItemRow } from '../../utils/ItemList';
+import { ChangelogButton } from '../../utils/Changelog';
 import { KINDS } from '../../../services/modrinth';
+import { updateChangelog } from '../../../services/modrinthMods';
 
 // The tracked entries of one kind, plus the files of that kind added by hand.
-function KindSection({ kind, mods, unmanaged, updateFor, busy, onUpdate, onToggle, onRemove, onAdopt }) {
+function KindSection({
+    kind,
+    mods,
+    unmanaged,
+    updateFor,
+    target,
+    gameVersion,
+    busy,
+    onUpdate,
+    onToggle,
+    onRemove,
+    onAdopt,
+}) {
     const { label, noun } = KINDS[kind];
     return (
         <Stack component='section' spacing={2}>
@@ -23,6 +37,13 @@ function KindSection({ kind, mods, unmanaged, updateFor, busy, onUpdate, onToggl
                                 key={mod.projectId}
                                 actions={
                                     <>
+                                        {update && (
+                                            <ChangelogButton
+                                                key={update.id}
+                                                title={`What's new in ${mod.title}`}
+                                                load={() => updateChangelog(mod, update, target, gameVersion)}
+                                            />
+                                        )}
                                         {update && (
                                             <Button
                                                 variant='contained'
@@ -112,6 +133,8 @@ function InstalledMods({
     mods,
     unmanaged,
     updates,
+    target,
+    gameVersion,
     busy,
     canCheckUpdates,
     onCheckUpdates,
@@ -146,6 +169,8 @@ function InstalledMods({
                     mods={mods.filter(mod => (mod.kind || 'mod') === kind)}
                     unmanaged={unmanaged[kind] || []}
                     updateFor={updateFor}
+                    target={target}
+                    gameVersion={gameVersion}
                     busy={busy}
                     onUpdate={onUpdate}
                     onToggle={onToggle}
