@@ -34,12 +34,13 @@ it('lists backups with their installed version', () => {
 
 it('restores a backup after confirmation and refreshes the installed version', () => {
     listBackups.mockReturnValue([backup]);
-    render(<BundlePage category={mods} />);
+    render(<BundlePage category={mods} gameDir='/games/fabric' />);
     readInstalledVersion.mockReturnValue('1.0');
 
     fireEvent.click(screen.getByText('Restore'));
 
-    expect(restoreBackup).toHaveBeenCalledWith(mods, 'b1');
+    expect(restoreBackup).toHaveBeenCalledWith(mods, 'b1', '/games/fabric');
+    expect(listBackups).toHaveBeenCalledWith(mods, '/games/fabric');
     expect(listBackups).toHaveBeenCalledTimes(2);
 });
 
