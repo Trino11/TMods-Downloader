@@ -1,5 +1,9 @@
-# Runs the publish-bundles action on the example bundles in a dry run, so a change
-# that breaks it shows up here before a bundles repo picks it up. Nothing is released.
+# Runs the publish-bundles action in a dry run, on the offline example bundles and on the
+# template (which downloads from Modrinth), so a change that breaks it shows up here
+# before a bundles repo picks it up. Nothing is released.
+#
+# On main, once that passes, the bundles-v<MAJOR> tag bundles repos use moves to the new
+# commit. See "Versions of this action" in publish-bundles/README.md.
 name: Publish bundles (dry run)
 
 on:
@@ -20,7 +24,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run the action in a dry run
+      - name: Run the action on the example bundles
         id: publish
         uses: ./publish-bundles
         with:
@@ -52,3 +56,58 @@ jobs:
 
       - name: Show the release notes it would write
         run: cat "${{ steps.publish.outputs.out-dir }}/notes.md"
+
+      - name: Run the action on the template, downloading from Modrinth
+        id: template
+        uses: ./publish-bundles
+        with:
+          source: publish-bundles/template/bundles
+          tag: bundles-dry-run
+          dry-run: true
+
+      - name: Check the template's mods came from Modrinth
+        shell: bash
+        env:
+          OUT: ${{ steps.template.outputs.out-dir }}
+        run: |
+          set -euo pipefail
+          unzip -l "$OUT/assets/mods-1.0.0.zip"
+          unzip -Z1 "$OUT/assets/mods-1.0.0.zip" | grep -E '^mods/sodium-.*\.jar$'
+          unzip -Z1 "$OUT/assets/configs-1.0.0.zip" | grep -Fx 'config/sodium-options.json'
+
+  move-tag:
+    needs: dry-run
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # moves the tag
+    concurrency: publish-bundles-tag
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Run the publisher's tests
+        run: |
+          npm ci
+          npx jest test/__tests__/publishBundles.test.js
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1 # Tests don't launch Electron
+          CI: true
+
+      # A tag pushed with the workflow's token starts no other workflow, and bundles-v*
+      # doesn't match the app's v* release tags anyway.
+      - name: Move bundles-v<MAJOR> to this commit
+        run: |
+          set -euo pipefail
+          major="$(tr -d '[:space:]' < publish-bundles/MAJOR)"
+          [[ "$major" =~ ^[0-9]+$ ]] || { echo "::error::publish-bundles/MAJOR must be a number"; exit 1; }
+          git tag -f "bundles-v$major" "$GITHUB_SHA"
+          git push -f origin "refs/tags/bundles-v$major"
+          echo "bundles-v$major now points at $GITHUB_SHA"

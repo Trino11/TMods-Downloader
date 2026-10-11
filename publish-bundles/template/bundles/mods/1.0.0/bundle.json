@@ -1,0 +1,8 @@
+{
+  "description": "Sodium, for faster rendering",
+  "target": "Fabric 1.21.1",
+  "changelog": "First version.",
+  "modrinth": {
+    "sodium": "mc1.21.1-0.6.0-fabric"
+  }
+}
