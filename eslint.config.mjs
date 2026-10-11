@@ -22,12 +22,12 @@ export default [
         },
     },
     {
-        files: ['src/**/__tests__/**', 'src/**/__fixtures__/**', 'src/setupTests.js'],
+        files: ['src/**/__tests__/**', 'src/**/__fixtures__/**', 'src/setupTests.js', 'test/**'],
         languageOptions: { globals: { ...globals.jest, ...globals.node } },
     },
     {
         // The Electron main process and build configs run in Node.
-        files: ['public/electron.js', '*.config.{js,mjs}', 'test/**'],
+        files: ['public/*.js', '*.config.{js,mjs}', 'test/**'],
         languageOptions: { sourceType: 'commonjs', globals: { ...globals.node } },
     },
     {

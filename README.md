@@ -17,7 +17,7 @@ apps check that release through electron-updater and update themselves.
 # Development
 
 The window is a React app built with [Vite](https://vite.dev); `public/electron.js` is the
-Electron main process and is copied into `build/` with the rest of `public/`.
+Electron main process (its logic lives in `public/mainProcess.js`, tested from `test/`) and is copied into `build/` with the rest of `public/`.
 
 - `npm run build-react` builds the app into `build/`.
 - `npm run start-electron` opens Electron on that build.

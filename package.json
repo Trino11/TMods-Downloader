@@ -44,7 +44,8 @@
   "jest": {
     "testEnvironment": "jsdom",
     "roots": [
-      "<rootDir>/src"
+      "<rootDir>/src",
+      "<rootDir>/test"
     ],
     "setupFilesAfterEnv": [
       "<rootDir>/src/setupTests.js"
