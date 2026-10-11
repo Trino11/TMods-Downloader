@@ -21,7 +21,7 @@ Electron main process and is copied into `build/` with the rest of `public/`.
 
 - `npm run build-react` builds the app into `build/`.
 - `npm run start-electron` opens Electron on that build.
-- `npm start` runs the Vite dev server on port 3000 alongside Electron (Electron still
-  loads `build/`; open http://localhost:3000 in a browser for live reload of the UI).
+- `npm start` runs the Vite dev server on port 3000 alongside Electron, which still
+  loads `build/`, as before.
 - `npm test` runs the Jest tests (files in `__tests__` folders).
 - `npm run dist` packages the Windows installer into `dist/` with electron-builder.
