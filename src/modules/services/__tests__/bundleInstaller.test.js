@@ -14,6 +14,9 @@ let home;
 let minecraftDir;
 let installBundle;
 let readInstalledVersion;
+let listBackups;
+let restoreBackup;
+let MAX_BACKUPS;
 
 beforeEach(() => {
     home = fs.mkdtempSync(path.join(os.tmpdir(), 'tmods-test-'));
@@ -22,7 +25,7 @@ beforeEach(() => {
 
     window.require = name => (name === 'os' ? { ...os, homedir: () => home } : require(name));
     jest.isolateModules(() => {
-        ({ installBundle, readInstalledVersion } = require('../bundleInstaller'));
+        ({ installBundle, readInstalledVersion, listBackups, restoreBackup, MAX_BACKUPS } = require('../bundleInstaller'));
     });
     axios.get.mockReset();
 });
@@ -63,6 +66,12 @@ function exists(relative) {
 
 const version = { id: '2.0', url: 'https://example.com/bundle.zip' };
 
+// Reads a file from the newest backup of a category.
+function readBackup(id, relative, index = 0) {
+    const backup = listBackups(category(id))[index];
+    return fs.readFileSync(path.join(minecraftDir, '.tmods_loader', id, 'backups', backup.id, 'files', relative), 'utf-8');
+}
+
 describe('installBundle', () => {
     it('downloads the version zip as binary', async () => {
         serveZip({ 'mods/a.jar': 'a' });
@@ -77,7 +86,7 @@ describe('installBundle', () => {
 
         await installBundle(category(id), version);
 
-        expect(read(`${folder}_back/old.file`)).toBe('old');
+        expect(readBackup(id, 'old.file')).toBe('old');
         expect(exists(`${folder}/old.file`)).toBe(false);
         expect(read(`${folder}/new.file`)).toBe('new');
     });
@@ -89,8 +98,8 @@ describe('installBundle', () => {
 
         await installBundle(category('configs'), version);
 
-        expect(read('config_back/keep.toml')).toBe('mine');
-        expect(read('config_back/shared.toml')).toBe('old');
+        expect(readBackup('configs', 'keep.toml')).toBe('mine');
+        expect(readBackup('configs', 'shared.toml')).toBe('old');
         expect(read('config/keep.toml')).toBe('mine');
         expect(read('config/shared.toml')).toBe('new');
     });
@@ -103,18 +112,47 @@ describe('installBundle', () => {
 
         expect(read(`${id}/mine.zip`)).toBe('mine');
         expect(read(`${id}/pack.zip`)).toBe('pack');
-        expect(exists(`${id}_back`)).toBe(false);
+        expect(exists(`.tmods_loader/${id}/backups`)).toBe(false);
+        expect(listBackups(category(id))).toEqual([]);
     });
 
-    it('replaces an older backup with the current folder', async () => {
-        write('mods_back/ancient.jar', 'ancient');
+    it('keeps earlier backups instead of overwriting them', async () => {
+        write('mods/first.jar', 'first');
+        write('.tmods_loader/mods/downloaded.txt', '1.0');
+        serveZip({ 'mods/second.jar': 'second' });
+        await installBundle(category('mods'), version);
+
+        serveZip({ 'mods/third.jar': 'third' });
+        await installBundle(category('mods'), { ...version, id: '3.0' });
+
+        const backups = listBackups(category('mods'));
+        expect(backups.map(b => b.version)).toEqual(['2.0', '1.0']);
+        expect(readBackup('mods', 'second.jar', 0)).toBe('second');
+        expect(readBackup('mods', 'first.jar', 1)).toBe('first');
+        expect(new Date(backups[0].createdAt).getTime()).not.toBeNaN();
+    });
+
+    it(`keeps only the newest backups`, async () => {
+        write('mods/a.jar', 'a');
+        for (let i = 1; i <= MAX_BACKUPS + 2; i++) {
+            serveZip({ [`mods/v${i}.jar`]: `${i}` });
+            await installBundle(category('mods'), { ...version, id: `${i}` });
+        }
+
+        const backups = listBackups(category('mods'));
+        expect(backups).toHaveLength(MAX_BACKUPS);
+        // The install of version i backs up version i-1; the oldest ones were pruned.
+        expect(backups.map(b => b.version)).toEqual(['6', '5', '4', '3', '2']);
+        expect(fs.readdirSync(path.join(minecraftDir, '.tmods_loader/mods/backups'))).toHaveLength(MAX_BACKUPS);
+    });
+
+    it('no longer creates the old _back folder', async () => {
         write('mods/current.jar', 'current');
         serveZip({ 'mods/new.jar': 'new' });
 
         await installBundle(category('mods'), version);
 
-        expect(exists('mods_back/ancient.jar')).toBe(false);
-        expect(read('mods_back/current.jar')).toBe('current');
+        expect(exists('mods_back')).toBe(false);
     });
 
     it('installs when the backup folder does not exist yet', async () => {
@@ -122,7 +160,7 @@ describe('installBundle', () => {
 
         await installBundle(category('mods'), version);
 
-        expect(exists('mods_back')).toBe(false);
+        expect(listBackups(category('mods'))).toEqual([]);
         expect(read('mods/new.jar')).toBe('new');
     });
 
@@ -143,7 +181,7 @@ describe('installBundle', () => {
         await expect(installBundle(category('mods'), version)).rejects.toThrow('Network Error');
 
         expect(read('mods/current.jar')).toBe('current');
-        expect(exists('mods_back')).toBe(false);
+        expect(listBackups(category('mods'))).toEqual([]);
         expect(readInstalledVersion(category('mods'))).toBe('1.0');
     });
 
@@ -170,5 +208,74 @@ describe('readInstalledVersion', () => {
 
         expect(readInstalledVersion(category('configs'))).toBe('2.0');
         expect(readInstalledVersion(category('mods'))).toBe('');
+    });
+});
+
+describe('restoreBackup', () => {
+    async function installTwice() {
+        write('mods/one.jar', 'one');
+        write('.tmods_loader/mods/downloaded.txt', '1.0');
+        serveZip({ 'mods/two.jar': 'two' });
+        await installBundle(category('mods'), version);
+    }
+
+    it('puts the backed-up files back and records their version', async () => {
+        await installTwice();
+        const [backup] = listBackups(category('mods'));
+
+        restoreBackup(category('mods'), backup.id);
+
+        expect(read('mods/one.jar')).toBe('one');
+        expect(exists('mods/two.jar')).toBe(false);
+        expect(readInstalledVersion(category('mods'))).toBe('1.0');
+    });
+
+    it('backs up the current files first so a restore can be undone', async () => {
+        await installTwice();
+        const [backup] = listBackups(category('mods'));
+
+        restoreBackup(category('mods'), backup.id);
+
+        const backups = listBackups(category('mods'));
+        expect(backups.map(b => b.version)).toEqual(['2.0', '1.0']);
+        restoreBackup(category('mods'), backups[0].id);
+        expect(read('mods/two.jar')).toBe('two');
+        expect(exists('mods/one.jar')).toBe(false);
+        expect(readInstalledVersion(category('mods'))).toBe('2.0');
+    });
+
+    it('replaces config entirely, dropping files added since the backup', async () => {
+        write('config/a.toml', 'old');
+        serveZip({ 'config/a.toml': 'new', 'config/b.toml': 'added' });
+        await installBundle(category('configs'), version);
+        const [backup] = listBackups(category('configs'));
+
+        restoreBackup(category('configs'), backup.id);
+
+        expect(read('config/a.toml')).toBe('old');
+        expect(exists('config/b.toml')).toBe(false);
+        expect(readInstalledVersion(category('configs'))).toBe('');
+    });
+
+    it('can restore the oldest backup when the history is full', async () => {
+        write('mods/a.jar', 'oldest');
+        for (let i = 1; i <= MAX_BACKUPS; i++) {
+            serveZip({ [`mods/v${i}.jar`]: `${i}` });
+            await installBundle(category('mods'), { ...version, id: `${i}` });
+        }
+        const backups = listBackups(category('mods'));
+        const oldest = backups[backups.length - 1];
+
+        restoreBackup(category('mods'), oldest.id);
+
+        expect(read('mods/a.jar')).toBe('oldest');
+        expect(listBackups(category('mods'))).toHaveLength(MAX_BACKUPS);
+    });
+
+    it('throws for an unknown backup and leaves files alone', async () => {
+        await installTwice();
+
+        expect(() => restoreBackup(category('mods'), 'nope')).toThrow('not found');
+        expect(read('mods/two.jar')).toBe('two');
     });
 });

@@ -110,3 +110,8 @@ p.card-c{
 .settingsRow .form-control {
   height: 50px;
 }
+
+.backupsTitle{
+  text-align: center;
+  margin-top: 20px;
+}

@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Downloadspinner from '../../utils/Downloadspinner';
 import VersionItem from './VersionItem';
+import BackupList from './BackupList';
 import { fetchVersions } from '../../../services/manifest';
-import { installBundle, readInstalledVersion } from '../../../services/bundleInstaller';
+import { installBundle, listBackups, readInstalledVersion, restoreBackup } from '../../../services/bundleInstaller';
 
 function BundlePage({ category }) {
     const [versions, setVersions] = useState([]);
     const [installed, setInstalled] = useState(() => readInstalledVersion(category));
+    const [backups, setBackups] = useState(() => listBackups(category));
     const [downloading, setDownloading] = useState(false);
 
     const refresh = useCallback(() => {
@@ -25,7 +27,23 @@ function BundlePage({ category }) {
         } catch (error) {
             console.error(`Error installing ${category.id} ${version.id}:`, error);
         } finally {
+            setBackups(listBackups(category));
             setDownloading(false);
+        }
+    }
+
+    function handleRestore(backup) {
+        const label = backup.version ? `version ${backup.version}` : 'the backup';
+        if (!window.confirm(`Replace your current ${category.label.toLowerCase()} with ${label} from ${new Date(backup.createdAt).toLocaleString()}? Your current files are backed up first.`)) {
+            return;
+        }
+        try {
+            restoreBackup(category, backup.id);
+            setInstalled(readInstalledVersion(category));
+        } catch (error) {
+            console.error(`Error restoring ${category.id} backup ${backup.id}:`, error);
+        } finally {
+            setBackups(listBackups(category));
         }
     }
 
@@ -49,6 +67,8 @@ function BundlePage({ category }) {
                 )}
             </ul>
         </div>
+        {category.backupFolder &&
+            <BackupList backups={backups} disabled={downloading} onRestore={handleRestore} />}
     </div>
 }
 
