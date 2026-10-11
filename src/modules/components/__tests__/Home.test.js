@@ -6,7 +6,7 @@ import { installBundle } from '../../services/bundleInstaller';
 import { createProfile, listGameVersions, updateProfile } from '../../services/profiles';
 import { fetchMojangVersions } from '../../services/gameVersions';
 import { installFabric, listFabricGameVersions } from '../../services/fabric';
-import { detectTarget } from '../../services/gameTarget';
+import { detectTarget, gameVersionOf } from '../../services/gameTarget';
 import { checkUpdates, readModList, setTargetVersion, updateChangelog, updateMod } from '../../services/modrinthMods';
 
 jest.mock('axios', () => ({ get: jest.fn() }));
@@ -25,7 +25,7 @@ jest.mock('../../services/gameVersions', () => ({
     fetchMojangVersions: jest.fn(),
 }));
 jest.mock('../../services/fabric', () => ({ installFabric: jest.fn(), listFabricGameVersions: jest.fn() }));
-jest.mock('../../services/gameTarget', () => ({ detectTarget: jest.fn() }));
+jest.mock('../../services/gameTarget', () => ({ detectTarget: jest.fn(), gameVersionOf: jest.fn() }));
 jest.mock('../../services/modrinthMods', () => ({
     checkUpdates: jest.fn(),
     readModList: jest.fn(),
@@ -52,6 +52,7 @@ beforeEach(() => {
     listFabricGameVersions.mockResolvedValue(['1.21.1', '1.20.1']);
     installFabric.mockResolvedValue('fabric-loader-0.16.5-1.21.1');
     detectTarget.mockImplementation(id => (id === fabricProfile.gameVersion ? target : null));
+    gameVersionOf.mockReturnValue(null);
     readModList.mockReturnValue({ target: null, mods: [sodium.mod] });
     checkUpdates.mockResolvedValue([]);
     checkChannels.mockResolvedValue([
@@ -80,7 +81,7 @@ it('checks the channels and Modrinth mods of the active profile', async () => {
     expect(await screen.findByText('1.0 → 1.1')).toBeInTheDocument();
     expect(await screen.findByText('Sodium')).toBeInTheDocument();
     expect(checkChannels).toHaveBeenCalledWith(expect.any(Array), '/games/fabric');
-    expect(checkUpdates).toHaveBeenCalledWith('/games/fabric', target);
+    expect(checkUpdates).toHaveBeenCalledWith('/games/fabric', target, '1.20.1');
     expect(screen.getByRole('button', { name: 'Install all (2)' })).toBeEnabled();
 });
 
@@ -117,7 +118,15 @@ it('reports the channels that failed to update', async () => {
     expect(await screen.findByText('Some updates failed. Mods: 404')).toBeInTheDocument();
 });
 
-it('skips the Modrinth check when the profile has no mod loader', async () => {
+it('checks resource packs and shaders of a profile with no mod loader', async () => {
+    gameVersionOf.mockImplementation(id => (id === '1.21.1' ? '1.21.1' : null));
+    renderHome({ id: 'vanilla', name: 'Vanilla', gameVersion: '1.21.1' });
+
+    expect(await screen.findByText('1.0 → 1.1')).toBeInTheDocument();
+    expect(checkUpdates).toHaveBeenCalledWith('/games/vanilla', null, '1.21.1');
+});
+
+it('skips the Modrinth check when the profile version is unknown', async () => {
     renderHome({ id: 'vanilla', name: 'Vanilla', gameVersion: 'latest-release' });
 
     expect(await screen.findByText('1.0 → 1.1')).toBeInTheDocument();
@@ -198,5 +207,5 @@ it('shows the changelogs of channel and Modrinth updates', async () => {
     fireEvent.click(modButton);
     expect(await screen.findByText('Fixes a crash')).toBeInTheDocument();
     expect(screen.getByText('Sodium 0.6.1')).toBeInTheDocument();
-    expect(updateChangelog).toHaveBeenCalledWith(sodium.mod, sodium.version, target);
+    expect(updateChangelog).toHaveBeenCalledWith(sodium.mod, sodium.version, target, '1.20.1');
 });

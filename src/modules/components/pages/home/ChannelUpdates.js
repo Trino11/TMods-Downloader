@@ -14,7 +14,7 @@ import { ChangelogButton } from '../../utils/Changelog';
 import categories from '../../../categories';
 import { checkChannels, installChannelUpdates } from '../../../services/channelUpdates';
 import { installBundle } from '../../../services/bundleInstaller';
-import { detectTarget } from '../../../services/gameTarget';
+import { detectTarget, gameVersionOf } from '../../../services/gameTarget';
 import { DEFAULT_PROFILE_ID } from '../../../services/profiles';
 import { checkUpdates, readModList, updateChangelog, updateMod } from '../../../services/modrinthMods';
 
@@ -38,11 +38,11 @@ function describe(status) {
     return status.installed ? `${status.installed} → ${status.latest.id}` : `Latest is ${status.latest.id}`;
 }
 
-// The changelogs of every pending mod update, each version labelled with its mod.
-async function loadModChangelogs(updates, target) {
+// The changelogs of every pending Modrinth update, each version labelled with its project.
+async function loadModChangelogs(updates, target, gameVersion) {
     const all = await Promise.all(
         updates.map(async ({ mod, version }) =>
-            (await updateChangelog(mod, version, target)).map(entry => ({
+            (await updateChangelog(mod, version, target, gameVersion)).map(entry => ({
                 ...entry,
                 id: `${mod.projectId}:${entry.id}`,
                 label: `${mod.title} ${entry.label}`,
@@ -52,7 +52,7 @@ async function loadModChangelogs(updates, target) {
     return all.flat();
 }
 
-// Quick action: checks every manifest channel (and the Modrinth mods) of the active
+// Quick action: checks every manifest channel (and what came from Modrinth) of the active
 // profile for updates and installs the latest of each with one click.
 function ChannelUpdates({ profile, gameDir }) {
     const [statuses, setStatuses] = useState(null);
@@ -65,13 +65,16 @@ function ChannelUpdates({ profile, gameDir }) {
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
 
-    // Modrinth mods are checked against the loader the profile plays with; without one
-    // (vanilla, or the default profile with no version picked) there is nothing to check.
+    // Modrinth mods are checked against the loader the profile plays with, resource packs
+    // and shaders against its Minecraft version. Without a version (the default profile
+    // with none picked) there is nothing to check.
     const isDefault = profile.id === DEFAULT_PROFILE_ID;
-    const target = useMemo(
-        () => detectTarget(isDefault ? readModList(gameDir).target?.versionId : profile.gameVersion),
+    const versionId = useMemo(
+        () => (isDefault ? readModList(gameDir).target?.versionId : profile.gameVersion),
         [isDefault, profile.gameVersion, gameDir],
     );
+    const target = useMemo(() => detectTarget(versionId), [versionId]);
+    const gameVersion = useMemo(() => target?.gameVersion || gameVersionOf(versionId), [target, versionId]);
 
     const check = useCallback(async () => {
         setChecking(true);
@@ -81,17 +84,17 @@ function ChannelUpdates({ profile, gameDir }) {
         } catch (checkError) {
             setCheckError(`Could not check the channels: ${checkError.message}`);
         }
-        if (target && readModList(gameDir).mods.length > 0) {
+        if ((target || gameVersion) && readModList(gameDir).mods.length > 0) {
             try {
-                setModUpdates(await checkUpdates(gameDir, target));
+                setModUpdates(await checkUpdates(gameDir, target, gameVersion));
             } catch (checkError) {
-                setCheckError(current => current || `Could not check Modrinth for mod updates: ${checkError.message}`);
+                setCheckError(current => current || `Could not check Modrinth for updates: ${checkError.message}`);
             }
         } else {
             setModUpdates([]);
         }
         setChecking(false);
-    }, [gameDir, target]);
+    }, [gameDir, target, gameVersion]);
 
     useEffect(() => {
         check();
@@ -146,7 +149,7 @@ function ChannelUpdates({ profile, gameDir }) {
             for (const { mod, version } of modUpdates) {
                 await updateMod(gameDir, mod.projectId, version);
             }
-            return `Updated ${modUpdates.length} Modrinth ${modUpdates.length === 1 ? 'mod' : 'mods'}.`;
+            return `Updated ${modUpdates.length} ${modUpdates.length === 1 ? 'item' : 'items'} from Modrinth.`;
         });
     }
 
@@ -222,7 +225,7 @@ function ChannelUpdates({ profile, gameDir }) {
                                                 key={modUpdates.map(({ version }) => version.id).join()}
                                                 size='small'
                                                 title="What's new in your Modrinth mods"
-                                                load={() => loadModChangelogs(modUpdates, target)}
+                                                load={() => loadModChangelogs(modUpdates, target, gameVersion)}
                                             />
                                             <Button size='small' disabled={disabled} onClick={updateMods}>
                                                 Update
@@ -231,7 +234,7 @@ function ChannelUpdates({ profile, gameDir }) {
                                     }
                                 >
                                     <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
-                                        <Typography sx={{ fontWeight: 500 }}>Modrinth mods</Typography>
+                                        <Typography sx={{ fontWeight: 500 }}>From Modrinth</Typography>
                                         <Chip size='small' color='warning' label='Update available' />
                                     </Stack>
                                     <Typography variant='body2' sx={{ color: 'text.secondary' }}>

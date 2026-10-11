@@ -2,6 +2,8 @@
 // e.g. "fabric-loader-0.16.5-1.21.1" is Fabric 0.16.5 on Minecraft 1.21.1. Mods from
 // Modrinth are picked to match it.
 import { minecraftDir } from './paths';
+import { LATEST_RELEASE, LATEST_SNAPSHOT } from './profiles';
+import { readCachedVersions } from './gameVersions';
 import { fs, path } from './node';
 
 // Each loader's installer names its launcher version in its own way:
@@ -47,4 +49,24 @@ export function detectTarget(versionId) {
     }
     const loader = parseLoader(versionId, json.inheritsFrom);
     return loader && { versionId, gameVersion: json.inheritsFrom, ...loader };
+}
+
+// The Minecraft version a launcher version id plays, for content that needs no mod
+// loader (resource packs, shaders). Loader versions give the game version they build
+// on; the "latest" aliases resolve through the last Mojang version list fetched, so
+// they return null until the version list has been loaded once.
+export function gameVersionOf(versionId) {
+    if (!versionId) {
+        return null;
+    }
+    if (versionId === LATEST_RELEASE || versionId === LATEST_SNAPSHOT) {
+        const versions = readCachedVersions();
+        const latest = versionId === LATEST_RELEASE ? versions.find(v => v.type === 'release') : versions[0];
+        return latest?.id || null;
+    }
+    const target = detectTarget(versionId);
+    if (target) {
+        return target.gameVersion;
+    }
+    return readVersionJson(versionId)?.inheritsFrom || versionId;
 }

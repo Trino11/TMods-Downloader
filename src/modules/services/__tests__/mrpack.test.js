@@ -14,6 +14,7 @@ let mrpack;
 let profiles;
 let mods;
 let detectTarget;
+let gameVersionOf;
 let AdmZip;
 
 beforeEach(() => {
@@ -28,7 +29,7 @@ beforeEach(() => {
         mrpack = require('../mrpack');
         profiles = require('../profiles');
         mods = require('../modrinthMods');
-        ({ detectTarget } = require('../gameTarget'));
+        ({ detectTarget, gameVersionOf } = require('../gameTarget'));
     });
 });
 
@@ -112,6 +113,30 @@ describe('detectTarget', () => {
     });
 });
 
+describe('gameVersionOf', () => {
+    it('reads the Minecraft version of loader, vanilla and other installed versions', () => {
+        installVersion('fabric-loader-0.16.5-1.21.1', '1.21.1');
+        installVersion('1.20.1-OptiFine_HD_U_I6', '1.20.1');
+        expect(gameVersionOf('fabric-loader-0.16.5-1.21.1')).toBe('1.21.1');
+        expect(gameVersionOf('1.20.1-OptiFine_HD_U_I6')).toBe('1.20.1');
+        expect(gameVersionOf('1.19.4')).toBe('1.19.4');
+        expect(gameVersionOf('')).toBeNull();
+    });
+
+    it('resolves the latest aliases from the cached version list, once there is one', () => {
+        expect(gameVersionOf('latest-release')).toBeNull();
+        localStorage.setItem(
+            'tmods.versionManifest',
+            JSON.stringify([
+                { id: '25w01a', type: 'snapshot' },
+                { id: '1.21.4', type: 'release' },
+            ]),
+        );
+        expect(gameVersionOf('latest-release')).toBe('1.21.4');
+        expect(gameVersionOf('latest-snapshot')).toBe('25w01a');
+    });
+});
+
 describe('importMrpack', () => {
     it('creates a profile with the exact loader version, the client mods and the overrides', async () => {
         serve();
@@ -141,6 +166,34 @@ describe('importMrpack', () => {
                 .sort(),
         ).toEqual(['fabric-api', 'sodium']);
         expect(profiles.listProfiles().map(p => p.name)).toContain('Friends Pack');
+    });
+
+    it("tracks the pack's resource packs and shaders too", async () => {
+        const pack = makeVersion('faithful', '1.0', { ext: 'zip', loaders: ['minecraft'] });
+        const shader = makeVersion('bsl', '8.2', { ext: 'zip', loaders: ['iris'] });
+        serveModrinth(axios, {
+            'fabric-api': { title: 'Fabric API', versions: [fabricApi] },
+            sodium: { title: 'Sodium', versions: [sodium] },
+            faithful: { title: 'Faithful', versions: [pack] },
+            bsl: { title: 'BSL', versions: [shader] },
+        });
+        installVersion('fabric-loader-0.16.5-1.21.1', '1.21.1');
+        const files = [
+            fileEntry(sodium),
+            fileEntry(fabricApi),
+            { ...fileEntry(pack), path: 'resourcepacks/faithful-1.0.zip' },
+            { ...fileEntry(shader), path: 'shaderpacks/bsl-8.2.zip' },
+        ];
+
+        const { profile } = await mrpack.importMrpack(buildPack({ index: { files } }));
+
+        const tracked = mods.readModList(profiles.profileGameDir(profile)).mods;
+        expect(tracked.map(m => [m.projectId, m.kind]).sort()).toEqual([
+            ['bsl', 'shader'],
+            ['fabric-api', 'mod'],
+            ['faithful', 'resourcepack'],
+            ['sodium', 'mod'],
+        ]);
     });
 
     it('uses another installed version of the same loader and says so', async () => {
@@ -242,6 +295,19 @@ describe('exportMrpack', () => {
         expect(index.files).toEqual([fileEntry(sodium)]);
         expect(zip.readAsText('overrides/mods/mine.jar')).toBe('mine');
         expect(zip.readAsText('overrides/config/a.toml')).toBe('a=1');
+    });
+
+    it('lists Modrinth resource packs and shaders under their folders', async () => {
+        const pack = makeVersion('faithful', '1.0', { ext: 'zip', loaders: ['minecraft'] });
+        serveModrinth(axios, { faithful: { title: 'Faithful', versions: [pack] } });
+        const gameDir = path.join(home, 'game');
+        await mods.installMod(gameDir, { loader: 'minecraft', gameVersion: '1.21.1' }, 'faithful', 'F', {
+            kind: 'resourcepack',
+        });
+
+        const index = mrpack.readIndex(window.tmods.zip.read(mrpack.exportMrpack(gameDir, target, { name: 'P' }).data));
+
+        expect(index.files.map(file => file.path)).toEqual(['resourcepacks/faithful-1.0.zip']);
     });
 
     it('can leave the config folder out', () => {

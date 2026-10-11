@@ -15,6 +15,39 @@ export const LOADERS = {
     quilt: 'Quilt',
 };
 
+// What TMods installs from Modrinth. Each list entry has a `kind` (entries written
+// before packs were supported have none and are mods). `projectType` is Modrinth's name
+// for it; `loader` is the Modrinth loader its versions are filed under when that
+// doesn't depend on the profile (resource packs are always "minecraft"; mods follow the
+// profile's loader and shaders the shader loader the player picks).
+// The `files` pattern matches the files of that kind in its folder, disabled ones too.
+export const KINDS = {
+    mod: { projectType: 'mod', folder: 'mods', files: /\.jar(\.disabled)?$/, label: 'Mods', noun: 'mod' },
+    resourcepack: {
+        projectType: 'resourcepack',
+        folder: 'resourcepacks',
+        files: /\.zip(\.disabled)?$/,
+        label: 'Resource packs',
+        noun: 'resource pack',
+        loader: 'minecraft',
+    },
+    shader: {
+        projectType: 'shader',
+        folder: 'shaderpacks',
+        files: /\.zip(\.disabled)?$/,
+        label: 'Shaders',
+        noun: 'shader',
+    },
+};
+
+// The shader loaders whose packs go in shaderpacks/: Iris (also what Oculus loads on
+// Forge) and OptiFine. Modrinth's Canvas and vanilla shaders are resource packs in
+// disguise, loaded from resourcepacks/, so they aren't offered here.
+export const SHADER_LOADERS = {
+    iris: 'Iris',
+    optifine: 'OptiFine',
+};
+
 async function get(route, params) {
     const { data } = await axios.get(`${API_URL}${route}`, { params });
     return data;

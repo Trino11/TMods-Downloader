@@ -6,6 +6,7 @@ import Typography from '@mui/material/Typography';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { ItemList, ItemRow } from '../../utils/ItemList';
 import { ChangelogButton } from '../../utils/Changelog';
+import { KINDS } from '../../../services/modrinth';
 import { updateChangelog } from '../../../services/modrinthMods';
 
 // A mod's compatibility problems, each with its one-click fix when there is one.
@@ -47,56 +48,29 @@ function CompatSummary({ compat }) {
     );
 }
 
-// The mods TMods installed in this profile, plus jars added by hand.
-function InstalledMods({
+// The tracked entries of one kind, plus the files of that kind added by hand.
+function KindSection({
+    kind,
     mods,
     unmanaged,
-    updates,
+    updateFor,
     target,
+    gameVersion,
     busy,
-    canCheckUpdates,
-    onCheckUpdates,
     onUpdate,
-    onUpdateAll,
     onToggle,
     onRemove,
     onAdopt,
-    compat,
-    onCheckCompat,
+    problemsFor,
     onFix,
 }) {
-    const updateFor = new Map(updates.map(update => [update.mod.projectId, update.version]));
-    const problemsFor = key => compat.problems.filter(p => (p.mod.tracked ? p.mod.projectId : p.mod.fileName) === key);
-
+    const { label, noun } = KINDS[kind];
     return (
-        <Stack spacing={3}>
-            <Stack direction='row' spacing={1}>
-                <Button
-                    variant='contained'
-                    disabled={busy || !canCheckUpdates || mods.length === 0}
-                    onClick={onCheckUpdates}
-                >
-                    Check for updates
-                </Button>
-                <Button
-                    variant='outlined'
-                    disabled={busy || !canCheckUpdates || compat.status === 'checking'}
-                    onClick={onCheckCompat}
-                >
-                    {compat.status === 'checking' ? 'Checking compatibility…' : 'Check compatibility'}
-                </Button>
-                {updates.length > 0 && (
-                    <Button variant='contained' color='success' disabled={busy} onClick={onUpdateAll}>
-                        Update all ({updates.length})
-                    </Button>
-                )}
-            </Stack>
-            {(mods.length > 0 || unmanaged.length > 0) && <CompatSummary compat={compat} />}
-            {mods.length === 0 ? (
-                <Typography sx={{ color: 'text.secondary' }}>
-                    No mods from Modrinth in this profile yet. Find some under Search mods.
-                </Typography>
-            ) : (
+        <Stack component='section' spacing={2}>
+            <Typography variant='h6' component='h2'>
+                {label}
+            </Typography>
+            {mods.length > 0 && (
                 <ItemList>
                     {mods.map(mod => {
                         const update = updateFor.get(mod.projectId);
@@ -109,7 +83,7 @@ function InstalledMods({
                                             <ChangelogButton
                                                 key={update.id}
                                                 title={`What's new in ${mod.title}`}
-                                                load={() => updateChangelog(mod, update, target)}
+                                                load={() => updateChangelog(mod, update, target, gameVersion)}
                                             />
                                         )}
                                         {update && (
@@ -161,15 +135,14 @@ function InstalledMods({
                 </ItemList>
             )}
             {unmanaged.length > 0 && (
-                <section>
-                    <Typography variant='h6' component='h2' gutterBottom>
+                <Stack spacing={2}>
+                    <Typography variant='subtitle1' component='h3'>
                         Added by hand
                     </Typography>
                     <Alert
                         severity='info'
-                        sx={{ mb: 2 }}
                         action={
-                            <Button color='inherit' disabled={busy} onClick={onAdopt}>
+                            <Button color='inherit' disabled={busy} onClick={() => onAdopt(kind)}>
                                 Recognise
                             </Button>
                         }
@@ -183,12 +156,89 @@ function InstalledMods({
                                 <Typography component='code' variant='body2'>
                                     {name}
                                 </Typography>
-                                <Problems problems={problemsFor(name)} busy={busy} onFix={onFix} />
+                                {kind === 'mod' && <Problems problems={problemsFor(name)} busy={busy} onFix={onFix} />}
                             </ItemRow>
                         ))}
                     </ItemList>
-                </section>
+                </Stack>
             )}
+            {mods.length === 0 && unmanaged.length === 0 && (
+                <Typography sx={{ color: 'text.secondary' }}>
+                    No {noun}s from Modrinth in this profile yet. Find some under {label}.
+                </Typography>
+            )}
+        </Stack>
+    );
+}
+
+// What TMods installed in this profile, by kind, plus files added by hand.
+// `unmanaged` maps each kind to the file names added by hand.
+function InstalledMods({
+    mods,
+    unmanaged,
+    updates,
+    target,
+    gameVersion,
+    busy,
+    canCheckUpdates,
+    onCheckUpdates,
+    onUpdate,
+    onUpdateAll,
+    onToggle,
+    onRemove,
+    onAdopt,
+    canCheckCompat,
+    compat,
+    onCheckCompat,
+    onFix,
+}) {
+    const updateFor = new Map(updates.map(update => [update.mod.projectId, update.version]));
+    // Compatibility is checked for mods only; packs and shaders need no loader.
+    const problemsFor = key => compat.problems.filter(p => (p.mod.tracked ? p.mod.projectId : p.mod.fileName) === key);
+    const hasMods = mods.some(mod => (mod.kind || 'mod') === 'mod') || (unmanaged.mod || []).length > 0;
+
+    return (
+        <Stack spacing={3}>
+            <Stack direction='row' spacing={1}>
+                <Button
+                    variant='contained'
+                    disabled={busy || !canCheckUpdates || mods.length === 0}
+                    onClick={onCheckUpdates}
+                >
+                    Check for updates
+                </Button>
+                <Button
+                    variant='outlined'
+                    disabled={busy || !canCheckCompat || compat.status === 'checking'}
+                    onClick={onCheckCompat}
+                >
+                    {compat.status === 'checking' ? 'Checking compatibility…' : 'Check compatibility'}
+                </Button>
+                {updates.length > 0 && (
+                    <Button variant='contained' color='success' disabled={busy} onClick={onUpdateAll}>
+                        Update all ({updates.length})
+                    </Button>
+                )}
+            </Stack>
+            {hasMods && <CompatSummary compat={compat} />}
+            {Object.keys(KINDS).map(kind => (
+                <KindSection
+                    key={kind}
+                    kind={kind}
+                    mods={mods.filter(mod => (mod.kind || 'mod') === kind)}
+                    unmanaged={unmanaged[kind] || []}
+                    updateFor={updateFor}
+                    target={target}
+                    gameVersion={gameVersion}
+                    busy={busy}
+                    onUpdate={onUpdate}
+                    onToggle={onToggle}
+                    onRemove={onRemove}
+                    onAdopt={onAdopt}
+                    problemsFor={problemsFor}
+                    onFix={onFix}
+                />
+            ))}
         </Stack>
     );
 }

@@ -62,7 +62,8 @@ function hashUnmanaged(gameDir) {
 // [{ projectId, title, enabled, tracked, fileName, version }]. Also returns how many
 // hand-added jars Modrinth doesn't know, since one of those may be a "missing" mod.
 async function readInstalled(gameDir) {
-    const tracked = readModList(gameDir).mods;
+    // Resource packs and shaders need no mod loader, so only mods are checked.
+    const tracked = readModList(gameDir).mods.filter(mod => mod.kind === 'mod');
     const unmanaged = hashUnmanaged(gameDir);
     const versions = await versionsFromHashes([...tracked, ...unmanaged].map(mod => mod.sha1));
 

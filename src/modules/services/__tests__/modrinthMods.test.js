@@ -322,6 +322,147 @@ describe('bundles and Modrinth mods together', () => {
     });
 });
 
+describe('resource packs and shaders', () => {
+    const faithful1 = makeVersion('faithful', '1.0', { ext: 'zip', loaders: ['minecraft'] });
+    const faithful2 = makeVersion('faithful', '2.0', { ext: 'zip', loaders: ['minecraft'] });
+    const bsl = makeVersion('bsl', '8.2', { ext: 'zip', loaders: ['iris', 'optifine'], deps: [required('iris')] });
+    const packTarget = { loader: 'minecraft', gameVersion: '1.21.1' };
+    const shaderTarget = { loader: 'iris', gameVersion: '1.21.1' };
+
+    function folder(name) {
+        const dir = path.join(gameDir, name);
+        return fs.existsSync(dir) ? fs.readdirSync(dir).sort() : [];
+    }
+
+    function servePacks(faithfulVersions = [faithful1]) {
+        serveBasic({
+            faithful: { title: 'Faithful', versions: faithfulVersions },
+            bsl: { title: 'BSL Shaders', versions: [bsl] },
+        });
+    }
+
+    it('installs a resource pack into resourcepacks/ for the game version alone', async () => {
+        servePacks();
+
+        expect(await mods.installMod(gameDir, packTarget, 'faithful', 'Faithful', { kind: 'resourcepack' })).toEqual([
+            'Faithful',
+        ]);
+
+        expect(folder('resourcepacks')).toEqual(['faithful-1.0.zip']);
+        expect(modFiles()).toEqual([]);
+        expect(axios.get).toHaveBeenCalledWith('https://api.modrinth.com/v2/project/faithful/version', {
+            params: { loaders: '["minecraft"]', game_versions: '["1.21.1"]' },
+        });
+        expect(mods.readModList(gameDir).mods).toEqual([
+            expect.objectContaining({
+                projectId: 'faithful',
+                kind: 'resourcepack',
+                loader: 'minecraft',
+                enabled: true,
+            }),
+        ]);
+    });
+
+    it('installs a shader into shaderpacks/ without pulling in dependencies', async () => {
+        servePacks();
+
+        await mods.installMod(gameDir, shaderTarget, 'bsl', 'BSL Shaders', { kind: 'shader' });
+
+        expect(folder('shaderpacks')).toEqual(['bsl-8.2.zip']);
+        expect(modFiles()).toEqual([]);
+        expect(mods.readModList(gameDir).mods[0]).toMatchObject({ kind: 'shader', loader: 'iris' });
+    });
+
+    it('disables, updates and removes packs in their own folder', async () => {
+        servePacks();
+        await mods.installMod(gameDir, packTarget, 'faithful', 'Faithful', { kind: 'resourcepack' });
+        mods.setModEnabled(gameDir, 'faithful', false);
+        expect(folder('resourcepacks')).toEqual(['faithful-1.0.zip.disabled']);
+
+        servePacks([faithful2, faithful1]);
+        const updates = await mods.checkUpdates(gameDir, null, '1.21.1');
+        expect(updates.map(u => u.version.id)).toEqual(['2.0']);
+        await mods.updateMod(gameDir, 'faithful', updates[0].version);
+        expect(folder('resourcepacks')).toEqual(['faithful-2.0.zip.disabled']);
+        expect(mods.readModList(gameDir).mods[0]).toMatchObject({ kind: 'resourcepack', enabled: false });
+
+        expect(mods.removeMod(gameDir, 'faithful')).toEqual(['Faithful']);
+        expect(folder('resourcepacks')).toEqual([]);
+    });
+
+    it("loads a pack's changelog for its own loader and the profile's game version", async () => {
+        servePacks([faithful2, faithful1]);
+        await mods.installMod(gameDir, packTarget, 'faithful', 'Faithful', { kind: 'resourcepack' });
+        axios.get.mockClear();
+        const [entry] = mods.readModList(gameDir).mods;
+
+        await mods.updateChangelog(entry, faithful2, null, '1.21.1');
+
+        expect(axios.get).toHaveBeenCalledWith('https://api.modrinth.com/v2/project/faithful/version', {
+            params: { loaders: '["minecraft"]', game_versions: '["1.21.1"]' },
+        });
+    });
+
+    it('checks mods and each pack loader separately for updates', async () => {
+        servePacks();
+        await mods.installMod(gameDir, target, 'sodium', 'Sodium');
+        await mods.installMod(gameDir, packTarget, 'faithful', 'Faithful', { kind: 'resourcepack' });
+        await mods.installMod(gameDir, shaderTarget, 'bsl', 'BSL Shaders', { kind: 'shader' });
+        axios.post.mockClear();
+
+        await mods.checkUpdates(gameDir, target);
+
+        const bodies = axios.post.mock.calls.map(([, body]) => [body.loaders, body.game_versions, body.hashes.length]);
+        expect(bodies).toEqual([
+            [['fabric'], ['1.21.1'], 2],
+            [['minecraft'], ['1.21.1'], 1],
+            [['iris'], ['1.21.1'], 1],
+        ]);
+    });
+
+    it('skips mods but still checks packs when the profile has no loader', async () => {
+        servePacks();
+        await mods.installMod(gameDir, target, 'sodium', 'Sodium');
+        await mods.installMod(gameDir, packTarget, 'faithful', 'Faithful', { kind: 'resourcepack' });
+        axios.post.mockClear();
+
+        await mods.checkUpdates(gameDir, null, '1.21.1');
+
+        expect(axios.post.mock.calls.map(([, body]) => body.loaders)).toEqual([['minecraft']]);
+    });
+
+    it('recognises hand-added packs, but not a mod jar or another kind left in the folder', async () => {
+        servePacks();
+        const dir = path.join(gameDir, 'shaderpacks');
+        fs.mkdirSync(path.join(dir, 'unzipped-pack'), { recursive: true });
+        fs.writeFileSync(path.join(dir, 'BSL.zip'), bsl.data);
+        fs.writeFileSync(path.join(dir, 'faithful.zip'), faithful1.data);
+        fs.writeFileSync(path.join(dir, 'notes.txt'), 'hi');
+
+        expect(mods.listUnmanaged(gameDir, 'shader')).toEqual(['BSL.zip', 'faithful.zip']);
+        expect(await mods.adoptUnmanaged(gameDir, 'shader')).toBe(1);
+
+        expect(mods.readModList(gameDir).mods).toEqual([
+            expect.objectContaining({ projectId: 'bsl', kind: 'shader', loader: 'iris', fileName: 'BSL.zip' }),
+        ]);
+        expect(mods.listUnmanaged(gameDir, 'shader')).toEqual(['faithful.zip']);
+        expect(mods.listUnmanaged(gameDir, 'mod')).toEqual([]);
+    });
+
+    it('reads lists written before packs existed as mods', () => {
+        fs.mkdirSync(path.join(gameDir, '.tmods_loader'), { recursive: true });
+        fs.mkdirSync(path.join(gameDir, 'mods'));
+        fs.writeFileSync(path.join(gameDir, 'mods', 'old.jar'), 'old');
+        fs.writeFileSync(
+            path.join(gameDir, '.tmods_loader', 'modrinth.json'),
+            JSON.stringify({ mods: [{ projectId: 'old', fileName: 'old.jar', title: 'Old' }] }),
+        );
+
+        expect(mods.readModList(gameDir).mods).toEqual([expect.objectContaining({ kind: 'mod', enabled: true })]);
+        expect(mods.managedFileNames(gameDir)).toEqual(new Set(['old.jar', 'old.jar.disabled']));
+    });
+});
+
 describe('setTargetVersion', () => {
     it('remembers the launcher version for the folder', () => {
         mods.setTargetVersion(gameDir, 'fabric-loader-0.16.5-1.21.1');

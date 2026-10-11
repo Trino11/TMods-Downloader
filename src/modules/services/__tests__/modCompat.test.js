@@ -65,6 +65,16 @@ describe('checkCompatibility', () => {
         expect(await compat.checkCompatibility(gameDir, target)).toEqual([]);
     });
 
+    it('leaves resource packs alone, since they need no mod loader', async () => {
+        const pack = makeVersion('faithful', '1.0', { ext: 'zip', loaders: ['minecraft'] });
+        serveModrinth(axios, { faithful: { title: 'Faithful', versions: [pack] } });
+        await mods.installMod(gameDir, { loader: 'minecraft', gameVersion: '1.21.1' }, 'faithful', 'Faithful', {
+            kind: 'resourcepack',
+        });
+
+        expect(await compat.checkCompatibility(gameDir, target)).toEqual([]);
+    });
+
     it('flags a mod built for another Minecraft version and switches it to one that fits', async () => {
         serve();
         addByHand(oldIris);
