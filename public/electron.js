@@ -1,17 +1,37 @@
-const { app, BrowserWindow, session } = require('electron');
+const { app, BrowserWindow, screen, session } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
-const { DEV_SERVER_URL, modrinthUserAgent, startAutoUpdates, useDevServer } = require('./mainProcess');
+const {
+    DEV_SERVER_URL,
+    MIN_WINDOW_SIZE,
+    initialWindowState,
+    loadWindowState,
+    modrinthUserAgent,
+    saveWindowState,
+    startAutoUpdates,
+    useDevServer,
+} = require('./mainProcess');
 
 const isDev = useDevServer(app.isPackaged, process.argv);
 
 let mainWindow = null;
 
 function createWindow() {
+    const stateFile = path.join(app.getPath('userData'), 'window-state.json');
+    const { bounds, isMaximized } = initialWindowState(
+        loadWindowState(fs, stateFile),
+        screen.getAllDisplays().map(display => display.workArea),
+        screen.getPrimaryDisplay().workArea,
+    );
+
     mainWindow = new BrowserWindow({
-        width: 800,
-        height: 600,
+        ...bounds,
+        minWidth: MIN_WINDOW_SIZE.width,
+        minHeight: MIN_WINDOW_SIZE.height,
+        // Shown once ready, so a maximized window doesn't flash at its normal size first.
+        show: false,
         webPreferences: {
             nodeIntegration: true,
             nodeIntegrationInWorker: true,
@@ -30,6 +50,13 @@ function createWindow() {
         mainWindow.loadFile(path.join(__dirname, 'index.html'));
     }
 
+    mainWindow.once('ready-to-show', () => {
+        if (isMaximized) {
+            mainWindow.maximize();
+        }
+        mainWindow.show();
+    });
+    mainWindow.on('close', () => saveWindowState(fs, stateFile, mainWindow));
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
