@@ -1,6 +1,6 @@
 import axios from 'axios';
 import categories from '../../categories';
-import { makeVersion, required, serveModrinth, hash } from '../__fixtures__/modrinthFake';
+import { makeVersion, realmSafeAdmZip, required, serveModrinth, hash } from '../__fixtures__/modrinthFake';
 
 jest.mock('axios', () => ({ get: jest.fn(), post: jest.fn() }));
 
@@ -20,7 +20,13 @@ beforeEach(() => {
     home = fs.mkdtempSync(path.join(os.tmpdir(), 'tmods-modrinth-'));
     gameDir = path.join(home, 'game');
     fs.mkdirSync(gameDir, { recursive: true });
-    window.require = name => (name === 'os' ? { ...os, homedir: () => home } : require(name));
+    const SafeAdmZip = realmSafeAdmZip(fs.mkdtempSync(path.join(home, 'zips-')));
+    window.require = name => {
+        if (name === 'os') {
+            return { ...os, homedir: () => home };
+        }
+        return name === 'adm-zip' ? SafeAdmZip : require(name);
+    };
     jest.isolateModules(() => {
         mods = require('../modrinthMods');
         ({ installBundle } = require('../bundleInstaller'));

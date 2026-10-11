@@ -33,3 +33,27 @@ The Modrinth page searches and installs single mods for the active profile's loa
 game version, straight from the public Modrinth API (no key needed). Installed mods are
 tracked per game folder in `.tmods_loader/modrinth.json`; bundle installs keep them. The
 same page imports `.mrpack` modpacks as new profiles and exports a profile as one.
+
+# Manifest
+
+The bundle pages (Mods, Schematics, Resource packs, Configs, Shaderpacks) read the
+manifest URL set on first launch. It lists zips per category:
+
+```json
+{
+  "versions": {
+    "mods": [
+      {
+        "id": "1.2.0",
+        "url": "https://example.com/mods-1.2.0.zip",
+        "sha256": "…",
+        "target": "Fabric 1.21.1",
+        "description": "Adds Sodium"
+      }
+    ]
+  }
+}
+```
+
+`sha256`, `target` (shown on the Mods page) and `description` are optional. With `sha256`, a download that doesn't match it is refused before
+anything is installed.
