@@ -12,6 +12,13 @@ jest.mock('../../services/bundleInstaller', () => ({
     installBundle: jest.fn(),
     readInstalledVersion: jest.fn(() => ''),
 }));
+jest.mock('../../services/profiles', () => ({
+    listProfiles: () => [{ id: 'default', name: 'Default', gameVersion: '' }],
+    getActiveProfile: () => ({ id: 'default', name: 'Default', gameVersion: '' }),
+    profileGameDir: () => '/minecraft',
+    setActiveProfile: jest.fn(),
+    syncLauncherProfiles: jest.fn(),
+}));
 jest.mock('../enclosing/navbar', () => () => <nav>navbar</nav>);
 
 beforeEach(() => {
