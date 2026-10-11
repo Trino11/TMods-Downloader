@@ -25,6 +25,10 @@ function Navbar() {
                 <NavItem key={category.id} to={`/${category.id}`} icon={category.icon} label={category.label} />
             )}
         </ul>
+        <hr />
+        <ul className="nav nav-pills flex-column">
+            <NavItem to="/settings" icon="bi-gear-fill" label="Settings" />
+        </ul>
     </div>
 }
 

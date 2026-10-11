@@ -95,3 +95,18 @@ p.card-c{
     transform: rotate(360deg);
   }
 }
+
+/*Settings*/
+.settingsForm {
+  width: 80%;
+  max-width: 700px;
+}
+
+.settingsRow {
+  display: flex;
+  align-items: center;
+}
+
+.settingsRow .form-control {
+  height: 50px;
+}
