@@ -4,6 +4,7 @@ const axios = require('axios');
 const categories = require('../../src/modules/categories').default;
 const { changelogOf, latestVersion } = require('../../src/modules/services/manifest');
 const { realmSafeAdmZip } = require('../../src/modules/services/__fixtures__/modrinthFake');
+const { installBridge, removeBridge } = require('../../src/modules/services/__fixtures__/bridge');
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -26,7 +27,7 @@ beforeEach(() => {
 
 afterEach(() => {
     fs.rmSync(temp, { recursive: true, force: true });
-    delete global.window.require;
+    removeBridge();
 });
 
 function writeTree(root, files) {
@@ -178,15 +179,9 @@ describe('the build-bundles command', () => {
 describe('installing a published bundle in the app', () => {
     it('passes the checksum check and extracts into the game folder', async () => {
         const { manifest, uploads } = buildBundles({ source: FIXTURE, downloadBase: BASE });
-        const home = path.join(temp, 'home');
         const gameDir = path.join(temp, 'game');
         fs.mkdirSync(gameDir);
-        global.window.require = name => {
-            if (name === 'os') {
-                return { ...os, homedir: () => home };
-            }
-            return name === 'adm-zip' ? AdmZip : require(name);
-        };
+        installBridge(temp, { AdmZip });
         let installBundle;
         jest.isolateModules(() => {
             ({ installBundle } = require('../../src/modules/services/bundleInstaller'));

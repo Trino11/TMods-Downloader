@@ -4,8 +4,9 @@ jest.mock('axios', () => ({ get: jest.fn() }));
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { installBridge, removeBridge } = require('../__fixtures__/bridge');
 
-// Profiles reach Node through Electron's window.require and use ~/AppData/Roaming/.minecraft,
+// Profiles reach Node through the main-process bridge and use ~/AppData/Roaming/.minecraft,
 // so point the home folder at a temp dir and load a fresh copy per test.
 let home;
 let minecraftDir;
@@ -16,7 +17,7 @@ beforeEach(() => {
     minecraftDir = path.join(home, 'AppData', 'Roaming', '.minecraft');
     localStorage.clear();
 
-    window.require = name => (name === 'os' ? { ...os, homedir: () => home, platform: () => 'win32' } : require(name));
+    installBridge(home);
     jest.isolateModules(() => {
         profiles = require('../profiles');
     });
@@ -24,7 +25,7 @@ beforeEach(() => {
 
 afterEach(() => {
     fs.rmSync(home, { recursive: true, force: true });
-    delete window.require;
+    removeBridge();
 });
 
 function writeLauncherFile(data, name = 'launcher_profiles.json') {

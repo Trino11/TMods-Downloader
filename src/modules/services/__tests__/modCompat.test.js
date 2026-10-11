@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { incompatible, makeVersion, required, serveModrinth } from '../__fixtures__/modrinthFake';
+import { installBridge, removeBridge } from '../__fixtures__/bridge';
 
 jest.mock('axios', () => ({ get: jest.fn(), post: jest.fn() }));
 
@@ -18,7 +19,7 @@ beforeEach(() => {
     home = fs.mkdtempSync(path.join(os.tmpdir(), 'tmods-compat-'));
     gameDir = path.join(home, 'game');
     fs.mkdirSync(path.join(gameDir, 'mods'), { recursive: true });
-    window.require = name => (name === 'os' ? { ...os, homedir: () => home } : require(name));
+    installBridge(home);
     jest.isolateModules(() => {
         mods = require('../modrinthMods');
         compat = require('../modCompat');
@@ -27,7 +28,7 @@ beforeEach(() => {
 
 afterEach(() => {
     fs.rmSync(home, { recursive: true, force: true });
-    delete window.require;
+    removeBridge();
 });
 
 function modFiles() {

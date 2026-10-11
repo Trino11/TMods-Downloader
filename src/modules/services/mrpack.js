@@ -6,7 +6,7 @@ import { createProfile, deleteProfile, listGameVersions, profileGameDir } from '
 import { detectTarget } from './gameTarget';
 import { KINDS, getProjectVersions, pickVersion, primaryFile } from './modrinth';
 import { adoptUnmanaged, downloadVerified, listUnmanaged, modsDir, readModList, writeFileSafely } from './modrinthMods';
-import { AdmZip, Buffer, fs, path } from './node';
+import { bytesToText, fs, path, zip as zips } from './node';
 
 const INDEX_FILE = 'modrinth.index.json';
 
@@ -63,14 +63,15 @@ function allowedUrls(file) {
     });
 }
 
-export function readIndex(zip) {
-    const entry = zip.getEntry(INDEX_FILE);
+// `entries` are the pack's zip entries, as { name, isDirectory, data }.
+export function readIndex(entries) {
+    const entry = entries.find(e => e.name === INDEX_FILE);
     if (!entry) {
         throw new Error('This is not a Modrinth modpack (no modrinth.index.json inside).');
     }
     let index;
     try {
-        index = JSON.parse(entry.getData().toString('utf-8'));
+        index = JSON.parse(bytesToText(entry.data));
     } catch {
         throw new Error("The modpack's modrinth.index.json is not valid JSON.");
     }
@@ -120,13 +121,13 @@ async function inBatches(items, size, work) {
 // Installs a .mrpack (its bytes) as a new profile. Returns { profile, loaderNote },
 // where loaderNote says what the player still has to install, if anything.
 export async function importMrpack(data, { name } = {}) {
-    let zip;
+    let entries;
     try {
-        zip = new AdmZip(Buffer.from(data));
+        entries = zips.read(data);
     } catch {
         throw new Error("This file is not a modpack (it isn't a zip).");
     }
-    const index = readIndex(zip);
+    const index = readIndex(entries);
     const gameVersion = index.dependencies.minecraft;
     const loader = packLoader(index);
 
@@ -143,10 +144,9 @@ export async function importMrpack(data, { name } = {}) {
         }
     }
     const overrides = ['overrides/', 'client-overrides/'].flatMap(prefix =>
-        zip
-            .getEntries()
-            .filter(entry => !entry.isDirectory && entry.entryName.startsWith(prefix))
-            .map(entry => ({ entry, relative: entry.entryName.slice(prefix.length) })),
+        entries
+            .filter(entry => !entry.isDirectory && entry.name.startsWith(prefix))
+            .map(entry => ({ entry, relative: entry.name.slice(prefix.length) })),
     );
     for (const { relative } of overrides) {
         safeTarget(probe, relative);
@@ -162,7 +162,7 @@ export async function importMrpack(data, { name } = {}) {
         });
         // client-overrides come last so they win over overrides, as the format says.
         for (const { entry, relative } of overrides) {
-            writeFileSafely(safeTarget(gameDir, relative), entry.getData());
+            writeFileSafely(safeTarget(gameDir, relative), entry.data);
         }
     } catch (error) {
         // The profile is brand new, so nothing of the player's is in its folder.
@@ -203,12 +203,6 @@ export async function installModrinthModpack(projectId, title) {
     return importMrpack(data, { name: title });
 }
 
-function addFolder(zip, folder, zipPath) {
-    if (fs.existsSync(folder)) {
-        zip.addLocalFolder(folder, zipPath);
-    }
-}
-
 // Packs a game folder into a .mrpack: enabled Modrinth mods, resource packs and shaders
 // as download links, and
 // hand-added jars and the config folder as overrides. `target` is the folder's
@@ -235,14 +229,14 @@ export function exportMrpack(gameDir, target, { name, version = '1.0.0', include
         },
     };
 
-    const zip = new AdmZip();
-    zip.addFile(INDEX_FILE, Buffer.from(JSON.stringify(index, null, 2)));
+    const entries = [{ name: INDEX_FILE, data: JSON.stringify(index, null, 2) }];
     const extraJars = listUnmanaged(gameDir).filter(file => file.endsWith('.jar'));
     for (const jar of extraJars) {
-        zip.addLocalFile(path.join(modsDir(gameDir), jar), 'overrides/mods');
+        entries.push({ file: path.join(modsDir(gameDir), jar), into: 'overrides/mods' });
     }
-    if (includeConfig) {
-        addFolder(zip, path.join(gameDir, 'config'), 'overrides/config');
+    const configDir = path.join(gameDir, 'config');
+    if (includeConfig && fs.existsSync(configDir)) {
+        entries.push({ folder: configDir, into: 'overrides/config' });
     }
-    return { data: zip.toBuffer(), mods: mods.length, extraFiles: extraJars };
+    return { data: zips.create(entries), mods: mods.length, extraFiles: extraJars };
 }

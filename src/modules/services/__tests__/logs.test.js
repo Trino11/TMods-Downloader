@@ -1,13 +1,20 @@
-// The page asks the main process over IPC; window.require hands it a fake ipcRenderer.
+// The page asks the main process through the preload's window.tmods.logs; this fake
+// records which IPC channel each call would use, as the preload does.
 const invoke = jest.fn();
 
 beforeEach(() => {
     jest.resetModules();
-    window.require = name => (name === 'electron' ? { ipcRenderer: { invoke } } : require(name));
+    window.tmods = {
+        logs: {
+            getPath: () => invoke('logs:get-path'),
+            openFile: () => invoke('logs:open-file'),
+            showInFolder: () => invoke('logs:show-in-folder'),
+        },
+    };
 });
 
 afterEach(() => {
-    delete window.require;
+    delete window.tmods;
 });
 
 function load() {

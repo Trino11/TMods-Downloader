@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { makeVersion, realmSafeAdmZip, required, serveModrinth } from '../__fixtures__/modrinthFake';
+import { installBridge, removeBridge } from '../__fixtures__/bridge';
 
 jest.mock('axios', () => ({ get: jest.fn(), post: jest.fn() }));
 
@@ -23,12 +24,7 @@ beforeEach(() => {
     localStorage.clear();
     const zipTemp = fs.mkdtempSync(path.join(home, 'zips-'));
     AdmZip = realmSafeAdmZip(zipTemp);
-    window.require = name => {
-        if (name === 'os') {
-            return { ...os, homedir: () => home, platform: () => 'win32' };
-        }
-        return name === 'adm-zip' ? AdmZip : require(name);
-    };
+    installBridge(home, { AdmZip: AdmZip });
     jest.isolateModules(() => {
         mrpack = require('../mrpack');
         profiles = require('../profiles');
@@ -39,7 +35,7 @@ beforeEach(() => {
 
 afterEach(() => {
     fs.rmSync(home, { recursive: true, force: true });
-    delete window.require;
+    removeBridge();
 });
 
 // Pretends a loader's installer ran, the way the launcher stores versions.
@@ -290,8 +286,8 @@ describe('exportMrpack', () => {
         const result = mrpack.exportMrpack(gameDir, target, { name: 'Shared' });
 
         expect(result).toMatchObject({ mods: 1, extraFiles: ['mine.jar'] });
-        const zip = new AdmZip(result.data);
-        const index = mrpack.readIndex(zip);
+        const zip = new AdmZip(Buffer.from(result.data));
+        const index = mrpack.readIndex(window.tmods.zip.read(result.data));
         expect(index).toMatchObject({
             name: 'Shared',
             dependencies: { minecraft: '1.21.1', 'fabric-loader': '0.16.5' },
@@ -309,7 +305,7 @@ describe('exportMrpack', () => {
             kind: 'resourcepack',
         });
 
-        const index = mrpack.readIndex(new AdmZip(mrpack.exportMrpack(gameDir, target, { name: 'P' }).data));
+        const index = mrpack.readIndex(window.tmods.zip.read(mrpack.exportMrpack(gameDir, target, { name: 'P' }).data));
 
         expect(index.files.map(file => file.path)).toEqual(['resourcepacks/faithful-1.0.zip']);
     });
@@ -319,7 +315,9 @@ describe('exportMrpack', () => {
         fs.mkdirSync(path.join(gameDir, 'config'), { recursive: true });
         fs.writeFileSync(path.join(gameDir, 'config', 'a.toml'), 'a=1');
 
-        const zip = new AdmZip(mrpack.exportMrpack(gameDir, target, { name: 'x', includeConfig: false }).data);
+        const zip = new AdmZip(
+            Buffer.from(mrpack.exportMrpack(gameDir, target, { name: 'x', includeConfig: false }).data),
+        );
 
         expect(zip.getEntry('overrides/config/a.toml')).toBeNull();
     });

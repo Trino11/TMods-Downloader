@@ -1,24 +1,19 @@
-import os from 'os';
-import path from 'path';
-
+// The folder itself is worked out by the main process (defaultMinecraftDir in
+// public/bridge.js, tested in test/__tests__/bridge.test.js); the page just uses it.
 let paths;
 
 beforeEach(() => {
-    window.require = name =>
-        name === 'os' ? { ...os, homedir: () => '/home/steve', platform: () => 'linux' } : require(name);
+    window.tmods = { minecraftDir: '/home/steve/.minecraft' };
     jest.isolateModules(() => {
         paths = require('../paths');
     });
 });
 
-test('finds the launcher folder on each OS', () => {
-    const home = path.join('/', 'users', 'steve');
-    expect(paths.gameDirFor('win32', home)).toBe(path.join(home, 'AppData', 'Roaming', '.minecraft'));
-    expect(paths.gameDirFor('darwin', home)).toBe(path.join(home, 'Library', 'Application Support', 'minecraft'));
-    expect(paths.gameDirFor('linux', home)).toBe(path.join(home, '.minecraft'));
+afterEach(() => {
+    delete window.tmods;
 });
 
-test('uses the folder for the OS it runs on', () => {
-    expect(paths.minecraftDir()).toBe(path.join('/home/steve', '.minecraft'));
+test('uses the folder the main process found', () => {
+    expect(paths.minecraftDir()).toBe('/home/steve/.minecraft');
     expect(paths.defaultGameDir).toBe(paths.minecraftDir());
 });

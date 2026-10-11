@@ -15,7 +15,7 @@ import {
     primaryFile,
     versionsFromHashes,
 } from './modrinth';
-import { Buffer, crypto, fs, path } from './node';
+import { crypto, fs, path } from './node';
 
 const DISABLED_SUFFIX = '.disabled';
 
@@ -106,10 +106,9 @@ export function listUnmanaged(gameDir, kind = 'mod') {
     }
     const managed = managedFileNames(gameDir, kind);
     return fs
-        .readdirSync(dir)
-        .filter(
-            name => KINDS[kind].files.test(name) && !managed.has(name) && fs.statSync(path.join(dir, name)).isFile(),
-        )
+        .readdirSync(dir, { withFileTypes: true })
+        .filter(entry => !entry.isDirectory() && KINDS[kind].files.test(entry.name) && !managed.has(entry.name))
+        .map(entry => entry.name)
         .sort();
 }
 
@@ -126,7 +125,7 @@ export async function downloadVerified(urls, hashes) {
     for (const url of urls) {
         try {
             const { data } = await axios.get(url, { responseType: 'arraybuffer' });
-            const buffer = Buffer.from(data);
+            const buffer = new Uint8Array(data);
             if (sha1(buffer) !== hashes.sha1 || (hashes.sha512 && sha512(buffer) !== hashes.sha512)) {
                 throw new Error(`The file from ${url} doesn't match its checksum.`);
             }
