@@ -1,7 +1,9 @@
 # Releasing
 
 Builds run on GitHub Actions (`.github/workflows/build.yml`) on a Windows runner.
-Every pull request to `main` builds the installer and keeps it as a workflow artifact.
+Every pull request to `main` runs the tests (`npm test`), then builds the installer and
+keeps it as a workflow artifact. The build only starts once the tests pass, so a failing
+test never publishes a release.
 
 To publish a new version:
 

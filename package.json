@@ -32,6 +32,7 @@
     "electron-dev": "cross-env ELECTRON_START_URL=http://localhost:3000 electron .",
     "build": "npm run build-react && npm run dist",
     "build-react": "react-scripts build",
+    "test": "react-scripts test",
     "dist": "electron-builder --win --publish never"
   },
   "build": {
