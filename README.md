@@ -1,3 +1,17 @@
+# Releasing
+
+Builds run on GitHub Actions (`.github/workflows/build.yml`) on a Windows runner.
+Every pull request to `main` builds the installer and keeps it as a workflow artifact.
+
+To publish a new version:
+
+1. Bump `version` in `package.json` (and `VERSION` in `src/modules/App.js`, which the UI shows).
+2. Commit, then push a matching tag, e.g. `git tag v0.3.2 && git push origin v0.3.2`.
+
+The workflow fails if the tag does not match `package.json`. Otherwise it creates the
+GitHub Release with `Tmods-Downloader.exe`, its `.blockmap` and `latest.yml`. Installed
+apps check that release through electron-updater and update themselves.
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).

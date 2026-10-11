@@ -3,11 +3,17 @@ name: Build & Release Electron App
 on:
   push:
     tags:
-      - "v*"  # Runs only when a tag like v1.0.0 is pushed
+      - "v*"  # A tag like v1.0.0 builds and publishes a GitHub Release
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # Needed by electron-builder to create the release
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
       - name: Checkout repository
@@ -16,33 +22,38 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
+          cache: npm
 
-      - name: Install system dependencies
+      - name: Check tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
         run: |
-          sudo dpkg --add-architecture i386
-          sudo apt-get update -y
-          sudo apt-get install -y icnsutils graphicsmagick xz-utils rpm p7zip-full
-          sudo apt-get install -y wine wine32
+          version=$(node -p "require('./package.json').version")
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version v${version}"
+            exit 1
+          fi
 
       - name: Install npm dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Fix permissions for app-builder
-        run: chmod +x node_modules/app-builder-bin/linux/x64/app-builder
+      - name: Build React app
+        run: npm run build-react
 
-      - name: Build Electron App
-        run: npm run build-linux
-
-      - name: Rename .exe file
-        run: mv dist/*.exe dist/Tmods-Downloader.exe
-
-      - name: Create GitHub Release & Upload Artifacts
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/Tmods-Downloader.exe  # Upload renamed file
-          tag_name: ${{ github.ref_name }}
-          name: "Release ${{ github.ref_name }}"
-          body: "Latest release of Tmods Downloader."
+      # On a tag, electron-builder uploads the installer, its blockmap and
+      # latest.yml to the GitHub Release; electron-updater reads latest.yml.
+      - name: Build installer
+        shell: bash
+        run: npx electron-builder --win --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}  # Use Personal Access Token (PAT)
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tmods-Downloader
+          path: |
+            dist/*.exe
+            dist/*.blockmap
+            dist/latest.yml
