@@ -1,0 +1,35 @@
+# Publishes everything under bundles/ as a GitHub Release that TMods reads.
+# Guide: https://github.com/Trino11/TMods-Downloader/blob/main/publish-bundles/README.md
+name: Publish bundles
+
+on:
+  push:
+    branches: [main]
+    paths: ['bundles/**']
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Build and check everything, but don't create a release
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # creates the release
+
+concurrency: publish-bundles
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # bundles-v1 gets every fix to the publisher, but never a change that would break
+      # this repository; those come out as bundles-v2.
+      - id: publish
+        uses: Trino11/TMods-Downloader/publish-bundles@bundles-v1
+        with:
+          source: bundles
+          dry-run: ${{ inputs.dry-run || false }}
+
+      - run: echo "Manifest URL for TMods ${{ steps.publish.outputs.manifest-url }}"
