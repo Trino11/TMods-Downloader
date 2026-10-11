@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -9,27 +9,41 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Page from '../../utils/Page';
 import { ItemList, ItemRow } from '../../utils/ItemList';
+import VersionPicker from '../../profiles/VersionPicker';
+import { buildVersionOptions, fetchMojangVersions, readCachedVersions } from '../../../services/gameVersions';
 import {
     DEFAULT_PROFILE_ID,
+    LATEST_RELEASE,
     createProfile,
     deleteProfile,
-    listGameVersions,
     profileGameDir,
     updateProfile,
 } from '../../../services/profiles';
+import FabricInstall from './FabricInstall';
 
-const emptyForm = { id: null, name: '', gameVersion: '' };
+const emptyForm = { id: null, name: '', gameVersion: LATEST_RELEASE };
 
 // Create, edit and delete profiles. Each one gets its own game folder and an entry
 // in the official Minecraft Launcher; `onChange` reloads the list in the app.
 function Profiles({ profiles, activeId, onSelect, onChange }) {
-    const [gameVersions, setGameVersions] = useState(listGameVersions);
-    const [form, setForm] = useState({ ...emptyForm, gameVersion: gameVersions[0] });
+    // Starts from the last list fetched (or just the installed versions) and refreshes
+    // from Mojang; when that fails the cached list keeps the picker usable offline.
+    const [versionOptions, setVersionOptions] = useState(() => buildVersionOptions(readCachedVersions()));
+    const [versionsOffline, setVersionsOffline] = useState(false);
+    const [form, setForm] = useState(emptyForm);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
 
+    useEffect(() => {
+        let cancelled = false;
+        fetchMojangVersions()
+            .then(versions => !cancelled && setVersionOptions(buildVersionOptions(versions)))
+            .catch(() => !cancelled && setVersionsOffline(true));
+        return () => { cancelled = true; };
+    }, []);
+
     function resetForm() {
-        setForm({ ...emptyForm, gameVersion: gameVersions[0] });
+        setForm(emptyForm);
     }
 
     // Runs a profile change and reports its outcome under the form.
@@ -58,13 +72,18 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
     }
 
     function handleEdit(profile) {
-        // Keep a version that's no longer installed selectable instead of silently switching it.
-        if (!gameVersions.includes(profile.gameVersion)) {
-            setGameVersions([...gameVersions, profile.gameVersion]);
-        }
         setForm({ id: profile.id, name: profile.name, gameVersion: profile.gameVersion });
         setError('');
         setNotice('');
+    }
+
+    // Picks the freshly installed Fabric version for the profile being created or edited.
+    function handleFabricInstalled(versionId) {
+        // Fetching the version list also caches it, so this keeps Mojang's versions.
+        setVersionOptions(buildVersionOptions(readCachedVersions()));
+        setForm(current => ({ ...current, gameVersion: versionId }));
+        setError('');
+        setNotice(`Installed ${versionId}. It's now selected for this profile.`);
     }
 
     function handleDelete(profile) {
@@ -80,41 +99,38 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
 
     return <Page
         title='Profiles'
-        description="Each profile has its own mods, configs and packs, and shows up in the official Minecraft Launcher, where you press Play. For Fabric, Forge or NeoForge, run the loader's installer first, then pick its version here."
+        description="Each profile has its own mods, configs and packs, and shows up in the official Minecraft Launcher, where you press Play. Fabric can be installed below. For Forge or NeoForge, run the loader's installer first, then pick its version here."
     >
         <Card variant='outlined'>
             <CardContent>
                 <Stack component='form' spacing={2} onSubmit={handleSubmit}>
                     <Typography variant='subtitle1' component='h2'>{form.id ? 'Edit profile' : 'New profile'}</Typography>
-                    <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
-                        <TextField
-                            id='profileName'
-                            label='Name'
-                            placeholder='Profile name'
-                            fullWidth
-                            value={form.name}
-                            onChange={event => setForm({ ...form, name: event.target.value })}
-                            slotProps={{ htmlInput: { required: true }, inputLabel: { shrink: true } }}
-                        />
-                        <TextField
-                            id='profileVersion'
-                            label='Game version'
-                            select
+                    <TextField
+                        id='profileName'
+                        label='Name'
+                        placeholder='Profile name'
+                        fullWidth
+                        value={form.name}
+                        onChange={event => setForm({ ...form, name: event.target.value })}
+                        slotProps={{ htmlInput: { required: true }, inputLabel: { shrink: true } }}
+                    />
+                    <Stack direction='row' spacing={1} sx={{ alignItems: 'flex-start' }}>
+                        <VersionPicker
+                            options={versionOptions}
                             value={form.gameVersion}
-                            onChange={event => setForm({ ...form, gameVersion: event.target.value })}
-                            slotProps={{ select: { native: true } }}
-                            sx={{ minWidth: 200 }}
-                        >
-                            {gameVersions.map(version => <option key={version} value={version}>{version}</option>)}
-                        </TextField>
-                        <Button type='submit' variant='contained' sx={{ flexShrink: 0 }}>{form.id ? 'Save' : 'Create'}</Button>
-                        {form.id && <Button type='button' onClick={resetForm} sx={{ flexShrink: 0 }}>Cancel</Button>}
+                            onChange={gameVersion => setForm({ ...form, gameVersion })}
+                        />
+                        <Button type='submit' variant='contained' sx={{ flexShrink: 0, height: 40 }}>{form.id ? 'Save' : 'Create'}</Button>
+                        {form.id && <Button type='button' onClick={resetForm} sx={{ flexShrink: 0, height: 40 }}>Cancel</Button>}
                     </Stack>
+                    {versionsOffline && <Alert severity='info'>Could not load the full Minecraft version list, showing the versions known offline.</Alert>}
                     {error && <Alert severity='error'>{error}</Alert>}
                     {notice && <Alert severity='success'>{notice}</Alert>}
                 </Stack>
             </CardContent>
         </Card>
+
+        <FabricInstall onInstalled={handleFabricInstalled} />
 
         <ItemList>
             {profiles.map(profile =>

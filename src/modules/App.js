@@ -12,8 +12,19 @@ import ModrinthPage from './components/pages/modrinth/ModrinthPage';
 import FirstRunSetup from './components/setup/FirstRunSetup';
 import categories from './categories';
 import { getManifestUrl } from './services/settings';
-import { getActiveProfile, listProfiles, profileGameDir, setActiveProfile, syncLauncherProfiles } from './services/profiles';
+import { ensureTModsProfile, getActiveProfile, listProfiles, profileGameDir, setActiveProfile, syncLauncherProfiles } from './services/profiles';
 import { HashRouter as Router, Route, Routes } from 'react-router-dom';
+
+// Make sure the player has a TMods profile before the selector reads the list, on
+// start and after any change such as deleting the last profile.
+function loadProfiles() {
+  try {
+    ensureTModsProfile();
+  } catch (error) {
+    console.error('Could not create the TMods profile:', error);
+  }
+  return listProfiles();
+}
 
 function App() {
   return (
@@ -26,7 +37,7 @@ function App() {
 
 function Screens() {
   const [manifestUrl, setManifestUrl] = useState(getManifestUrl);
-  const [profiles, setProfiles] = useState(listProfiles);
+  const [profiles, setProfiles] = useState(loadProfiles);
   const [activeProfile, setActiveProfileState] = useState(getActiveProfile);
 
   // Put back launcher entries the player or the launcher removed while TMods was closed.
@@ -39,7 +50,7 @@ function Screens() {
   }, []);
 
   function reloadProfiles() {
-    setProfiles(listProfiles());
+    setProfiles(loadProfiles());
     setActiveProfileState(getActiveProfile());
   }
 
