@@ -20,6 +20,7 @@ jest.mock('../../services/profiles', () => ({
     syncLauncherProfiles: jest.fn(),
 }));
 jest.mock('../enclosing/navbar', () => () => <nav>navbar</nav>);
+jest.mock('../pages/modrinth/ModrinthPage', () => () => <div>modrinth</div>);
 
 beforeEach(() => {
     validateManifestUrl.mockReset();

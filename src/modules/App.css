@@ -126,3 +126,20 @@ p.card-c{
   max-width: 220px;
   margin-left: 5px;
 }
+
+/*Modrinth*/
+.searchBox {
+  margin: 0 auto 10px auto;
+}
+
+.projectIcon {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 8px;
+}
+
+.nav-tabs .nav-link {
+  height: auto;
+  width: auto;
+}

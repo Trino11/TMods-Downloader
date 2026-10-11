@@ -6,6 +6,7 @@ import Home from './components/pages/home/home';
 import BundlePage from './components/pages/bundle/BundlePage';
 import Settings from './components/pages/settings/Settings';
 import Profiles from './components/pages/profiles/Profiles';
+import ModrinthPage from './components/pages/modrinth/ModrinthPage';
 import FirstRunSetup from './components/setup/FirstRunSetup';
 import categories from './categories';
 import { getManifestUrl } from './services/settings';
@@ -57,6 +58,7 @@ function App() {
                 // key forces a fresh page per category and profile, otherwise React reuses state across them
                 <Route key={category.id} path={`/${category.id}`} element={<BundlePage key={`${activeProfile.id}/${category.id}`} category={category} gameDir={profileGameDir(activeProfile)} />} />
               )}
+              <Route path="/modrinth" element={<ModrinthPage key={activeProfile.id} profile={activeProfile} gameDir={profileGameDir(activeProfile)} onProfilesChange={reloadProfiles} />} />
               <Route path="/profiles" element={<Profiles profiles={profiles} activeId={activeProfile.id} onSelect={selectProfile} onChange={reloadProfiles} />} />
               <Route path="/settings" element={<Settings onManifestUrlChange={setManifestUrl} />} />
             </Routes>

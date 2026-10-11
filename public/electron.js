@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, session } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
@@ -33,7 +33,19 @@ function createWindow() {
 
 }
 
-app.on('ready', createWindow);
+// Modrinth asks every app using its API to identify itself in the User-Agent, which
+// the page itself isn't allowed to set.
+function identifyToModrinth() {
+  const userAgent = `Trino11/TMods-Downloader/${app.getVersion()} (github.com/Trino11/TMods-Downloader)`;
+  session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['https://api.modrinth.com/*'] }, (details, callback) => {
+    callback({ requestHeaders: { ...details.requestHeaders, 'User-Agent': userAgent } });
+  });
+}
+
+app.on('ready', () => {
+  identifyToModrinth();
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
