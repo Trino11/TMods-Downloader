@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, session } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, session, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
@@ -10,6 +10,7 @@ const {
     initialWindowState,
     loadWindowState,
     modrinthUserAgent,
+    registerLogHandlers,
     saveWindowState,
     startAutoUpdates,
     useDevServer,
@@ -68,6 +69,9 @@ app.whenReady().then(() => {
         { urls: ['https://api.modrinth.com/*'] },
         modrinthUserAgent(app.getVersion()),
     );
+    registerLogHandlers(ipcMain, shell, fs, path, () => log.transports.file.getFile().path);
+    // One line per start, so the log file exists for the Settings page to open.
+    log.info(`TMods Downloader ${app.getVersion()} started`);
     createWindow();
     // There are no releases to update to from a development checkout.
     if (app.isPackaged && canAutoUpdate(process.platform)) {

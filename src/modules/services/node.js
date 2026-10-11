@@ -9,3 +9,5 @@ export const path = nodeRequire('path');
 export const crypto = nodeRequire('crypto');
 export const { Buffer } = nodeRequire('buffer');
 export const AdmZip = nodeRequire('adm-zip');
+// Talks to the main process, for things only it can do (see public/mainProcess.js).
+export const { ipcRenderer } = nodeRequire('electron');
