@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { fetchVersions, validateManifestUrl } from '../manifest';
+import { fetchLatestVersions, fetchVersions, latestVersion, validateManifestUrl } from '../manifest';
 import { setManifestUrl } from '../settings';
 
 jest.mock('axios', () => ({ get: jest.fn() }));
@@ -68,4 +68,31 @@ describe('fetchVersions', () => {
         axios.get.mockResolvedValue({ data: manifest });
         await expect(fetchVersions('shaderpacks')).resolves.toEqual([]);
     });
+});
+
+describe('latestVersion', () => {
+    const versions = { mods: [{ id: '1.0' }, { id: '2.0' }] };
+
+    it('uses the version the manifest names as latest', () => {
+        expect(latestVersion({ versions, latest: { mods: '2.0' } }, 'mods')).toEqual({ id: '2.0' });
+        expect(latestVersion({ versions, latest: { mods: { id: '2.0' } } }, 'mods')).toEqual({ id: '2.0' });
+    });
+
+    it('falls back to the first version listed', () => {
+        expect(latestVersion({ versions }, 'mods')).toEqual({ id: '1.0' });
+        expect(latestVersion({ versions, latest: { mods: 'gone' } }, 'mods')).toEqual({ id: '1.0' });
+    });
+
+    it('is null for a category with no versions', () => {
+        expect(latestVersion({ versions }, 'shaderpacks')).toBeNull();
+    });
+});
+
+it('fetchLatestVersions reads the manifest once for every category', async () => {
+    axios.get.mockReset();
+    axios.get.mockResolvedValue({ data: { versions: { mods: [{ id: '1.0' }] } } });
+    setManifestUrl('https://example.com/manifest.json');
+
+    await expect(fetchLatestVersions(['mods', 'configs'])).resolves.toEqual({ mods: { id: '1.0' }, configs: null });
+    expect(axios.get).toHaveBeenCalledTimes(1);
 });

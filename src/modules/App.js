@@ -76,8 +76,20 @@ function Screens() {
                 <Navbar profiles={profiles} activeProfileId={activeProfile.id} onSelectProfile={selectProfile} />
                 <Box component='main' sx={{ flexGrow: 1, overflowY: 'auto' }}>
                     <Routes>
-                        <Route path='/' element={<Home />} />
-                        <Route path='/home' element={<Home />} />
+                        {['/', '/home'].map(route => (
+                            <Route
+                                key={route}
+                                path={route}
+                                element={
+                                    <Home
+                                        profile={activeProfile}
+                                        gameDir={profileGameDir(activeProfile)}
+                                        onSelectProfile={selectProfile}
+                                        onProfilesChange={reloadProfiles}
+                                    />
+                                }
+                            />
+                        ))}
                         {categories.map(category => (
                             // key forces a fresh page per category and profile, otherwise React reuses state across them
                             <Route
