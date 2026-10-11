@@ -163,6 +163,48 @@ describe('deleteProfile', () => {
     });
 });
 
+describe('ensureTModsProfile', () => {
+    it('creates an active TMods profile on the latest release when there are none', () => {
+        const profile = profiles.ensureTModsProfile();
+
+        expect(profile).toEqual({ id: 'tmods', name: 'TMods', gameVersion: 'latest-release' });
+        expect(profiles.listProfiles().map(p => p.id)).toEqual(['default', 'tmods']);
+        expect(profiles.getActiveProfile().id).toBe('tmods');
+        expect(fs.existsSync(profiles.profileGameDir(profile))).toBe(true);
+        expect(readLauncherFile().profiles['tmods-tmods']).toMatchObject({ name: 'TMods', lastVersionId: 'latest-release' });
+    });
+
+    it('does nothing when a profile already exists', () => {
+        profiles.createProfile({ name: 'Fabric' });
+
+        expect(profiles.ensureTModsProfile()).toBeNull();
+        expect(profiles.listProfiles().map(p => p.id)).toEqual(['default', 'fabric']);
+        expect(profiles.getActiveProfile().id).toBe('default');
+    });
+
+    it('runs once, so a second start keeps the player on their chosen profile', () => {
+        profiles.ensureTModsProfile();
+        profiles.setActiveProfile('default');
+
+        expect(profiles.ensureTModsProfile()).toBeNull();
+        expect(profiles.getActiveProfile().id).toBe('default');
+    });
+
+    it('comes back after the last profile is deleted, reusing its old folder', () => {
+        const first = profiles.ensureTModsProfile();
+        fs.writeFileSync(path.join(profiles.profileGameDir(first), 'options.txt'), 'keep me');
+        profiles.setActiveProfile('default');
+
+        profiles.deleteProfile(first.id);
+        expect(profiles.ensureTModsProfile()).not.toBeNull();
+
+        expect(profiles.listProfiles().map(p => p.name)).toEqual(['Default (.minecraft)', 'TMods']);
+        expect(profiles.getActiveProfile().id).toBe('tmods');
+        expect(fs.readFileSync(path.join(profiles.activeGameDir(), 'options.txt'), 'utf-8')).toBe('keep me');
+        expect(Object.keys(readLauncherFile().profiles)).toEqual(['tmods-tmods']);
+    });
+});
+
 describe('syncLauncherProfiles', () => {
     it('restores an entry removed in the launcher and drops stale tmods entries only', () => {
         profiles.createProfile({ name: 'Keep' });

@@ -3,6 +3,7 @@ import App from '../../App';
 import Settings from '../pages/settings/Settings';
 import { validateManifestUrl } from '../../services/manifest';
 import { getManifestUrl, setManifestUrl } from '../../services/settings';
+import { ensureTModsProfile } from '../../services/profiles';
 
 jest.mock('../../services/manifest', () => ({
     validateManifestUrl: jest.fn(),
@@ -13,6 +14,7 @@ jest.mock('../../services/bundleInstaller', () => ({
     readInstalledVersion: jest.fn(() => ''),
 }));
 jest.mock('../../services/profiles', () => ({
+    ensureTModsProfile: jest.fn(),
     listProfiles: () => [{ id: 'default', name: 'Default', gameVersion: '' }],
     getActiveProfile: () => ({ id: 'default', name: 'Default', gameVersion: '' }),
     profileGameDir: () => '/minecraft',
@@ -35,6 +37,12 @@ function urlInput() {
 function typeUrl(value) {
     fireEvent.change(urlInput(), { target: { value } });
 }
+
+it('makes sure a TMods profile exists when the app starts', () => {
+    ensureTModsProfile.mockClear();
+    render(<App />);
+    expect(ensureTModsProfile).toHaveBeenCalled();
+});
 
 describe('first launch', () => {
     it('shows the setup screen when no manifest URL is saved', () => {
