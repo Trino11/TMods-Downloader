@@ -4,7 +4,10 @@ import categories from '../../categories';
 import { fetchVersions } from '../../services/manifest';
 import { installBundle, listBackups, readInstalledVersion, restoreBackup } from '../../services/bundleInstaller';
 
-jest.mock('../../services/manifest', () => ({ fetchVersions: jest.fn() }));
+jest.mock('../../services/manifest', () => ({
+    ...jest.requireActual('../../services/manifest'),
+    fetchVersions: jest.fn(),
+}));
 jest.mock('../../services/bundleInstaller', () => ({
     installBundle: jest.fn(),
     readInstalledVersion: jest.fn(),
@@ -87,4 +90,20 @@ it('shows an error when a restore fails', () => {
     fireEvent.click(screen.getByText('Restore'));
 
     expect(screen.getByText('Could not restore the backup: EBUSY: resource busy')).toBeInTheDocument();
+});
+
+it("shows a version's changelog as plain text", async () => {
+    fetchVersions.mockResolvedValue([
+        { id: '1.1', url: 'https://example.com/1.1.zip', changelog: '# Changes\n<img src=x onerror=alert(1)>' },
+        { id: '1.0', url: 'https://example.com/1.0.zip' },
+    ]);
+    render(<BundlePage category={mods} />);
+
+    const buttons = await screen.findAllByRole('button', { name: "What's new" });
+    expect(buttons).toHaveLength(1);
+    fireEvent.click(buttons[0]);
+
+    expect(await screen.findByText("What's new in 1.1")).toBeInTheDocument();
+    expect(screen.getByText(/<img src=x onerror=alert\(1\)>/)).toBeInTheDocument();
+    expect(document.querySelector('img')).toBeNull();
 });
