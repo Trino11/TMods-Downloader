@@ -1,5 +1,16 @@
 import { useMemo, useState } from 'react';
-import Downloadspinner from '../../utils/Downloadspinner';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import LinearProgress from '@mui/material/LinearProgress';
+import Stack from '@mui/material/Stack';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import Page from '../../utils/Page';
 import ProjectSearch from './ProjectSearch';
 import InstalledMods from './InstalledMods';
 import Modpacks from './Modpacks';
@@ -33,30 +44,39 @@ function describeTarget(target) {
 function TargetBar({ profile, versionId, target, onPick }) {
     const [choice, setChoice] = useState('');
     if (target) {
-        return <p className='card-c'>Mods are picked for <strong>{describeTarget(target)}</strong>.</p>;
+        return <Alert severity='success' icon={false}>Mods are picked for <strong>{describeTarget(target)}</strong>.</Alert>;
     }
     if (profile.id !== DEFAULT_PROFILE_ID) {
-        return <p className='card-c text-warning'>
+        return <Alert severity='warning'>
             This profile plays {versionId}, which has no mod loader. Install Fabric, Forge, NeoForge or Quilt with its
             installer, then pick that version for the profile in Profiles.
-        </p>;
+        </Alert>;
     }
     const loaderVersions = listGameVersions().filter(id => detectTarget(id));
     if (loaderVersions.length === 0) {
-        return <p className='card-c text-warning'>
+        return <Alert severity='warning'>
             No mod loader is installed. Install Fabric, Forge, NeoForge or Quilt with its installer, then come back here.
-        </p>;
+        </Alert>;
     }
-    return <div className='settingsForm'>
-        <label htmlFor='loaderVersion' className='form-label'>Which installed version do you play this folder with?</label>
-        <div className='settingsRow'>
-            <select id='loaderVersion' className='form-select' value={choice} onChange={event => setChoice(event.target.value)}>
-                <option value=''>Pick a version</option>
-                {loaderVersions.map(id => <option key={id} value={id}>{id}</option>)}
-            </select>
-            <button className='btn btn-primary' disabled={!choice} onClick={() => onPick(choice)}>Use</button>
-        </div>
-    </div>;
+    return <Card variant='outlined'>
+        <CardContent>
+            <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
+                <TextField
+                    id='loaderVersion'
+                    label='Which installed version do you play this folder with?'
+                    select
+                    fullWidth
+                    value={choice}
+                    onChange={event => setChoice(event.target.value)}
+                    slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+                >
+                    <option value=''>Pick a version</option>
+                    {loaderVersions.map(id => <option key={id} value={id}>{id}</option>)}
+                </TextField>
+                <Button variant='contained' disabled={!choice} onClick={() => onPick(choice)}>Use</Button>
+            </Stack>
+        </CardContent>
+    </Card>;
 }
 
 // Single mods and modpacks from Modrinth for the active profile. App remounts the page
@@ -142,31 +162,28 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
         reload();
     }
 
-    return <div className='centered'>
-        <h1>Modrinth</h1>
+    return <Page title='Modrinth'>
         <TargetBar profile={profile} versionId={versionId} target={target} onPick={handlePickTarget} />
-        <ul className='nav nav-tabs mb-2'>
-            {TABS.map(({ id, label }) =>
-                <li key={id} className='nav-item'>
-                    <button className={`nav-link ${tab === id ? 'active' : 'text-white'}`} onClick={() => setTab(id)}>
-                        {id === 'installed' ? `${label} (${list.mods.length})` : label}
-                    </button>
-                </li>
-            )}
-        </ul>
-        {busy && <Downloadspinner />}
-        {error && <div className='text-danger text-center'>{error}</div>}
-        {notice && <div className='text-success text-center'>{notice}</div>}
+        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+            <Tabs value={tab} onChange={(event, id) => setTab(id)}>
+                {TABS.map(({ id, label }) =>
+                    <Tab key={id} value={id} label={id === 'installed' ? `${label} (${list.mods.length})` : label} />
+                )}
+            </Tabs>
+        </Box>
+        {busy && <LinearProgress />}
+        {error && <Alert severity='error'>{error}</Alert>}
+        {notice && <Alert severity='success'>{notice}</Alert>}
 
         {tab === 'search' && (target
             ? <ProjectSearch
                 filters={searchFilters}
                 placeholder='Search mods'
                 action={hit => installedIds.has(hit.project_id)
-                    ? <button className='btn btn-secondary' disabled>Installed</button>
-                    : <button className='btn btn-success' disabled={busy} onClick={() => install(hit)}>Install</button>}
+                    ? <Button variant='outlined' disabled>Installed</Button>
+                    : <Button variant='contained' disabled={busy} onClick={() => install(hit)}>Install</Button>}
             />
-            : <p>Set up a mod loader above to search for mods.</p>)}
+            : <Typography sx={{ color: 'text.secondary' }}>Set up a mod loader above to search for mods.</Typography>)}
 
         {tab === 'installed' &&
             <InstalledMods
@@ -192,7 +209,7 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
                 run={run}
                 onProfileCreated={onProfilesChange}
             />}
-    </div>
+    </Page>
 }
 
 export default ModrinthPage;

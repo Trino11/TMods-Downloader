@@ -1,32 +1,42 @@
+import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
+import RestoreIcon from '@mui/icons-material/Restore';
+import { ItemList, ItemRow } from '../../utils/ItemList';
+
 function formatDate(iso) {
     const date = new Date(iso);
     return isNaN(date) ? iso : date.toLocaleString();
 }
 
 function BackupList({ backups, disabled, onRestore }) {
-    return <div className='grow'>
-        <h4 className='backupsTitle'>Backups</h4>
+    return <section>
+        <Typography variant='h6' component='h2' gutterBottom>Backups</Typography>
         {backups.length === 0
-            ? <p className='card-c'>No backups yet. One is made every time you install a version.</p>
-            : <ul className='grow'>
+            ? <Typography sx={{ color: 'text.secondary' }}>No backups yet. One is made every time you install a version.</Typography>
+            : <ItemList>
                 {backups.map(backup =>
-                    <li key={backup.id} className='listItem'>
-                        <div className='versionsWrapper'>
-                            <span>{formatDate(backup.createdAt)}</span>
-                            <code>{backup.version || 'No version installed'}</code>
-                        </div>
-                        <span className='grow' />
-                        <button
-                            className='btn btn-warning'
+                    <ItemRow
+                        key={backup.id}
+                        actions={<Button
+                            variant='outlined'
+                            color='warning'
+                            startIcon={<RestoreIcon />}
                             disabled={disabled}
                             onClick={() => onRestore(backup)}
                         >
                             Restore
-                        </button>
-                    </li>
+                        </Button>}
+                    >
+                        <Stack direction='row' spacing={1.5} sx={{ alignItems: 'center' }}>
+                            <Typography>{formatDate(backup.createdAt)}</Typography>
+                            <Chip size='small' variant='outlined' label={backup.version || 'No version installed'} />
+                        </Stack>
+                    </ItemRow>
                 )}
-            </ul>}
-    </div>
+            </ItemList>}
+    </section>
 }
 
 export default BackupList;

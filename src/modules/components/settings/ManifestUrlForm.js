@@ -1,4 +1,8 @@
 import { useState } from 'react';
+import Alert from '@mui/material/Alert';
+import Button from '@mui/material/Button';
+import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
 import Downloadspinner from '../utils/Downloadspinner';
 import { validateManifestUrl } from '../../services/manifest';
 import { getManifestUrl, setManifestUrl } from '../../services/settings';
@@ -29,26 +33,26 @@ function ManifestUrlForm({ onSaved }) {
         }
     }
 
-    return <form className='settingsForm' onSubmit={handleSubmit}>
-        <label htmlFor='manifestUrl' className='form-label'>Manifest URL</label>
-        <div className='settingsRow'>
-            <input
+    return <Stack component='form' spacing={2} onSubmit={handleSubmit}>
+        <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
+            <TextField
                 id='manifestUrl'
+                label='Manifest URL'
                 type='url'
-                className='form-control'
+                fullWidth
                 placeholder='https://example.com/manifest.json'
                 value={url}
                 onChange={event => { setUrl(event.target.value); setSaved(false); }}
                 disabled={checking}
-                required
+                slotProps={{ htmlInput: { required: true }, inputLabel: { shrink: true } }}
             />
-            <button type='submit' className='btn btn-primary' disabled={checking}>
+            <Button type='submit' variant='contained' disabled={checking} sx={{ minWidth: 96, height: 40 }}>
                 {checking ? <Downloadspinner /> : 'Save'}
-            </button>
-        </div>
-        {error && <div className='text-danger mt-2'>{error}</div>}
-        {saved && <div className='text-success mt-2'>Saved.</div>}
-    </form>
+            </Button>
+        </Stack>
+        {error && <Alert severity='error'>{error}</Alert>}
+        {saved && <Alert severity='success'>Saved.</Alert>}
+    </Stack>
 }
 
 export default ManifestUrlForm;

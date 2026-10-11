@@ -1,4 +1,14 @@
 import { useEffect, useState } from 'react';
+import Alert from '@mui/material/Alert';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import Page from '../../utils/Page';
+import { ItemList, ItemRow } from '../../utils/ItemList';
 import VersionPicker from '../../profiles/VersionPicker';
 import { buildVersionOptions, fetchMojangVersions, readCachedVersions } from '../../../services/gameVersions';
 import {
@@ -87,58 +97,64 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
         }
     }
 
-    return <div className='centered'>
-        <h1>Profiles</h1>
-        <p className='card-c'>
-            Each profile has its own mods, configs and packs, and shows up in the official Minecraft Launcher, where you press Play.
-            Fabric can be installed below. For Forge or NeoForge, run the loader's installer first, then pick its version here.
-        </p>
-
-        <form className='settingsForm' onSubmit={handleSubmit}>
-            <label htmlFor='profileName' className='form-label'>{form.id ? 'Edit profile' : 'New profile'}</label>
-            <div className='settingsRow'>
-                <input
-                    id='profileName'
-                    className='form-control'
-                    placeholder='Profile name'
-                    value={form.name}
-                    onChange={event => setForm({ ...form, name: event.target.value })}
-                    required
-                />
-                <VersionPicker
-                    options={versionOptions}
-                    value={form.gameVersion}
-                    onChange={gameVersion => setForm({ ...form, gameVersion })}
-                />
-                <button type='submit' className='btn btn-primary'>{form.id ? 'Save' : 'Create'}</button>
-                {form.id && <button type='button' className='btn btn-secondary' onClick={resetForm}>Cancel</button>}
-            </div>
-            {versionsOffline && <div className='text-muted mt-2'>Could not load the full Minecraft version list, showing the versions known offline.</div>}
-            {error && <div className='text-danger mt-2'>{error}</div>}
-            {notice && <div className='text-success mt-2'>{notice}</div>}
-        </form>
+    return <Page
+        title='Profiles'
+        description="Each profile has its own mods, configs and packs, and shows up in the official Minecraft Launcher, where you press Play. Fabric can be installed below. For Forge or NeoForge, run the loader's installer first, then pick its version here."
+    >
+        <Card variant='outlined'>
+            <CardContent>
+                <Stack component='form' spacing={2} onSubmit={handleSubmit}>
+                    <Typography variant='subtitle1' component='h2'>{form.id ? 'Edit profile' : 'New profile'}</Typography>
+                    <TextField
+                        id='profileName'
+                        label='Name'
+                        placeholder='Profile name'
+                        fullWidth
+                        value={form.name}
+                        onChange={event => setForm({ ...form, name: event.target.value })}
+                        slotProps={{ htmlInput: { required: true }, inputLabel: { shrink: true } }}
+                    />
+                    <Stack direction='row' spacing={1} sx={{ alignItems: 'flex-start' }}>
+                        <VersionPicker
+                            options={versionOptions}
+                            value={form.gameVersion}
+                            onChange={gameVersion => setForm({ ...form, gameVersion })}
+                        />
+                        <Button type='submit' variant='contained' sx={{ flexShrink: 0, height: 40 }}>{form.id ? 'Save' : 'Create'}</Button>
+                        {form.id && <Button type='button' onClick={resetForm} sx={{ flexShrink: 0, height: 40 }}>Cancel</Button>}
+                    </Stack>
+                    {versionsOffline && <Alert severity='info'>Could not load the full Minecraft version list, showing the versions known offline.</Alert>}
+                    {error && <Alert severity='error'>{error}</Alert>}
+                    {notice && <Alert severity='success'>{notice}</Alert>}
+                </Stack>
+            </CardContent>
+        </Card>
 
         <FabricInstall onInstalled={handleFabricInstalled} />
 
-        <ul className='grow'>
+        <ItemList>
             {profiles.map(profile =>
-                <li key={profile.id} className='listItem'>
-                    <div className='versionsWrapper'>
-                        <strong>{profile.name}</strong>
-                        <code>{profile.gameVersion || 'Your usual launcher profiles'}</code>
-                    </div>
-                    <p className='grow textDesc'>{profileGameDir(profile)}</p>
-                    {profile.id === activeId
-                        ? <button className='btn btn-secondary' disabled>Active</button>
-                        : <button className='btn btn-success' onClick={() => onSelect(profile.id)}>Use</button>}
-                    {profile.id !== DEFAULT_PROFILE_ID && <>
-                        <button className='btn btn-primary' onClick={() => handleEdit(profile)}>Edit</button>
-                        <button className='btn btn-danger' onClick={() => handleDelete(profile)}>Delete</button>
+                <ItemRow
+                    key={profile.id}
+                    actions={<>
+                        {profile.id === activeId
+                            ? <Button variant='outlined' disabled>Active</Button>
+                            : <Button variant='contained' onClick={() => onSelect(profile.id)}>Use</Button>}
+                        {profile.id !== DEFAULT_PROFILE_ID && <>
+                            <Button onClick={() => handleEdit(profile)}>Edit</Button>
+                            <Button color='error' onClick={() => handleDelete(profile)}>Delete</Button>
+                        </>}
                     </>}
-                </li>
+                >
+                    <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
+                        <Typography sx={{ fontWeight: 500 }}>{profile.name}</Typography>
+                        <Chip size='small' variant='outlined' label={profile.gameVersion || 'Your usual launcher profiles'} />
+                    </Stack>
+                    <Typography variant='body2' noWrap title={profileGameDir(profile)} sx={{ color: 'text.secondary' }}>{profileGameDir(profile)}</Typography>
+                </ItemRow>
             )}
-        </ul>
-    </div>
+        </ItemList>
+    </Page>
 }
 
 export default Profiles;
