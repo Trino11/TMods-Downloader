@@ -202,7 +202,7 @@ export function syncLauncherProfiles() {
             data = JSON.parse(fs.readFileSync(file, 'utf-8'));
         } catch (error) {
             // Never overwrite a file we can't read, the player's own profiles are in it.
-            throw new Error(`Could not read ${path.basename(file)}: ${error.message}`);
+            throw new Error(`Could not read ${path.basename(file)}: ${error.message}`, { cause: error });
         }
         const profiles = data.profiles || {};
         let dirty = !data.profiles;

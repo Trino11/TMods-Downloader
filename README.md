@@ -25,6 +25,8 @@ Electron main process and is copied into `build/` with the rest of `public/`.
   port 3000 alongside Electron, which loads the dev server, so changes reload live.
   Edits to `public/electron.js` need a restart.
 - `npm test` runs the Jest tests (files in `__tests__` folders).
+- `npm run lint` runs ESLint (with the React hooks rules) and checks Prettier formatting;
+  CI runs it before the tests. `npm run format` fixes formatting.
 - `npm run dist` packages the Windows installer into `dist/` with electron-builder.
 
 # Modrinth

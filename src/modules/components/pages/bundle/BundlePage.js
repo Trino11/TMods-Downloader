@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -20,9 +20,11 @@ function BundlePage({ category, gameDir }) {
     const [error, setError] = useState('');
 
     const refresh = useCallback(() => {
-        setError('');
         fetchVersions(category.id)
-            .then(setVersions)
+            .then(list => {
+                setVersions(list);
+                setError('');
+            })
             .catch(fetchError => setError(`Could not load the list of versions: ${fetchError.message}`));
     }, [category.id]);
 
