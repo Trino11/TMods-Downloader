@@ -279,3 +279,26 @@ describe('restoreBackup', () => {
         expect(read('mods/two.jar')).toBe('two');
     });
 });
+
+describe('custom game folder', () => {
+    it('installs, backs up and restores inside the given folder only', async () => {
+        const profileDir = path.join(home, 'profiles', 'fabric-1.21');
+        const mods = category('mods');
+        fs.mkdirSync(path.join(profileDir, 'mods'), { recursive: true });
+        fs.writeFileSync(path.join(profileDir, 'mods', 'old.jar'), 'old');
+        serveZip({ 'mods/new.jar': 'new' });
+
+        await installBundle(mods, version, profileDir);
+
+        expect(fs.readFileSync(path.join(profileDir, 'mods', 'new.jar'), 'utf-8')).toBe('new');
+        expect(readInstalledVersion(mods, profileDir)).toBe('2.0');
+        expect(readInstalledVersion(mods)).toBe('');
+        expect(listBackups(mods)).toEqual([]);
+
+        const [backup] = listBackups(mods, profileDir);
+        restoreBackup(mods, backup.id, profileDir);
+
+        expect(fs.readFileSync(path.join(profileDir, 'mods', 'old.jar'), 'utf-8')).toBe('old');
+        expect(exists('mods')).toBe(false);
+    });
+});
