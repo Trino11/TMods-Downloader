@@ -1,5 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import Downloadspinner from '../../utils/Downloadspinner';
+import Page from '../../utils/Page';
+import { ItemList } from '../../utils/ItemList';
 import VersionItem from './VersionItem';
 import BackupList from './BackupList';
 import { fetchVersions } from '../../../services/manifest';
@@ -48,14 +53,12 @@ function BundlePage({ category, gameDir }) {
         }
     }
 
-    return <div className='centered'>
-        <h1>{category.label}</h1>
-        <p className='card-c'>{category.description}</p>
-        <div>
-            <button className="btn btn-primary" onClick={refresh}>{downloading ? <Downloadspinner /> : 'Refresh'}</button>
-        </div>
-        <div className='grow'>
-            <ul className='grow'>
+    return <Page title={category.label} description={category.description}>
+        <Box>
+            <Button variant='contained' startIcon={downloading ? <Downloadspinner /> : <RefreshIcon />} onClick={refresh}>Refresh</Button>
+        </Box>
+        {versions.length > 0 &&
+            <ItemList>
                 {versions.map(version =>
                     <VersionItem
                         key={version.id}
@@ -66,11 +69,10 @@ function BundlePage({ category, gameDir }) {
                         onDownload={() => handleDownload(version)}
                     />
                 )}
-            </ul>
-        </div>
+            </ItemList>}
         {category.backupFolder &&
             <BackupList backups={backups} disabled={downloading} onRestore={handleRestore} />}
-    </div>
+    </Page>
 }
 
 export default BundlePage;

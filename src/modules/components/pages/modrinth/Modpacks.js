@@ -1,4 +1,14 @@
 import { useState } from 'react';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
+import IosShareIcon from '@mui/icons-material/IosShare';
 import ProjectSearch from './ProjectSearch';
 import { exportMrpack, importMrpack, installModrinthModpack } from '../../../services/mrpack';
 
@@ -44,35 +54,55 @@ function Modpacks({ profile, gameDir, target, busy, run, onProfileCreated }) {
         });
     }
 
-    return <div className='grow'>
-        <form className='settingsForm mx-auto' onSubmit={handleExport}>
-            <label htmlFor='packName' className='form-label'>Share this profile as a modpack file</label>
-            <div className='settingsRow'>
-                <input id='packName' className='form-control' value={packName} onChange={event => setPackName(event.target.value)} required />
-                <button type='submit' className='btn btn-primary' disabled={busy || !target?.loaderVersion}>Export</button>
-            </div>
-            <div className='form-check mt-2'>
-                <input id='includeConfig' type='checkbox' className='form-check-input' checked={includeConfig} onChange={event => setIncludeConfig(event.target.checked)} />
-                <label htmlFor='includeConfig' className='form-check-label'>Include the config folder</label>
-            </div>
-        </form>
+    return <Stack spacing={3}>
+        <Card variant='outlined'>
+            <CardContent>
+                <Stack component='form' spacing={1} onSubmit={handleExport}>
+                    <Typography variant='subtitle1' component='h2'>Share this profile as a modpack file</Typography>
+                    <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
+                        <TextField
+                            id='packName'
+                            label='Modpack name'
+                            fullWidth
+                            value={packName}
+                            onChange={event => setPackName(event.target.value)}
+                            slotProps={{ htmlInput: { required: true } }}
+                        />
+                        <Button type='submit' variant='contained' startIcon={<IosShareIcon />} disabled={busy || !target?.loaderVersion} sx={{ flexShrink: 0 }}>Export</Button>
+                    </Stack>
+                    <FormControlLabel
+                        control={<Checkbox id='includeConfig' checked={includeConfig} onChange={event => setIncludeConfig(event.target.checked)} />}
+                        label='Include the config folder'
+                    />
+                </Stack>
+            </CardContent>
+        </Card>
 
-        <div className='settingsForm mx-auto mt-3'>
-            <label htmlFor='importPack' className='form-label'>Import a modpack file (.mrpack) as a new profile</label>
-            <input id='importPack' type='file' accept='.mrpack' className='form-control' disabled={busy} onChange={handleFile} />
-        </div>
+        <Card variant='outlined'>
+            <CardContent>
+                <Stack spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+                    <Typography variant='subtitle1' component='h2'>Import a modpack file (.mrpack) as a new profile</Typography>
+                    <Button component='label' variant='outlined' startIcon={<FileUploadIcon />} disabled={busy}>
+                        Choose file
+                        <input id='importPack' type='file' accept='.mrpack' hidden disabled={busy} onChange={handleFile} />
+                    </Button>
+                </Stack>
+            </CardContent>
+        </Card>
 
-        <h4 className='backupsTitle'>Modpacks on Modrinth</h4>
-        <ProjectSearch
-            filters={modpackFilters}
-            placeholder='Search modpacks'
-            action={hit => <button
-                className='btn btn-success'
-                disabled={busy}
-                onClick={() => run(async () => created(await installModrinthModpack(hit.project_id, hit.title)))}
-            >Install</button>}
-        />
-    </div>
+        <section>
+            <Typography variant='h6' component='h2' gutterBottom>Modpacks on Modrinth</Typography>
+            <ProjectSearch
+                filters={modpackFilters}
+                placeholder='Search modpacks'
+                action={hit => <Button
+                    variant='contained'
+                    disabled={busy}
+                    onClick={() => run(async () => created(await installModrinthModpack(hit.project_id, hit.title)))}
+                >Install</Button>}
+            />
+        </section>
+    </Stack>
 }
 
 export default Modpacks;

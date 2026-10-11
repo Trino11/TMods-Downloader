@@ -1,11 +1,16 @@
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Page from '../../utils/Page';
 import ManifestUrlForm from '../../settings/ManifestUrlForm';
 
 function Settings({ onManifestUrlChange }) {
-    return <div className='centered'>
-        <h1>Settings</h1>
-        <p className='card-c'>The manifest lists the mods, configs and packs you can download. Changing it is checked before saving.</p>
-        <ManifestUrlForm onSaved={onManifestUrlChange} />
-    </div>
+    return <Page title='Settings' description='The manifest lists the mods, configs and packs you can download. Changing it is checked before saving.'>
+        <Card variant='outlined'>
+            <CardContent>
+                <ManifestUrlForm onSaved={onManifestUrlChange} />
+            </CardContent>
+        </Card>
+    </Page>
 }
 
 export default Settings;

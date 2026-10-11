@@ -1,4 +1,16 @@
 import { useEffect, useState } from 'react';
+import Alert from '@mui/material/Alert';
+import Avatar from '@mui/material/Avatar';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import InputAdornment from '@mui/material/InputAdornment';
+import LinearProgress from '@mui/material/LinearProgress';
+import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import SearchIcon from '@mui/icons-material/Search';
+import ExtensionIcon from '@mui/icons-material/Extension';
+import { ItemList, ItemRow } from '../../utils/ItemList';
 import { PAGE_SIZE, search } from '../../../services/modrinth';
 
 const SEARCH_DELAY_MS = 400;
@@ -45,38 +57,40 @@ function ProjectSearch({ filters, placeholder, action }) {
         }
     }
 
-    return <div className='grow'>
-        <div className='settingsForm searchBox'>
-            <input
-                className='form-control'
-                placeholder={placeholder}
-                aria-label={placeholder}
-                value={query}
-                onChange={event => setQuery(event.target.value)}
-            />
-        </div>
-        {error && <div className='text-danger text-center mt-2'>{error}</div>}
-        <ul className='grow'>
-            {results.hits.map(hit =>
-                <li key={hit.project_id} className='listItem'>
-                    {hit.icon_url
-                        ? <img className='projectIcon' src={hit.icon_url} alt='' />
-                        : <div className='projectIcon' />}
-                    <div className='grow textDesc'>
-                        <strong>{hit.title}</strong> <small className='text-secondary'>by {hit.author} · {formatDownloads(hit.downloads)} downloads</small>
+    return <Stack spacing={2}>
+        <TextField
+            fullWidth
+            placeholder={placeholder}
+            value={query}
+            onChange={event => setQuery(event.target.value)}
+            slotProps={{
+                htmlInput: { 'aria-label': placeholder },
+                input: { startAdornment: <InputAdornment position='start'><SearchIcon /></InputAdornment> },
+            }}
+        />
+        <Box sx={{ height: 4 }}>{loading && <LinearProgress />}</Box>
+        {error && <Alert severity='error'>{error}</Alert>}
+        {results.hits.length > 0 &&
+            <ItemList>
+                {results.hits.map(hit =>
+                    <ItemRow
+                        key={hit.project_id}
+                        leading={<Avatar variant='rounded' src={hit.icon_url || undefined} alt='' sx={{ width: 48, height: 48 }}><ExtensionIcon /></Avatar>}
+                        actions={action(hit)}
+                    >
+                        <Typography component='span' sx={{ fontWeight: 500 }}>{hit.title}</Typography>{' '}
+                        <Typography variant='body2' component='span' sx={{ color: 'text.secondary' }}>by {hit.author} · {formatDownloads(hit.downloads)} downloads</Typography>
                         {/* Search gives a plain-text summary; it is never rendered as HTML. */}
-                        <div>{hit.description}</div>
-                    </div>
-                    {action(hit)}
-                </li>
-            )}
-        </ul>
-        {!loading && !error && results.hits.length === 0 && <p className='text-center'>Nothing found.</p>}
+                        <Typography variant='body2'>{hit.description}</Typography>
+                    </ItemRow>
+                )}
+            </ItemList>}
+        {!loading && !error && results.hits.length === 0 && <Typography align='center' sx={{ color: 'text.secondary' }}>Nothing found.</Typography>}
         {results.hits.length < results.total && results.hits.length >= PAGE_SIZE &&
-            <div className='text-center'>
-                <button className='btn btn-secondary' disabled={loading} onClick={loadMore}>More</button>
-            </div>}
-    </div>
+            <Box sx={{ textAlign: 'center' }}>
+                <Button variant='outlined' disabled={loading} onClick={loadMore}>More</Button>
+            </Box>}
+    </Stack>
 }
 
 export default ProjectSearch;
