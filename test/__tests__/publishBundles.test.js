@@ -178,7 +178,7 @@ describe('the build-bundles command', () => {
 
 describe('installing a published bundle in the app', () => {
     it('passes the checksum check and extracts into the game folder', async () => {
-        const home = path.join(temp, 'home');
+        const { manifest, uploads } = buildBundles({ source: FIXTURE, downloadBase: BASE });
         const gameDir = path.join(temp, 'game');
         fs.mkdirSync(gameDir);
         installBridge(temp, { AdmZip });
