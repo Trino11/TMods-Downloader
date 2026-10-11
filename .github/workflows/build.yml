@@ -39,6 +39,7 @@ jobs:
           CI: true
 
   build:
+    name: build (${{ matrix.os }})
     needs: test # A failing test stops the build, so it never reaches a release
     strategy:
       fail-fast: false
