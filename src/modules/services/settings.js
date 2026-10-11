@@ -9,3 +9,14 @@ export function getManifestUrl() {
 export function setManifestUrl(url) {
     localStorage.setItem(MANIFEST_URL_KEY, url);
 }
+
+// The player's own bundles repository ("owner/name"), which the app can publish to.
+const BUNDLES_REPO_KEY = 'tmods.bundlesRepo';
+
+export function getBundlesRepo() {
+    return localStorage.getItem(BUNDLES_REPO_KEY) || '';
+}
+
+export function setBundlesRepo(repo) {
+    localStorage.setItem(BUNDLES_REPO_KEY, repo);
+}

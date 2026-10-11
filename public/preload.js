@@ -27,6 +27,15 @@ const api = {
         openFile: () => ipcRenderer.invoke('logs:open-file'),
         showInFolder: () => ipcRenderer.invoke('logs:show-in-folder'),
     },
+    // Publishing to the player's bundles repository (GITHUB_CHANNELS in bundlePublisher.js).
+    // The token goes in but never comes back out.
+    github: {
+        status: repo => ipcRenderer.invoke('github:status', repo),
+        saveToken: token => ipcRenderer.invoke('github:save-token', token),
+        forgetToken: () => ipcRenderer.invoke('github:forget-token'),
+        versions: (repo, category) => ipcRenderer.invoke('github:versions', repo, category),
+        publish: request => ipcRenderer.invoke('github:publish', request),
+    },
 };
 for (const method of methods) {
     const [group, name] = method.split('.');

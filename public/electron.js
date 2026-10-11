@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, net, screen, session, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, net, safeStorage, screen, session, shell } = require('electron');
 const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
@@ -22,6 +22,7 @@ const {
     useDevServer,
 } = require('./mainProcess');
 const { createBridge, createHttp, defaultMinecraftDir } = require('./bridge');
+const { createBundlePublisher, registerGitHubHandlers } = require('./bundlePublisher');
 
 const isDev = useDevServer(app.isPackaged, process.argv);
 const indexFile = path.join(__dirname, 'index.html');
@@ -87,7 +88,8 @@ function listenToPage() {
         platform: process.platform,
         minecraftDir: defaultMinecraftDir(path, process.platform, os.homedir()),
     });
-    const http = createHttp(net.fetch, tmodsUserAgent(app.getVersion()));
+    const userAgent = tmodsUserAgent(app.getVersion());
+    const http = createHttp(net.fetch, userAgent);
     const fromApp = event => Boolean(event.senderFrame) && isAppUrl(event.senderFrame.url, appUrl);
 
     ipcMain.on('tmods:info', event => {
@@ -102,6 +104,15 @@ function listenToPage() {
         }
         return http(request);
     });
+
+    const publisher = createBundlePublisher({
+        fetch: net.fetch,
+        safeStorage,
+        fs,
+        tokenFile: path.join(app.getPath('userData'), 'github-token.bin'),
+        userAgent,
+    });
+    registerGitHubHandlers(ipcMain, publisher, fromApp);
 }
 
 // The window only ever shows the app: no navigating away, no new windows (web links
