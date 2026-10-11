@@ -200,6 +200,41 @@ describe('updates', () => {
     });
 });
 
+describe('updateChangelog', () => {
+    const installed = { projectId: 'sodium', versionId: '0.6.0' };
+    const withLog = (id, changelog, options) => ({
+        ...makeVersion('sodium', id, options),
+        changelog,
+        date_published: '2026-10-01T00:00:00Z',
+    });
+
+    it('lists every version between the installed one and the update, newest first', async () => {
+        const beta = withLog('0.8.0-beta', 'Experimental', { type: 'beta' });
+        const v071 = withLog('0.7.1', '  Fixes a crash\n');
+        const v070 = withLog('0.7.0', null);
+        serveBasic({ sodium: { title: 'Sodium', versions: [beta, v071, v070, sodium] } });
+
+        const entries = await mods.updateChangelog(installed, v071, target);
+
+        expect(entries).toEqual([
+            { id: '0.7.1', label: '0.7.1', text: 'Fixes a crash', date: '2026-10-01T00:00:00Z' },
+            { id: '0.7.0', label: '0.7.0', text: '', date: '2026-10-01T00:00:00Z' },
+        ]);
+        expect(axios.get).toHaveBeenCalledWith('https://api.modrinth.com/v2/project/sodium/version', {
+            params: { loaders: '["fabric"]', game_versions: '["1.21.1"]' },
+        });
+    });
+
+    it('shows only the update when the installed version is not listed', async () => {
+        const v071 = withLog('0.7.1', 'Fixes a crash');
+        serveBasic({ sodium: { title: 'Sodium', versions: [v071] } });
+
+        const entries = await mods.updateChangelog(installed, v071, target);
+
+        expect(entries.map(entry => entry.text)).toEqual(['Fixes a crash']);
+    });
+});
+
 describe('enable, disable and remove', () => {
     it('disables by renaming the jar and enables it again', async () => {
         serveBasic();

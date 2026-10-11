@@ -4,12 +4,15 @@ import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { ItemList, ItemRow } from '../../utils/ItemList';
+import { ChangelogButton } from '../../utils/Changelog';
+import { updateChangelog } from '../../../services/modrinthMods';
 
 // The mods TMods installed in this profile, plus jars added by hand.
 function InstalledMods({
     mods,
     unmanaged,
     updates,
+    target,
     busy,
     canCheckUpdates,
     onCheckUpdates,
@@ -50,6 +53,13 @@ function InstalledMods({
                                 key={mod.projectId}
                                 actions={
                                     <>
+                                        {update && (
+                                            <ChangelogButton
+                                                key={update.id}
+                                                title={`What's new in ${mod.title}`}
+                                                load={() => updateChangelog(mod, update, target)}
+                                            />
+                                        )}
                                         {update && (
                                             <Button
                                                 variant='contained'
