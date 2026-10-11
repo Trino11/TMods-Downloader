@@ -121,10 +121,32 @@ p.card-c{
   margin-top: 10px;
 }
 
+.versionPicker {
+  margin-left: 5px;
+  width: 260px;
+  flex-shrink: 0;
+}
+
 .settingsRow .profileVersion {
   height: 50px;
-  max-width: 220px;
-  margin-left: 5px;
+}
+
+.versionFilters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 0.8em;
+}
+
+.settingsRow .versionFilters .form-control {
+  height: auto;
+  min-width: 0;
+}
+
+.versionFilters .form-check {
+  white-space: nowrap;
+  margin-bottom: 0;
 }
 
 /*Modrinth*/

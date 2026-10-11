@@ -1,26 +1,39 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import VersionPicker from '../../profiles/VersionPicker';
+import { buildVersionOptions, fetchMojangVersions, readCachedVersions } from '../../../services/gameVersions';
 import {
     DEFAULT_PROFILE_ID,
+    LATEST_RELEASE,
     createProfile,
     deleteProfile,
-    listGameVersions,
     profileGameDir,
     updateProfile,
 } from '../../../services/profiles';
 import FabricInstall from './FabricInstall';
 
-const emptyForm = { id: null, name: '', gameVersion: '' };
+const emptyForm = { id: null, name: '', gameVersion: LATEST_RELEASE };
 
 // Create, edit and delete profiles. Each one gets its own game folder and an entry
 // in the official Minecraft Launcher; `onChange` reloads the list in the app.
 function Profiles({ profiles, activeId, onSelect, onChange }) {
-    const [gameVersions, setGameVersions] = useState(listGameVersions);
-    const [form, setForm] = useState({ ...emptyForm, gameVersion: gameVersions[0] });
+    // Starts from the last list fetched (or just the installed versions) and refreshes
+    // from Mojang; when that fails the cached list keeps the picker usable offline.
+    const [versionOptions, setVersionOptions] = useState(() => buildVersionOptions(readCachedVersions()));
+    const [versionsOffline, setVersionsOffline] = useState(false);
+    const [form, setForm] = useState(emptyForm);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
 
+    useEffect(() => {
+        let cancelled = false;
+        fetchMojangVersions()
+            .then(versions => !cancelled && setVersionOptions(buildVersionOptions(versions)))
+            .catch(() => !cancelled && setVersionsOffline(true));
+        return () => { cancelled = true; };
+    }, []);
+
     function resetForm() {
-        setForm({ ...emptyForm, gameVersion: gameVersions[0] });
+        setForm(emptyForm);
     }
 
     // Runs a profile change and reports its outcome under the form.
@@ -49,10 +62,6 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
     }
 
     function handleEdit(profile) {
-        // Keep a version that's no longer installed selectable instead of silently switching it.
-        if (!gameVersions.includes(profile.gameVersion)) {
-            setGameVersions([...gameVersions, profile.gameVersion]);
-        }
         setForm({ id: profile.id, name: profile.name, gameVersion: profile.gameVersion });
         setError('');
         setNotice('');
@@ -60,7 +69,8 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
 
     // Picks the freshly installed Fabric version for the profile being created or edited.
     function handleFabricInstalled(versionId) {
-        setGameVersions(listGameVersions());
+        // Fetching the version list also caches it, so this keeps Mojang's versions.
+        setVersionOptions(buildVersionOptions(readCachedVersions()));
         setForm(current => ({ ...current, gameVersion: versionId }));
         setError('');
         setNotice(`Installed ${versionId}. It's now selected for this profile.`);
@@ -95,17 +105,15 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
                     onChange={event => setForm({ ...form, name: event.target.value })}
                     required
                 />
-                <select
-                    aria-label='Game version'
-                    className='form-select profileVersion'
+                <VersionPicker
+                    options={versionOptions}
                     value={form.gameVersion}
-                    onChange={event => setForm({ ...form, gameVersion: event.target.value })}
-                >
-                    {gameVersions.map(version => <option key={version} value={version}>{version}</option>)}
-                </select>
+                    onChange={gameVersion => setForm({ ...form, gameVersion })}
+                />
                 <button type='submit' className='btn btn-primary'>{form.id ? 'Save' : 'Create'}</button>
                 {form.id && <button type='button' className='btn btn-secondary' onClick={resetForm}>Cancel</button>}
             </div>
+            {versionsOffline && <div className='text-muted mt-2'>Could not load the full Minecraft version list, showing the versions known offline.</div>}
             {error && <div className='text-danger mt-2'>{error}</div>}
             {notice && <div className='text-success mt-2'>{notice}</div>}
         </form>

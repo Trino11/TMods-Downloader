@@ -1,11 +1,14 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Profiles from '../pages/profiles/Profiles';
 import ProfileSelector from '../profiles/ProfileSelector';
 import { createProfile, deleteProfile, listGameVersions, profileGameDir, updateProfile } from '../../services/profiles';
+import { fetchMojangVersions } from '../../services/gameVersions';
 import { installFabric, listFabricGameVersions } from '../../services/fabric';
 
 jest.mock('../../services/profiles', () => ({
     DEFAULT_PROFILE_ID: 'default',
+    LATEST_RELEASE: 'latest-release',
+    LATEST_SNAPSHOT: 'latest-snapshot',
     createProfile: jest.fn(),
     updateProfile: jest.fn(),
     deleteProfile: jest.fn(),
@@ -13,10 +16,23 @@ jest.mock('../../services/profiles', () => ({
     profileGameDir: jest.fn(),
 }));
 
+jest.mock('axios', () => ({ get: jest.fn() }));
+jest.mock('../../services/gameVersions', () => ({
+    ...jest.requireActual('../../services/gameVersions'),
+    fetchMojangVersions: jest.fn(),
+}));
+
 jest.mock('../../services/fabric', () => ({
     installFabric: jest.fn(),
     listFabricGameVersions: jest.fn(),
 }));
+
+const mojang = [
+    { id: '24w14a', type: 'snapshot' },
+    { id: '1.21', type: 'release' },
+    { id: '1.8.9', type: 'release' },
+    { id: 'b1.7.3', type: 'old_beta' },
+];
 
 const defaultProfile = { id: 'default', name: 'Default (.minecraft)', gameVersion: '' };
 const fabric = { id: 'fabric', name: 'Fabric', gameVersion: '1.21' };
@@ -29,6 +45,8 @@ let onSelect;
 beforeEach(() => {
     profileGameDir.mockImplementation(profile => `/games/${profile.id}`);
     listGameVersions.mockReturnValue(['latest-release', 'latest-snapshot', '1.21']);
+    fetchMojangVersions.mockResolvedValue(mojang);
+    localStorage.clear();
     onChange = jest.fn();
     onSelect = jest.fn();
     window.confirm = jest.fn(() => true);
@@ -111,6 +129,54 @@ it('switches profile from the sidebar selector', () => {
     expect(onSelect).toHaveBeenCalledWith('fabric');
 });
 
+function versionOptions() {
+    return Array.from(screen.getByLabelText('Game version').options).map(option => option.value);
+}
+
+it('lists every Mojang release, with snapshots and old versions behind a toggle', async () => {
+    renderPage();
+
+    await waitFor(() => expect(versionOptions()).toContain('1.8.9'));
+    expect(versionOptions()).toEqual(['latest-release', 'latest-snapshot', '1.21', '1.8.9']);
+    expect(screen.getByRole('option', { name: '1.21 (installed)' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Snapshots and old versions'));
+    expect(versionOptions()).toEqual(['latest-release', 'latest-snapshot', '24w14a', '1.21', '1.8.9', 'b1.7.3']);
+
+    fireEvent.change(screen.getByLabelText('Search versions'), { target: { value: '1.8' } });
+    expect(versionOptions()).toEqual(['latest-release', '1.8.9']);
+});
+
+it('creates a profile on a version that is not installed', async () => {
+    renderPage();
+    await waitFor(() => expect(versionOptions()).toContain('1.8.9'));
+
+    fireEvent.change(screen.getByPlaceholderText('Profile name'), { target: { value: 'PvP' } });
+    fireEvent.change(screen.getByLabelText('Game version'), { target: { value: '1.8.9' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(createProfile).toHaveBeenCalledWith(expect.objectContaining({ name: 'PvP', gameVersion: '1.8.9' }));
+});
+
+it('falls back to installed and cached versions offline', async () => {
+    localStorage.setItem('tmods.versionManifest', JSON.stringify([{ id: '1.20.1', type: 'release' }]));
+    fetchMojangVersions.mockRejectedValue(new Error('offline'));
+    renderPage();
+
+    expect(await screen.findByText(/Could not load the full Minecraft version list/)).toBeInTheDocument();
+    expect(versionOptions()).toEqual(['latest-release', 'latest-snapshot', '1.21', '1.20.1']);
+});
+
+it('keeps an edited profile\'s version selectable even when it is no longer known', async () => {
+    const custom = { id: 'old', name: 'Old', gameVersion: 'forge-gone' };
+    render(<Profiles profiles={[defaultProfile, custom]} activeId='default' onSelect={onSelect} onChange={onChange} />);
+    await waitFor(() => expect(versionOptions()).toContain('1.8.9'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    expect(screen.getByLabelText('Game version')).toHaveValue('forge-gone');
+});
+
 it('installs Fabric and picks it for the profile being made', async () => {
     renderPage();
 
@@ -123,6 +189,7 @@ it('installs Fabric and picks it for the profile being made', async () => {
     expect(await screen.findByText(/Installed fabric-loader-0.16.5-1.20.1/)).toBeInTheDocument();
     expect(installFabric).toHaveBeenCalledWith('1.20.1');
     expect(screen.getByLabelText('Game version')).toHaveValue('fabric-loader-0.16.5-1.20.1');
+    expect(screen.getByRole('option', { name: 'fabric-loader-0.16.5-1.20.1 (installed)' })).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText('Profile name'), { target: { value: 'Pack' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
