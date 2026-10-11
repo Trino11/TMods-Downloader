@@ -1,0 +1,53 @@
+name: Live API checks
+
+# Runs the app's service modules against the real Modrinth API, Fabric meta service
+# and Mojang version manifest. Kept apart from the build so an outage on their side
+# never blocks a release; a red run here means one of them changed or is down.
+on:
+  schedule:
+    - cron: '23 6 * * *' # Daily
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/services/modrinth.js'
+      - 'src/modules/services/modrinthMods.js'
+      - 'src/modules/services/mrpack.js'
+      - 'src/modules/services/fabric.js'
+      - 'src/modules/services/gameVersions.js'
+      - 'src/modules/services/node.js'
+      - 'src/modules/services/paths.js'
+      - 'src/modules/services/__live__/**'
+      - 'jest.live.config.js'
+      - '.github/workflows/live-checks.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+
+      - name: Run live checks
+        run: npx jest --config jest.live.config.js --verbose
+        env:
+          CI: true

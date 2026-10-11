@@ -22,7 +22,7 @@ export default [
         },
     },
     {
-        files: ['src/**/__tests__/**', 'src/**/__fixtures__/**', 'src/setupTests.js', 'test/**'],
+        files: ['src/**/__tests__/**', 'src/**/__fixtures__/**', 'src/**/__live__/**', 'src/setupTests.js', 'test/**'],
         languageOptions: { globals: { ...globals.jest, ...globals.node } },
     },
     {
