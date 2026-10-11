@@ -23,6 +23,7 @@ jest.mock('../../services/profiles', () => ({
 }));
 jest.mock('../enclosing/navbar', () => () => <nav>navbar</nav>);
 jest.mock('../pages/modrinth/ModrinthPage', () => () => <div>modrinth</div>);
+jest.mock('../../services/fabric', () => ({ installFabric: jest.fn(), listFabricGameVersions: jest.fn(() => new Promise(() => {})) }));
 
 beforeEach(() => {
     validateManifestUrl.mockReset();

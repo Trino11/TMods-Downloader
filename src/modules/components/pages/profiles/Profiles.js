@@ -9,6 +9,7 @@ import {
     profileGameDir,
     updateProfile,
 } from '../../../services/profiles';
+import FabricInstall from './FabricInstall';
 
 const emptyForm = { id: null, name: '', gameVersion: LATEST_RELEASE };
 
@@ -66,6 +67,15 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
         setNotice('');
     }
 
+    // Picks the freshly installed Fabric version for the profile being created or edited.
+    function handleFabricInstalled(versionId) {
+        // Fetching the version list also caches it, so this keeps Mojang's versions.
+        setVersionOptions(buildVersionOptions(readCachedVersions()));
+        setForm(current => ({ ...current, gameVersion: versionId }));
+        setError('');
+        setNotice(`Installed ${versionId}. It's now selected for this profile.`);
+    }
+
     function handleDelete(profile) {
         const folder = profileGameDir(profile);
         if (!window.confirm(`Delete the profile "${profile.name}"? It is removed from TMods and the Minecraft Launcher. Its files stay in ${folder}.`)) {
@@ -81,7 +91,7 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
         <h1>Profiles</h1>
         <p className='card-c'>
             Each profile has its own mods, configs and packs, and shows up in the official Minecraft Launcher, where you press Play.
-            For Fabric, Forge or NeoForge, run the loader's installer first, then pick its version here.
+            Fabric can be installed below. For Forge or NeoForge, run the loader's installer first, then pick its version here.
         </p>
 
         <form className='settingsForm' onSubmit={handleSubmit}>
@@ -107,6 +117,8 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
             {error && <div className='text-danger mt-2'>{error}</div>}
             {notice && <div className='text-success mt-2'>{notice}</div>}
         </form>
+
+        <FabricInstall onInstalled={handleFabricInstalled} />
 
         <ul className='grow'>
             {profiles.map(profile =>
