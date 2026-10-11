@@ -22,7 +22,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install npm dependencies
@@ -31,7 +31,7 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1  # Tests don't launch Electron
 
       - name: Run tests
-        run: npm test -- --watchAll=false
+        run: npm test
         env:
           CI: true
 
@@ -46,7 +46,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Check tag matches package.json version
