@@ -2,6 +2,7 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Page from '../../utils/Page';
 import ManifestUrlForm from '../../settings/ManifestUrlForm';
+import LogsSection from '../../settings/LogsSection';
 
 function Settings({ onManifestUrlChange }) {
     return (
@@ -12,6 +13,11 @@ function Settings({ onManifestUrlChange }) {
             <Card variant='outlined'>
                 <CardContent>
                     <ManifestUrlForm onSaved={onManifestUrlChange} />
+                </CardContent>
+            </Card>
+            <Card variant='outlined'>
+                <CardContent>
+                    <LogsSection />
                 </CardContent>
             </Card>
         </Page>
