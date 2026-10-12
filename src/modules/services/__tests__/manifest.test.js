@@ -109,16 +109,21 @@ describe('fetchVersions', () => {
 });
 
 describe('latestVersion', () => {
-    const versions = { mods: [{ id: '1.0' }, { id: '2.0' }] };
+    const versions = { mods: [{ id: '1.9.0' }, { id: '1.10.0' }, { id: '1.2.0' }] };
+    const published = { mods: versions.mods.map(version => ({ ...version, source: 'x' })) };
 
-    it('uses the version the manifest names as latest', () => {
-        expect(latestVersion({ versions, latest: { mods: '2.0' } }, 'mods')).toEqual({ id: '2.0' });
-        expect(latestVersion({ versions, latest: { mods: { id: '2.0' } } }, 'mods')).toEqual({ id: '2.0' });
+    it('picks the highest version number, whatever order the manifest lists them in', () => {
+        expect(latestVersion({ versions }, 'mods')).toEqual({ id: '1.10.0' });
     });
 
-    it('falls back to the first version listed', () => {
-        expect(latestVersion({ versions }, 'mods')).toEqual({ id: '1.0' });
-        expect(latestVersion({ versions, latest: { mods: 'gone' } }, 'mods')).toEqual({ id: '1.0' });
+    it('ignores a stale latest key in a hand-made manifest', () => {
+        expect(latestVersion({ versions, latest: { mods: '1.2.0' } }, 'mods')).toEqual({ id: '1.10.0' });
+    });
+
+    it('uses the version a published manifest names as latest', () => {
+        expect(latestVersion({ versions: published, latest: { mods: '1.9.0' } }, 'mods').id).toBe('1.9.0');
+        expect(latestVersion({ versions: published, latest: { mods: { id: '1.9.0' } } }, 'mods').id).toBe('1.9.0');
+        expect(latestVersion({ versions: published, latest: { mods: 'gone' } }, 'mods').id).toBe('1.10.0');
     });
 
     it('is null for a category with no versions', () => {
@@ -164,8 +169,13 @@ describe('changelogs', () => {
         expect(versionsSince(manifest, 'mods', '2.0')).toEqual([v3]);
     });
 
-    it('stops at the version the manifest names as latest', () => {
-        expect(versionsSince({ ...manifest, latest: { mods: '2.0' } }, 'mods', '1.0')).toEqual([v2]);
+    it('stops at the version a published manifest names as latest', () => {
+        const published = { versions: { mods: [v3, v2, v1].map(version => ({ ...version, source: 'x' })) } };
+        expect(versionsSince({ ...published, latest: { mods: '2.0' } }, 'mods', '1.0').map(v => v.id)).toEqual(['2.0']);
+    });
+
+    it('works on manifests listed oldest first', () => {
+        expect(versionsSince({ versions: { mods: [v1, v2, v3] } }, 'mods', '1.0')).toEqual([v3, v2]);
     });
 
     it('falls back to the latest version when the installed one is not listed', () => {
