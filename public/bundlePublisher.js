@@ -158,37 +158,64 @@ function createBundlePublisher({ fetch, safeStorage, fs, tokenFile, userAgent })
         return code === 404 ? [] : body.filter(entry => entry.type === 'dir').map(entry => entry.name);
     }
 
-    // Adds bundles/<category>/<version>/<files> to the default branch in one commit.
-    // `files` are [{ name, data }]. Refuses a version that already exists.
-    async function publish({ repo, category, version, files, message }) {
+    // Adds bundles/<category>/<version>/<files> to the default branch in one commit, for
+    // each of `versions` ([{ category, version, files }], one per category; a single
+    // { category, version, files } works too). `files` are [{ name, data }]. Refuses
+    // versions that already exist, before writing anything.
+    async function publish({ repo, versions, category, version, files, message }) {
         const token = requireToken();
         checkRepo(repo);
-        checkCategory(category);
-        checkVersion(version);
-        if (!Array.isArray(files) || files.length === 0) {
+        const wanted = versions || [{ category, version, files }];
+        if (!Array.isArray(wanted) || wanted.length === 0) {
             throw new Error('There is nothing to publish.');
         }
-        for (const file of files) {
-            if (typeof file?.name !== 'string' || !FILE_PATTERN.test(file.name)) {
-                throw new Error(`Can't publish a file called ${file?.name}.`);
+        for (const entry of wanted) {
+            checkCategory(entry.category);
+            checkVersion(entry.version);
+            if (!Array.isArray(entry.files) || entry.files.length === 0) {
+                throw new Error('There is nothing to publish.');
+            }
+            for (const file of entry.files) {
+                if (typeof file?.name !== 'string' || !FILE_PATTERN.test(file.name)) {
+                    throw new Error(`Can't publish a file called ${file?.name}.`);
+                }
+            }
+        }
+        if (new Set(wanted.map(entry => entry.category)).size !== wanted.length) {
+            throw new Error('Each category can only get one new version at a time.');
+        }
+
+        const { default_branch: branch, html_url: repoUrl } = await repository(token, repo);
+        for (const entry of wanted) {
+            const folder = `bundles/${entry.category}/${entry.version}`;
+            const existing = await api(
+                token,
+                'GET',
+                `/repos/${repo}/contents/${folder}?ref=${branch}`,
+                undefined,
+                [404],
+            );
+            if (existing.status !== 404) {
+                throw new Error(`${entry.category} ${entry.version} is already in ${repo}. Pick a new version.`);
             }
         }
 
-        const folder = `bundles/${category}/${version}`;
-        const { default_branch: branch, html_url: repoUrl } = await repository(token, repo);
-        const existing = await api(token, 'GET', `/repos/${repo}/contents/${folder}?ref=${branch}`, undefined, [404]);
-        if (existing.status !== 404) {
-            throw new Error(`${category} ${version} is already in ${repo}. Pick a new version.`);
-        }
-
         const tree = [];
-        for (const file of files) {
-            const { body } = await api(token, 'POST', `/repos/${repo}/git/blobs`, {
-                content: toBase64(file.data),
-                encoding: 'base64',
-            });
-            tree.push({ path: `${folder}/${file.name}`, mode: '100644', type: 'blob', sha: body.sha });
+        for (const entry of wanted) {
+            for (const file of entry.files) {
+                const { body } = await api(token, 'POST', `/repos/${repo}/git/blobs`, {
+                    content: toBase64(file.data),
+                    encoding: 'base64',
+                });
+                tree.push({
+                    path: `bundles/${entry.category}/${entry.version}/${file.name}`,
+                    mode: '100644',
+                    type: 'blob',
+                    sha: body.sha,
+                });
+            }
         }
+        const summary = wanted.map(entry => `${entry.category} ${entry.version}`).join(', ');
 
         // Someone may push in between; try again on top of the new head once.
         for (let attempt = 1; ; attempt++) {
@@ -200,7 +227,7 @@ function createBundlePublisher({ fetch, safeStorage, fs, tokenFile, userAgent })
                 tree,
             });
             const { body: commit } = await api(token, 'POST', `/repos/${repo}/git/commits`, {
-                message: message || `Add ${category} ${version}`,
+                message: message || `Add ${summary}`,
                 tree: newTree.sha,
                 parents: [head],
             });

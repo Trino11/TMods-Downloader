@@ -607,3 +607,39 @@ describe('profileTarget', () => {
         expect(mrpack.profileTarget(fallback)).toEqual({ versionId: '1.20.1', target: null, gameVersion: '1.20.1' });
     });
 });
+
+describe('filterMrpack', () => {
+    const files = {
+        'overrides/config/sodium.json': '{}',
+        'overrides/shaderpacks/BSL.zip': 'shader',
+        'client-overrides/options.txt': 'fov:90',
+    };
+
+    it('keeps only the links and overrides of the given kinds', () => {
+        const part = mrpack.filterMrpack(buildPack({ files }), ['config', 'shader']);
+        const zip = new AdmZip(Buffer.from(part));
+        expect(zip.getEntries().map(entry => entry.entryName)).toEqual([
+            'modrinth.index.json',
+            'overrides/config/sodium.json',
+            'overrides/shaderpacks/BSL.zip',
+        ]);
+        const index = JSON.parse(zip.readAsText('modrinth.index.json'));
+        expect(index.files).toEqual([]);
+        expect(index.dependencies).toEqual({ minecraft: '1.21.1', 'fabric-loader': '0.16.5' });
+    });
+
+    it('keeps mod links, server-only ones included, for mods', () => {
+        const part = mrpack.filterMrpack(buildPack({ files }), ['mod']);
+        const index = JSON.parse(new AdmZip(Buffer.from(part)).readAsText('modrinth.index.json'));
+        expect(index.files.map(file => file.path)).toEqual([
+            fileEntry(sodium).path,
+            fileEntry(fabricApi).path,
+            fileEntry(serverOnly).path,
+        ]);
+        expect(mrpack.readPack(part).items.map(item => item.kind)).toEqual(['mod', 'mod']);
+    });
+
+    it('is null when the pack has nothing of those kinds', () => {
+        expect(mrpack.filterMrpack(buildPack({ files }), ['schematic'])).toBeNull();
+    });
+});

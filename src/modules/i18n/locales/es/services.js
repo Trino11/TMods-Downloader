@@ -98,6 +98,7 @@ const services = {
     },
     bundlePublish: {
         packsCategory: 'Packs (pack completo)',
+        nothingFor: 'El pack no tiene nada que vaya en {category}.',
         tooLarge:
             'El pack ocupa {size} MB y GitHub acepta archivos de hasta 100 MB. Deja fuera los archivos grandes que se copian en vez de enlazarse desde Modrinth.',
     },
