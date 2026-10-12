@@ -62,25 +62,52 @@ export async function validateManifestUrl(url) {
 
 export async function fetchVersions(categoryId) {
     const manifest = await fetchManifest(getManifestUrl());
-    return manifest.versions[categoryId] || [];
+    return versionsNewestFirst(manifest, categoryId);
 }
 
 // The whole packs the channel publishes (its packs category), newest first. Players
 // import them into a profile from the Packs page.
 export async function fetchPacks() {
     const manifest = await fetchManifest(getManifestUrl());
-    const packs = manifest?.versions?.packs;
-    return Array.isArray(packs) ? packs : [];
+    return versionsNewestFirst(manifest, 'packs');
 }
 
-// The version of a category to install when the player asks for "the latest". The
-// manifest can name it under `latest` (by id, as the first TMods manifests did);
-// otherwise it is the first one listed.
+// Newest first, comparing the numbers in ids as numbers (1.10.0 comes before 1.9.0), the
+// same order the bundles publish action lists them in. Hand-made manifests may list
+// versions in any order, so the app never trusts the order it gets.
+function compareIdsDescending(a, b) {
+    return String(b.id).localeCompare(String(a.id), 'en', { numeric: true, sensitivity: 'base' });
+}
+
+// The versions of a category, newest first.
+export function versionsNewestFirst(manifest, categoryId) {
+    const versions = manifest?.versions?.[categoryId];
+    return Array.isArray(versions) ? [...versions].sort(compareIdsDescending) : [];
+}
+
+// Manifests the bundles publish action writes mark every version with its `source`.
+// Only those keep `latest` up to date: hand-made ones (like the first TMods manifest)
+// often carry a `latest` key nobody updated, because the old app never read it.
+function writtenByPublishAction(manifest) {
+    return Object.values(manifest?.versions || {}).some(
+        versions => Array.isArray(versions) && versions.some(version => typeof version?.source === 'string'),
+    );
+}
+
+// The version of a category to install when the player asks for "the latest": the one
+// with the highest version number. A manifest written by the bundles publish action can
+// pick another one under `latest` (bundles.json lets the owner roll back that way).
 export function latestVersion(manifest, categoryId) {
-    const versions = manifest?.versions?.[categoryId] || [];
-    const named = manifest?.latest?.[categoryId];
-    const id = typeof named === 'object' && named ? named.id : named;
-    return versions.find(version => version.id === id) || versions[0] || null;
+    const versions = versionsNewestFirst(manifest, categoryId);
+    if (writtenByPublishAction(manifest)) {
+        const named = manifest?.latest?.[categoryId];
+        const id = typeof named === 'object' && named ? named.id : named;
+        const picked = versions.find(version => version.id === id);
+        if (picked) {
+            return picked;
+        }
+    }
+    return versions[0] || null;
 }
 
 // The latest version of each category, keyed by category id (null when it has none),
@@ -95,15 +122,14 @@ export function changelogOf(version) {
     return typeof version?.changelog === 'string' ? version.changelog.trim() : '';
 }
 
-// The versions updating from `installedId` to `latest` brings, newest first. Manifests
-// list versions newest first, so these are the ones from `latest` down to (but not
-// including) the installed one. When the installed one isn't listed (or nothing is
-// installed), only `latest` is returned.
+// The versions updating from `installedId` to `latest` brings, newest first: the ones
+// from `latest` down to (but not including) the installed one. When the installed one
+// isn't listed (or nothing is installed), only `latest` is returned.
 export function versionsSince(manifest, categoryId, installedId, latest = latestVersion(manifest, categoryId)) {
     if (!latest) {
         return [];
     }
-    const versions = manifest?.versions?.[categoryId] || [];
+    const versions = versionsNewestFirst(manifest, categoryId);
     const from = versions.indexOf(latest);
     const to = installedId ? versions.findIndex(version => version.id === installedId) : -1;
     return from !== -1 && to > from ? versions.slice(from, to) : [latest];
