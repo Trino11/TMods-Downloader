@@ -20,6 +20,8 @@ const profiles = {
     edit: 'Edit',
     delete: 'Delete',
     launcherProfiles: 'Your usual launcher profiles',
+    manifest: 'Manifest',
+    manifestChanged: '{name} now follows {manifest}.',
     fabric: {
         title: 'Install Fabric',
         versionLabel: 'Fabric Minecraft version',

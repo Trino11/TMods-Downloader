@@ -39,7 +39,9 @@ function NavItem({ to, icon: Icon, label }) {
     );
 }
 
-function Navbar({ profiles, activeProfileId, onSelectProfile }) {
+// `manifestName` names the manifest the current profile follows, shown under the
+// profile picker when the player follows more than one.
+function Navbar({ profiles, activeProfileId, onSelectProfile, manifestName }) {
     const { t } = useTranslation();
     return (
         <Drawer
@@ -68,6 +70,11 @@ function Navbar({ profiles, activeProfileId, onSelectProfile }) {
                 </Typography>
             </Box>
             <ProfileSelector profiles={profiles} activeId={activeProfileId} onSelect={onSelectProfile} />
+            {manifestName && (
+                <Typography variant='caption' noWrap title={manifestName} sx={{ color: 'text.secondary', mt: 1 }}>
+                    {t('nav.manifest', { name: manifestName })}
+                </Typography>
+            )}
             <Divider sx={{ my: 2 }} />
             <List component='nav' disablePadding sx={{ flexGrow: 1, overflowY: 'auto' }}>
                 <NavItem to='/home' icon={HomeIcon} label={t('nav.home')} />

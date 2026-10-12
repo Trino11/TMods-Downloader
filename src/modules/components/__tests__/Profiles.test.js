@@ -1,7 +1,14 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Profiles from '../pages/profiles/Profiles';
 import ProfileSelector from '../profiles/ProfileSelector';
-import { createProfile, deleteProfile, listGameVersions, profileGameDir, updateProfile } from '../../services/profiles';
+import {
+    createProfile,
+    deleteProfile,
+    listGameVersions,
+    profileGameDir,
+    setProfileManifest,
+    updateProfile,
+} from '../../services/profiles';
 import { fetchMojangVersions } from '../../services/gameVersions';
 import { installFabric, latestLoaderVersion, listFabricGameVersions } from '../../services/fabric';
 
@@ -14,6 +21,7 @@ jest.mock('../../services/profiles', () => ({
     deleteProfile: jest.fn(),
     listGameVersions: jest.fn(),
     profileGameDir: jest.fn(),
+    setProfileManifest: jest.fn(),
 }));
 
 jest.mock('axios', () => ({ get: jest.fn() }));
@@ -59,6 +67,55 @@ beforeEach(() => {
 function renderPage(activeId = 'default') {
     render(<Profiles profiles={all} activeId={activeId} onSelect={onSelect} onChange={onChange} />);
 }
+
+describe('manifests', () => {
+    const manifests = [
+        { id: 'manifest-1', name: 'Main', url: 'https://a.example.com/m.json' },
+        { id: 'manifest-2', name: 'Server', url: 'https://b.example.com/m.json' },
+    ];
+
+    beforeEach(() => {
+        localStorage.setItem('tmods.manifests', JSON.stringify(manifests));
+    });
+
+    function renderWithManifests(profiles = all, list = manifests) {
+        render(
+            <Profiles
+                profiles={profiles}
+                manifests={list}
+                activeId='default'
+                onSelect={onSelect}
+                onChange={onChange}
+            />,
+        );
+    }
+
+    it('has no manifest picker when only one manifest is saved', () => {
+        renderWithManifests(all, manifests.slice(0, 1));
+        expect(screen.queryByLabelText('Manifest')).not.toBeInTheDocument();
+    });
+
+    it('shows the manifest each profile follows and changes it', () => {
+        renderWithManifests([defaultProfile, { ...fabric, manifestId: 'manifest-2' }]);
+
+        expect(document.getElementById('manifest-default')).toHaveValue('manifest-1');
+        expect(document.getElementById('manifest-fabric')).toHaveValue('manifest-2');
+
+        fireEvent.change(document.getElementById('manifest-default'), { target: { value: 'manifest-2' } });
+        expect(setProfileManifest).toHaveBeenCalledWith('default', 'manifest-2');
+        expect(onChange).toHaveBeenCalled();
+        expect(screen.getByText('Default (.minecraft) now follows Server.')).toBeInTheDocument();
+    });
+
+    it('creates a profile following the picked manifest', () => {
+        renderWithManifests();
+        fireEvent.change(screen.getByPlaceholderText('Profile name'), { target: { value: 'Pack' } });
+        fireEvent.change(document.getElementById('profileManifest'), { target: { value: 'manifest-2' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+        expect(createProfile).toHaveBeenCalledWith(expect.objectContaining({ name: 'Pack', manifestId: 'manifest-2' }));
+    });
+});
 
 it('creates a profile with the chosen game version', () => {
     renderPage();

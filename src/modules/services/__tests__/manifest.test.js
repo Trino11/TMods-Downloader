@@ -10,7 +10,8 @@ import {
     validateManifestUrl,
     versionsSince,
 } from '../manifest';
-import { setManifestUrl } from '../settings';
+import { addManifest } from '../manifests';
+import { setProfileManifest } from '../profiles';
 
 jest.mock('axios', () => ({ get: jest.fn() }));
 
@@ -93,13 +94,21 @@ describe('validateManifestUrl', () => {
 describe('fetchVersions', () => {
     beforeEach(() => {
         axios.get.mockReset();
-        setManifestUrl('https://example.com/manifest.json');
+        addManifest({ url: 'https://example.com/manifest.json' });
     });
 
     it('fetches the saved manifest URL and returns the category versions', async () => {
         axios.get.mockResolvedValue({ data: manifest });
         await expect(fetchVersions('mods')).resolves.toEqual(manifest.versions.mods);
         expect(axios.get).toHaveBeenCalledWith('https://example.com/manifest.json');
+    });
+
+    it('fetches the manifest the current profile follows', async () => {
+        const second = addManifest({ name: 'Server', url: 'https://other.example.com/manifest.json' });
+        setProfileManifest('default', second.id);
+        axios.get.mockResolvedValue({ data: manifest });
+        await fetchVersions('mods');
+        expect(axios.get).toHaveBeenCalledWith('https://other.example.com/manifest.json');
     });
 
     it('returns an empty list for a category the manifest does not have', async () => {
@@ -127,7 +136,7 @@ describe('latestVersion', () => {
 it('fetchLatestVersions reads the manifest once for every category', async () => {
     axios.get.mockReset();
     axios.get.mockResolvedValue({ data: { versions: { mods: [{ id: '1.0' }] } } });
-    setManifestUrl('https://example.com/manifest.json');
+    addManifest({ url: 'https://example.com/manifest.json' });
 
     await expect(fetchLatestVersions(['mods', 'configs'])).resolves.toEqual({ mods: { id: '1.0' }, configs: null });
     expect(axios.get).toHaveBeenCalledTimes(1);
@@ -143,7 +152,7 @@ describe('fetchPackUpdates', () => {
     beforeEach(() => {
         axios.get.mockReset();
         axios.get.mockResolvedValue({ data: { versions: { packs } } });
-        setManifestUrl('https://example.com/manifest.json');
+        addManifest({ url: 'https://example.com/manifest.json' });
     });
 
     it('lists the packs newest first and picks the highest version number', async () => {
@@ -209,7 +218,7 @@ describe('changelogs', () => {
     it('fetchChannelUpdates returns the latest version and the changelogs since the installed one', async () => {
         axios.get.mockReset();
         axios.get.mockResolvedValue({ data: manifest });
-        setManifestUrl('https://example.com/manifest.json');
+        addManifest({ url: 'https://example.com/manifest.json' });
 
         await expect(fetchChannelUpdates({ mods: '1.0', configs: '' })).resolves.toEqual({
             mods: { latest: v3, changes: [{ id: '3.0', label: '3.0', text: 'Adds shaders' }] },

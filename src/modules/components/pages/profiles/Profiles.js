@@ -23,16 +23,42 @@ import {
     createProfile,
     deleteProfile,
     profileGameDir,
+    setProfileManifest,
     updateProfile,
 } from '../../../services/profiles';
+import { profileManifest } from '../../../services/manifests';
 import FabricInstall from './FabricInstall';
 import { useTranslation } from '../../../i18n';
 
-const emptyForm = { id: null, name: '', gameVersion: LATEST_RELEASE };
+const emptyForm = { id: null, name: '', gameVersion: LATEST_RELEASE, manifestId: '' };
+
+// Picks one of the saved manifests (Settings) for a profile to follow.
+function ManifestPicker({ id, manifests, value, onChange, size }) {
+    const { t } = useTranslation();
+    return (
+        <TextField
+            id={id}
+            label={t('profiles.manifest')}
+            select
+            size={size}
+            value={value}
+            onChange={event => onChange(event.target.value)}
+            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+            sx={{ minWidth: 200, maxWidth: 280 }}
+        >
+            {manifests.map(manifest => (
+                <option key={manifest.id} value={manifest.id}>
+                    {manifest.name}
+                </option>
+            ))}
+        </TextField>
+    );
+}
 
 // Create, edit and delete profiles. Each one gets its own game folder and an entry
-// in the official Minecraft Launcher; `onChange` reloads the list in the app.
-function Profiles({ profiles, activeId, onSelect, onChange }) {
+// in the official Minecraft Launcher, and follows one of the saved `manifests`;
+// `onChange` reloads the list in the app.
+function Profiles({ profiles, manifests = [], activeId, onSelect, onChange }) {
     const { t } = useTranslation();
     // Starts from the last list fetched (or just the installed versions) and refreshes
     // from Mojang; when that fails the cached list keeps the picker usable offline.
@@ -51,6 +77,9 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
             cancelled = true;
         };
     }, []);
+
+    // The manifest picker only shows when there is more than one to pick from.
+    const pickManifest = manifests.length > 1;
 
     function resetForm() {
         setForm(emptyForm);
@@ -74,15 +103,18 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
     function handleSubmit(event) {
         event.preventDefault();
         const done = form.id
-            ? run(() => updateProfile(form.id, form), t('profiles.saved'))
-            : run(() => createProfile(form), t('profiles.created'));
+            ? run(() => updateProfile(form.id, { name: form.name, gameVersion: form.gameVersion }), t('profiles.saved'))
+            : run(
+                  () => createProfile({ ...form, manifestId: form.manifestId || manifests[0]?.id }),
+                  t('profiles.created'),
+              );
         if (done) {
             resetForm();
         }
     }
 
     function handleEdit(profile) {
-        setForm({ id: profile.id, name: profile.name, gameVersion: profile.gameVersion });
+        setForm({ ...emptyForm, id: profile.id, name: profile.name, gameVersion: profile.gameVersion });
         setError('');
         setNotice('');
     }
@@ -94,6 +126,14 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
         setForm(current => ({ ...current, gameVersion: versionId }));
         setError('');
         setNotice(t('profiles.fabricSelected', { version: describeVersionId(versionId) }));
+    }
+
+    function handleManifestChange(profile, manifestId) {
+        const manifest = manifests.find(item => item.id === manifestId);
+        run(
+            () => setProfileManifest(profile.id, manifestId),
+            t('profiles.manifestChanged', { name: profile.name, manifest: manifest?.name }),
+        );
     }
 
     function handleDelete(profile) {
@@ -139,6 +179,14 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
                                 </Button>
                             )}
                         </Stack>
+                        {pickManifest && !form.id && (
+                            <ManifestPicker
+                                id='profileManifest'
+                                manifests={manifests}
+                                value={form.manifestId || manifests[0].id}
+                                onChange={manifestId => setForm({ ...form, manifestId })}
+                            />
+                        )}
                         {versionsOffline && <Alert severity='info'>{t('profiles.versionsOffline')}</Alert>}
                         {error && <Alert severity='error'>{error}</Alert>}
                         {notice && <Alert severity='success'>{notice}</Alert>}
@@ -154,6 +202,15 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
                         key={profile.id}
                         actions={
                             <>
+                                {pickManifest && (
+                                    <ManifestPicker
+                                        id={`manifest-${profile.id}`}
+                                        size='small'
+                                        manifests={manifests}
+                                        value={profileManifest(profile)?.id}
+                                        onChange={manifestId => handleManifestChange(profile, manifestId)}
+                                    />
+                                )}
                                 {profile.id === activeId ? (
                                     <Button variant='outlined' disabled>
                                         {t('profiles.active')}

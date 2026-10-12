@@ -327,6 +327,23 @@ describe('importMrpack into a new profile', () => {
         const { profile } = await mrpack.importMrpack(buildPack(), { channelVersion: '2.0.0' });
         expect(mrpack.readInstalledPack(profiles.profileGameDir(profile))).toBe('2.0.0');
     });
+
+    it('makes the new profile follow the manifest the channel pack came from', async () => {
+        const urls = ['https://a.example.com/m.json', 'https://b.example.com/m.json'];
+        localStorage.setItem(
+            'tmods.manifests',
+            JSON.stringify(urls.map((url, n) => ({ id: `manifest-${n + 1}`, name: url, url }))),
+        );
+        localStorage.setItem('tmods.defaultProfileManifest', 'manifest-2');
+        serve();
+        const { profile } = await mrpack.importMrpack(buildPack(), { channelVersion: '2.0.0' });
+
+        const saved = profiles.listProfiles().find(item => item.id === profile.id);
+        expect(saved.manifestId).toBe('manifest-2');
+        const dir = profiles.profileGameDir(profile);
+        expect(mrpack.readInstalledPack(dir, urls[1])).toBe('2.0.0');
+        expect(mrpack.readInstalledPack(dir, urls[0])).toBeNull();
+    });
 });
 
 describe('importMrpack into an existing profile', () => {

@@ -1,7 +1,7 @@
 const settings = {
     title: 'Ajustes',
     description:
-        'El manifiesto indica los mods, configuraciones y packs que puedes descargar. Al cambiarlo se comprueba antes de guardar.',
+        'Un manifiesto indica los mods, configuraciones y packs que puedes descargar. Puedes seguir varios, y cada perfil elige uno.',
     language: {
         title: 'Idioma',
         label: 'Idioma',
@@ -9,10 +9,24 @@ const settings = {
     },
     firstRun: {
         title: 'Te damos la bienvenida a TMods Loader',
-        description: 'Escribe la URL de tu manifiesto para empezar. Puedes cambiarla más tarde en Ajustes.',
+        description: 'Escribe la URL de tu manifiesto para empezar. Puedes añadir más tarde en Ajustes.',
     },
     manifest: {
+        title: 'Manifiestos',
+        description:
+            'Cada perfil sigue uno de estos, elegido en la página Perfiles. Los perfiles que no han elegido siguen el primero. La URL se comprueba antes de guardarla.',
         label: 'URL del manifiesto',
+        name: 'Nombre',
+        namePlaceholder: 'Opcional, por ejemplo "Servidor survival"',
+        add: 'Añadir',
+        addTitle: 'Añadir un manifiesto',
+        edit: 'Editar',
+        remove: 'Quitar',
+        confirmRemove:
+            '¿Quitar el manifiesto "{name}"? Los perfiles que lo siguen pasarán a seguir el primer manifiesto.',
+        added: 'Se ha añadido {name}.',
+        saved: 'Se ha guardado {name}.',
+        removed: 'Se ha quitado {name}.',
     },
     bundlesRepo: {
         title: 'Tu repositorio de bundles',

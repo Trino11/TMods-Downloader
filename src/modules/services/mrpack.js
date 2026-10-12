@@ -11,6 +11,7 @@ import {
     listGameVersions,
     listProfiles,
     profileGameDir,
+    setProfileManifest,
 } from './profiles';
 import { detectTarget, gameVersionOf } from './gameTarget';
 import { KINDS, LOADERS, getProjectVersions, pickVersion, primaryFile, versionsFromHashes } from './modrinth';
@@ -24,6 +25,7 @@ import {
     writeFileSafely,
 } from './modrinthMods';
 import { PACK_KINDS, groupItems, isEnabled, itemOf } from './packKinds';
+import { activeManifest, activeManifestUrl } from './manifests';
 import { bytesToText, crypto, fs, path, zip as zips } from './node';
 import { t } from '../i18n';
 
@@ -291,20 +293,29 @@ export function listPackBackups(gameDir) {
         .sort((a, b) => (a.id < b.id ? 1 : -1));
 }
 
-// The id of the channel pack version last imported into a game folder, or null when
-// none was (packs imported from a file or from Modrinth aren't the channel's).
-export function readInstalledPack(gameDir) {
+// The id of the channel pack version last imported into a game folder from
+// `manifestUrl` (the current profile's manifest by default), or null when none was
+// (packs imported from a file or from Modrinth aren't the channel's, and neither are
+// packs from another manifest). Records made before the app noted the manifest count
+// as this one's.
+export function readInstalledPack(gameDir, manifestUrl = activeManifestUrl()) {
     try {
-        const { id } = JSON.parse(fs.readFileSync(inGame(gameDir, PACK_FILE), 'utf-8'));
+        const { id, manifest } = JSON.parse(fs.readFileSync(inGame(gameDir, PACK_FILE), 'utf-8'));
+        if (manifest && manifestUrl && manifest !== manifestUrl) {
+            return null;
+        }
         return typeof id === 'string' && id ? id : null;
     } catch {
         return null;
     }
 }
 
-function writeInstalledPack(gameDir, id) {
+function writeInstalledPack(gameDir, id, manifest) {
     fs.mkdirSync(path.join(gameDir, STATE_FOLDER), { recursive: true });
-    fs.writeFileSync(inGame(gameDir, PACK_FILE), JSON.stringify({ id, importedAt: new Date().toISOString() }, null, 2));
+    fs.writeFileSync(
+        inGame(gameDir, PACK_FILE),
+        JSON.stringify({ id, manifest, importedAt: new Date().toISOString() }, null, 2),
+    );
 }
 
 // Copies everything an import of `files` may change: the files and folders at the top
@@ -480,7 +491,12 @@ export async function importMrpack(data, { into = NEW_PROFILE, name, items, chan
         result = await importIntoProfile(pack, files, profile);
     }
     if (channelVersion) {
-        writeInstalledPack(profileGameDir(result.profile), channelVersion);
+        const manifest = activeManifest();
+        writeInstalledPack(profileGameDir(result.profile), channelVersion, manifest?.url || '');
+        // A new profile made from the channel's pack follows the manifest it came from.
+        if (into === NEW_PROFILE && manifest) {
+            setProfileManifest(result.profile.id, manifest.id);
+        }
     }
     return result;
 }

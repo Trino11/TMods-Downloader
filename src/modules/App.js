@@ -13,7 +13,7 @@ import PacksPage from './components/pages/packs/PacksPage';
 import FirstRunSetup from './components/setup/FirstRunSetup';
 import UpdateDialog from './components/utils/UpdateDialog';
 import categories from './categories';
-import { getManifestUrl } from './services/settings';
+import { listManifests, profileManifest } from './services/manifests';
 import { applyDocumentLanguage, useTranslation } from './i18n';
 import {
     ensureTModsProfile,
@@ -51,7 +51,7 @@ function App() {
 }
 
 function Screens() {
-    const [manifestUrl, setManifestUrl] = useState(getManifestUrl);
+    const [manifests, setManifests] = useState(listManifests);
     const [profiles, setProfiles] = useState(loadProfiles);
     const [activeProfile, setActiveProfileState] = useState(getActiveProfile);
 
@@ -74,14 +74,30 @@ function Screens() {
         reloadProfiles();
     }
 
-    if (!manifestUrl) {
-        return <FirstRunSetup onDone={setManifestUrl} />;
+    // Also reloads the profiles, since one may now follow another manifest.
+    function reloadManifests() {
+        setManifests(listManifests());
+        reloadProfiles();
     }
+
+    if (manifests.length === 0) {
+        return <FirstRunSetup onDone={reloadManifests} />;
+    }
+
+    // Pages are keyed by profile and by the manifest it follows, so switching either
+    // gives them fresh state and makes them load the right manifest.
+    const manifest = profileManifest(activeProfile);
+    const pageKey = `${activeProfile.id}@${manifest?.url}`;
 
     return (
         <Router>
             <Box sx={{ display: 'flex', height: '100vh' }}>
-                <Navbar profiles={profiles} activeProfileId={activeProfile.id} onSelectProfile={selectProfile} />
+                <Navbar
+                    profiles={profiles}
+                    activeProfileId={activeProfile.id}
+                    onSelectProfile={selectProfile}
+                    manifestName={manifests.length > 1 ? manifest?.name : ''}
+                />
                 <Box component='main' sx={{ flexGrow: 1, overflowY: 'auto' }}>
                     <Routes>
                         {['/', '/home'].map(route => (
@@ -90,6 +106,7 @@ function Screens() {
                                 path={route}
                                 element={
                                     <Home
+                                        key={pageKey}
                                         profile={activeProfile}
                                         gameDir={profileGameDir(activeProfile)}
                                         onSelectProfile={selectProfile}
@@ -105,7 +122,7 @@ function Screens() {
                                 path={`/${category.id}`}
                                 element={
                                     <BundlePage
-                                        key={`${activeProfile.id}/${category.id}`}
+                                        key={`${pageKey}/${category.id}`}
                                         category={category}
                                         gameDir={profileGameDir(activeProfile)}
                                     />
@@ -116,7 +133,7 @@ function Screens() {
                             path='/modrinth'
                             element={
                                 <ModrinthPage
-                                    key={activeProfile.id}
+                                    key={pageKey}
                                     profile={activeProfile}
                                     gameDir={profileGameDir(activeProfile)}
                                     onProfilesChange={reloadProfiles}
@@ -127,7 +144,7 @@ function Screens() {
                             path='/packs'
                             element={
                                 <PacksPage
-                                    key={activeProfile.id}
+                                    key={pageKey}
                                     profile={activeProfile}
                                     gameDir={profileGameDir(activeProfile)}
                                     onProfilesChange={reloadProfiles}
@@ -139,13 +156,14 @@ function Screens() {
                             element={
                                 <Profiles
                                     profiles={profiles}
+                                    manifests={manifests}
                                     activeId={activeProfile.id}
                                     onSelect={selectProfile}
                                     onChange={reloadProfiles}
                                 />
                             }
                         />
-                        <Route path='/settings' element={<Settings onManifestUrlChange={setManifestUrl} />} />
+                        <Route path='/settings' element={<Settings onManifestsChange={reloadManifests} />} />
                     </Routes>
                 </Box>
             </Box>

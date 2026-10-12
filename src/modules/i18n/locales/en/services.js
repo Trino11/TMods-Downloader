@@ -11,6 +11,11 @@ const services = {
         loadFailed: 'Could not load the manifest: {reason}',
         notManifest: 'The URL loaded, but it is not a TMods manifest (no "versions" field).',
     },
+    manifests: {
+        urlRequired: 'Enter the manifest URL.',
+        gone: "That manifest isn't saved anymore.",
+        lastOne: 'Add another manifest before removing this one. TMods needs at least one.',
+    },
     modCompat: {
         versionRange: '{from} to {to}',
         or: ' or ',
