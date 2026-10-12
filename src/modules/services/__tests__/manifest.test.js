@@ -110,20 +110,13 @@ describe('fetchVersions', () => {
 
 describe('latestVersion', () => {
     const versions = { mods: [{ id: '1.9.0' }, { id: '1.10.0' }, { id: '1.2.0' }] };
-    const published = { mods: versions.mods.map(version => ({ ...version, source: 'x' })) };
 
     it('picks the highest version number, whatever order the manifest lists them in', () => {
         expect(latestVersion({ versions }, 'mods')).toEqual({ id: '1.10.0' });
     });
 
-    it('ignores a stale latest key in a hand-made manifest', () => {
+    it('ignores a latest key some old manifests still carry', () => {
         expect(latestVersion({ versions, latest: { mods: '1.2.0' } }, 'mods')).toEqual({ id: '1.10.0' });
-    });
-
-    it('uses the version a published manifest names as latest', () => {
-        expect(latestVersion({ versions: published, latest: { mods: '1.9.0' } }, 'mods').id).toBe('1.9.0');
-        expect(latestVersion({ versions: published, latest: { mods: { id: '1.9.0' } } }, 'mods').id).toBe('1.9.0');
-        expect(latestVersion({ versions: published, latest: { mods: 'gone' } }, 'mods').id).toBe('1.10.0');
     });
 
     it('is null for a category with no versions', () => {
@@ -140,17 +133,14 @@ it('fetchLatestVersions reads the manifest once for every category', async () =>
     expect(axios.get).toHaveBeenCalledTimes(1);
 });
 
-it('fetchLatestPack picks the pack the manifest names as latest', async () => {
+it('fetchLatestPack picks the pack with the highest version number', async () => {
     axios.get.mockReset();
-    // Only manifests the publish action wrote (versions carry a `source`) are trusted to name `latest`.
-    const packs = [
-        { id: '1.1.0-beta', source: 'packs/1.1.0-beta.mrpack' },
-        { id: '1.0.0', source: 'packs/1.0.0.mrpack' },
-    ];
-    axios.get.mockResolvedValue({ data: { latest: { packs: '1.0.0' }, versions: { packs } } });
+    axios.get.mockResolvedValue({
+        data: { latest: { packs: '1.0.0' }, versions: { packs: [{ id: '1.0.0' }, { id: '1.1.0' }] } },
+    });
     setManifestUrl('https://example.com/manifest.json');
 
-    await expect(fetchLatestPack()).resolves.toEqual(packs[1]);
+    await expect(fetchLatestPack()).resolves.toEqual({ id: '1.1.0' });
 });
 
 it('fetchLatestPack is null when the channel has no packs', async () => {
@@ -170,11 +160,6 @@ describe('changelogs', () => {
     it('lists the versions newer than the installed one, newest first', () => {
         expect(versionsSince(manifest, 'mods', '1.0')).toEqual([v3, v2]);
         expect(versionsSince(manifest, 'mods', '2.0')).toEqual([v3]);
-    });
-
-    it('stops at the version a published manifest names as latest', () => {
-        const published = { versions: { mods: [v3, v2, v1].map(version => ({ ...version, source: 'x' })) } };
-        expect(versionsSince({ ...published, latest: { mods: '2.0' } }, 'mods', '1.0').map(v => v.id)).toEqual(['2.0']);
     });
 
     it('works on manifests listed oldest first', () => {
