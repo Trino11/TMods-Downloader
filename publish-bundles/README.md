@@ -114,7 +114,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: publish
         uses: Trino11/TMods-Downloader/publish-bundles@bundles-v1
         with:

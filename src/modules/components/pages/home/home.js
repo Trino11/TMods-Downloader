@@ -6,7 +6,7 @@ import Typography from '@mui/material/Typography';
 import BadgeIcon from '@mui/icons-material/Badge';
 import SettingsIcon from '@mui/icons-material/Settings';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import Page from '../../utils/Page';
 import FabricInstall from '../profiles/FabricInstall';
 import ChannelUpdates from './ChannelUpdates';

@@ -20,7 +20,7 @@ import {
     setActiveProfile,
     syncLauncherProfiles,
 } from './services/profiles';
-import { HashRouter as Router, Route, Routes } from 'react-router-dom';
+import { HashRouter as Router, Route, Routes } from 'react-router';
 
 // Make sure the player has a TMods profile before the selector reads the list, on
 // start and after any change such as deleting the last profile.

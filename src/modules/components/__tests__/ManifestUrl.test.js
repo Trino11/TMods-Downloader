@@ -42,8 +42,6 @@ function urlInput() {
     return screen.getByLabelText('Manifest URL');
 }
 
-// user-event 13 bundles its own @testing-library/dom, which isn't wired to React's
-// act(), so drive the form with fireEvent instead.
 function typeUrl(value) {
     fireEvent.change(urlInput(), { target: { value } });
 }

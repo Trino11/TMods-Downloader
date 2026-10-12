@@ -11,7 +11,7 @@ import BadgeIcon from '@mui/icons-material/Badge';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ViewInArIcon from '@mui/icons-material/ViewInAr';
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import categories from '../../categories';
 import ProfileSelector from '../profiles/ProfileSelector';
 

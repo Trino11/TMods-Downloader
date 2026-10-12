@@ -3,7 +3,6 @@ jest.mock('axios', () => ({ get: jest.fn() }));
 const axios = require('axios');
 const categories = require('../../src/modules/categories').default;
 const { changelogOf, latestVersion } = require('../../src/modules/services/manifest');
-const { realmSafeAdmZip } = require('../../src/modules/services/__fixtures__/modrinthFake');
 const { installBridge, removeBridge } = require('../../src/modules/services/__fixtures__/bridge');
 
 const crypto = require('crypto');
@@ -18,12 +17,10 @@ const FIXTURE = path.join(__dirname, '..', 'fixtures', 'bundles');
 const BASE = 'https://github.com/someone/bundles/releases/download/bundles-1';
 
 let temp;
-let AdmZip;
+const AdmZip = require('adm-zip');
 
 beforeEach(() => {
     temp = fs.mkdtempSync(path.join(os.tmpdir(), 'tmods-publish-'));
-    // adm-zip can't read in-memory buffers under jsdom; see realmSafeAdmZip.
-    AdmZip = realmSafeAdmZip(temp);
     axios.get.mockReset();
 });
 
@@ -408,7 +405,7 @@ describe('installing a published bundle in the app', () => {
         const { manifest, uploads } = await buildBundles({ source: FIXTURE, downloadBase: BASE });
         const gameDir = path.join(temp, 'game');
         fs.mkdirSync(gameDir);
-        installBridge(temp, { AdmZip });
+        installBridge(temp);
         let installBundle;
         jest.isolateModules(() => {
             ({ installBundle } = require('../../src/modules/services/bundleInstaller'));

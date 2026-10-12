@@ -118,25 +118,3 @@ function serveModrinth(axios, projects, files = {}) {
 }
 
 module.exports = { makeVersion, required, incompatible, serveModrinth, hash, asArrayBuffer };
-
-// adm-zip spots buffers with `instanceof Uint8Array`, which fails under jsdom because
-// Node's Buffer comes from another realm (in Electron there is only one). This version
-// reads buffers through a temporary file instead, for tests only.
-function realmSafeAdmZip(tempDir) {
-    const fs = require('fs');
-    const path = require('path');
-    const AdmZip = require('adm-zip');
-    let count = 0;
-    return class extends AdmZip {
-        constructor(input, options) {
-            if (Buffer.isBuffer(input)) {
-                const file = path.join(tempDir, `zip-${count++}.zip`);
-                fs.writeFileSync(file, input);
-                input = file;
-            }
-            super(input, options);
-        }
-    };
-}
-
-module.exports.realmSafeAdmZip = realmSafeAdmZip;
