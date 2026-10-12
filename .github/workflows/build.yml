@@ -122,7 +122,24 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # The release stays a draft until every file is uploaded, so the app's updater never
+      # sees a half-uploaded release. Uploads go one at a time and are retried, since a
+      # single failed upload (GitHub answers 404 now and then) used to fail the release.
       - name: Publish GitHub Release
-        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
+        run: |
+          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --generate-notes
+          for file in dist/*; do
+            for attempt in 1 2 3 4; do
+              gh release upload "$GITHUB_REF_NAME" "$file" --clobber && break
+              if [ "$attempt" = 4 ]; then
+                echo "::error::Could not upload $file"
+                exit 1
+              fi
+              sleep $((attempt * 15))
+            done
+          done
+          gh release edit "$GITHUB_REF_NAME" --draft=false --latest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
