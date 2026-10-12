@@ -11,16 +11,24 @@ https://github.com/<owner>/<this repository>/releases/latest/download/manifest.j
 
 ## Adding a version
 
-Make a folder for it under its category (`mods`, `schematics`, `resourcepacks`, `configs`
-or `shaderpacks`). The folder name is the version players see. Then fill it in one of
-these ways, or mix them:
+Make a folder for it under its category (`mods`, `schematics`, `resourcepacks`, `configs`,
+`shaderpacks` or `packs`). The folder name is the version players see.
 
-- **Publish a profile from TMods**: set this repository up in TMods' Settings, then use
-  "Publish to your bundles repository" on the Modrinth page's Modpacks tab. It commits a
-  new version folder for you.
-- **Export a profile from TMods** (or the Modrinth app, Prism, packwiz) as a `.mrpack` and
-  drop it in the folder. Its mods are downloaded when publishing, and its overrides
-  (configs and so on) go in as they are.
+**A whole pack** goes in `packs/<version>/` as one `.mrpack` file (plus an optional
+`bundle.json` with `description` and `changelog`, or a `CHANGELOG.md`). Players import it
+into a profile from TMods' Packs page, Import tab.
+
+- **Publish from TMods**: set this repository up in TMods' Settings, then use the Packs
+  page's Publish tab. Tick the files of the active profile to include (mods, resource
+  packs, shaders, configs, schematics, settings), or pick a `.mrpack` you already have,
+  and it commits a new version folder for you.
+
+**The other categories** are zips unpacked over the game folder. Fill their version
+folder in one of these ways, or mix them:
+
+- **Export a profile from TMods** (Packs page, or the Modrinth app, Prism, packwiz) as a
+  `.mrpack` and drop it in the folder. Its mods are downloaded when publishing, and its
+  overrides (configs and so on) go in as they are.
 - **List Modrinth versions** in a `bundle.json`, using the name in the project's URL and
   the version number from its Versions tab:
 
@@ -44,7 +52,7 @@ files one; replace them with your own.
   To pick another, add `bundles/bundles.json` with `{ "latest": { "mods": "1.0.0" } }`.
 - To update a bundle, add a new version folder. Changing a published version won't reach
   players who installed it.
-- Don't delete old releases: newer manifests can still link to zips in them.
+- Don't delete old releases: newer manifests can still link to zips and packs in them.
 
 To check a change without publishing, run the workflow from the Actions tab with "dry-run"
 ticked. Full guide:

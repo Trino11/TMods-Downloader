@@ -3,7 +3,7 @@ description: Zips a folder of TMods bundles, writes the manifest the app reads, 
 
 inputs:
   source:
-    description: Folder holding one subfolder per category (mods, schematics, resourcepacks, configs, shaderpacks).
+    description: Folder holding one subfolder per category (mods, schematics, resourcepacks, configs, shaderpacks, packs).
     default: bundles
   tag:
     description: Tag for the new release. Defaults to bundles-<UTC date and time>.

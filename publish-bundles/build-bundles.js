@@ -5,10 +5,11 @@
 //   <source>/<category>/<version id>/<name>.mrpack   optional: a Modrinth modpack to bundle
 //   <source>/<category>/<version id>/bundle.json     optional: text, Modrinth versions, links
 //   <source>/<category>/<version id>/CHANGELOG.md    optional: the changelog, as text
+//   <source>/packs/<version id>/<name>.mrpack        a whole pack, published as the .mrpack
 //   <source>/bundles.json                            optional: { "latest": { "<category>": "<id>" } }
 //
-// (sources.js reads a version folder) and writes the manifest plus the zips that need
-// uploading into <out>. A version whose inputs match the previous manifest's `source`
+// (sources.js reads a version folder) and writes the manifest plus the zips (and packs)
+// that need uploading into <out>. A version whose inputs match the previous manifest's `source`
 // keeps its old URL without downloading or zipping anything.
 // See README.md next to this file for the workflow that publishes the result.
 const crypto = require('crypto');
@@ -16,10 +17,16 @@ const fs = require('fs');
 const path = require('path');
 const { createZip } = require('./zip');
 const { createRemote } = require('./remote');
-const { readVersion } = require('./sources');
+const { readPack, readVersion } = require('./sources');
 
-// The manifest categories the app knows (src/modules/categories.js; a test keeps them in sync).
+// The manifest categories the app installs as zips (src/modules/categories.js; a test
+// keeps them in sync).
 const CATEGORIES = ['mods', 'schematics', 'resourcepacks', 'configs', 'shaderpacks'];
+// Whole packs: each version is a .mrpack, uploaded as it is, that players import into a
+// profile from the app's Packs page. Older apps don't read this category, so it is new
+// without breaking anything.
+const PACKS = 'packs';
+const ALL_CATEGORIES = [...CATEGORIES, PACKS];
 
 function sha256(data) {
     return crypto.createHash('sha256').update(data).digest('hex');
@@ -42,7 +49,8 @@ function readJson(file, what) {
 
 // Release asset names only keep letters, digits, dots, dashes and underscores.
 function assetName(category, id) {
-    return `${category}-${id}`.replace(/[^A-Za-z0-9._-]+/g, '-') + '.zip';
+    const extension = category === PACKS ? '.mrpack' : '.zip';
+    return `${category}-${id}`.replace(/[^A-Za-z0-9._-]+/g, '-') + extension;
 }
 
 // Newest first, comparing the numbers in ids as numbers (1.10.0 comes before 1.9.0).
@@ -63,9 +71,9 @@ async function buildBundles({ source, downloadBase, previous = null, remote = cr
         throw new Error(`The bundles folder ${source} doesn't exist.`);
     }
 
-    const unknown = listDirs(source).filter(name => !CATEGORIES.includes(name));
+    const unknown = listDirs(source).filter(name => !ALL_CATEGORIES.includes(name));
     if (unknown.length > 0) {
-        throw new Error(`Unknown category folder(s): ${unknown.join(', ')}. Use: ${CATEGORIES.join(', ')}.`);
+        throw new Error(`Unknown category folder(s): ${unknown.join(', ')}. Use: ${ALL_CATEGORIES.join(', ')}.`);
     }
 
     const configFile = path.join(source, 'bundles.json');
@@ -75,7 +83,7 @@ async function buildBundles({ source, downloadBase, previous = null, remote = cr
     // Read and check every folder before downloading anything, so a typo fails fast.
     const plan = [];
     const assetNames = new Set();
-    for (const category of CATEGORIES) {
+    for (const category of ALL_CATEGORIES) {
         const categoryDir = path.join(source, category);
         const ids = fs.existsSync(categoryDir) ? listDirs(categoryDir).sort(compareIdsDescending) : [];
         for (const id of ids) {
@@ -85,26 +93,30 @@ async function buildBundles({ source, downloadBase, previous = null, remote = cr
                 throw new Error(`${label} would be uploaded as ${name}, which another version already uses.`);
             }
             assetNames.add(name);
-            plan.push({ category, id, label, name, ...readVersion(path.join(categoryDir, id), label) });
+            const read = category === PACKS ? readPack : readVersion;
+            plan.push({ category, id, label, name, ...read(path.join(categoryDir, id), label) });
         }
     }
 
     const manifest = { latest: {}, versions: {} };
     const uploads = [];
-    for (const { category, id, label, name, metadata, inputs, key } of plan) {
+    for (const { category, id, label, name, metadata, inputs, key, data } of plan) {
         const before = previousEntry(previous, category, id);
         let entry;
         if (before?.source === key && before.url && before.sha256) {
             entry = { url: before.url, sha256: before.sha256 };
         } else {
-            const zip = createZip(await remote.filesOf(inputs, label));
-            const hash = sha256(zip);
-            // Manifests from before `source` existed: reuse the zip if its bytes match.
+            // A pack is uploaded as it is; its files are still fetched, to prove every
+            // link works before players try it.
+            const files = await remote.filesOf(inputs, label);
+            const asset = data || createZip(files);
+            const hash = sha256(asset);
+            // Manifests from before `source` existed: reuse the asset if its bytes match.
             if (before && before.sha256 === hash && before.url) {
                 entry = { url: before.url, sha256: hash };
             } else {
                 entry = { url: `${downloadBase}/${encodeURIComponent(name)}`, sha256: hash };
-                uploads.push({ name, data: zip, label, replaced: Boolean(before) });
+                uploads.push({ name, data: asset, label, replaced: Boolean(before) });
             }
         }
         manifest.versions[category] ??= [];
@@ -217,4 +229,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { CATEGORIES, assetName, buildBundles, compareIdsDescending, main };
+module.exports = { CATEGORIES, PACKS, assetName, buildBundles, compareIdsDescending, main };
