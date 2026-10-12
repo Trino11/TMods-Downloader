@@ -88,6 +88,24 @@ export function setTargetVersion(gameDir, versionId) {
     save(gameDir, { ...list, target: versionId ? { versionId } : null });
 }
 
+// Where a tracked entry's file is in the game folder when enabled, with forward slashes.
+export function trackedPath(mod) {
+    return `${KINDS[kindOf(mod)].folder}/${mod.fileName}`;
+}
+
+// Stops tracking the entries `drop` picks and deletes their files, leaving everything
+// else alone (removeMod also removes the dependencies nothing needs anymore). Returns
+// the entries dropped.
+export function dropTracked(gameDir, drop) {
+    const list = readModList(gameDir);
+    const dropped = list.mods.filter(drop);
+    for (const mod of dropped) {
+        fs.rmSync(filePath(gameDir, mod), { force: true });
+    }
+    save(gameDir, { ...list, mods: list.mods.filter(mod => !dropped.includes(mod)) });
+    return dropped;
+}
+
 // File names in the kind's folder that belong to tracked entries, enabled or not.
 export function managedFileNames(gameDir, kind = 'mod') {
     return new Set(

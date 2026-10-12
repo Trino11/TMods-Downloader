@@ -1,12 +1,26 @@
-// Publishing a profile as a new version of a bundle in the player's bundles repository:
-// the profile is exported as a .mrpack (only download links for Modrinth files, plus
-// hand-added jars and configs) and committed as bundles/<category>/<version>/. The
-// repository's publish workflow then builds the zip and the manifest players read.
-import { exportMrpack } from './mrpack';
+// Publishing a pack as a new version in the player's bundles repository: a .mrpack (a
+// profile's picked files exported by the Packs page, or a file the player already has)
+// committed as bundles/<category>/<version>/pack.mrpack. The repository's publish
+// workflow then builds the release players read: whole packs in the packs category, or
+// a zip for the other categories.
+import categories from '../categories';
 import { github } from './node';
 import { getBundlesRepo, getManifestUrl } from './settings';
 
 const MANIFEST_ON_GITHUB = /^https:\/\/github\.com\/([A-Za-z0-9-]+\/[A-Za-z0-9._-]+)\/releases\//;
+
+// Where a published pack can go: whole packs first (the default), then the categories
+// the bundle pages install as zips.
+export const PACKS_CATEGORY = 'packs';
+export const PUBLISH_CATEGORIES = [
+    { id: PACKS_CATEGORY, label: 'Packs (whole pack)' },
+    ...categories.map(category => ({ id: category.id, label: category.label })),
+];
+
+// GitHub refuses files over 100 MB, and every published version stays in the repository
+// for good, so packs over 25 MB get a warning.
+export const MAX_PACK_BYTES = 100 * 1024 * 1024;
+export const LARGE_PACK_BYTES = 25 * 1024 * 1024;
 
 // The saved bundles repository, or the one the manifest URL is published from.
 export function bundlesRepo() {
@@ -30,20 +44,22 @@ export function existingVersions(repo, category) {
     return github.versions(repo, category);
 }
 
-// Commits the profile at `gameDir` as `category`/`version`. Resolves to
-// { commitUrl, actionsUrl, mods, extraFiles }.
-export async function publishProfile({
+// Commits a pack (its bytes) as `category`/`version`, with the optional text in
+// bundle.json. Resolves to { commitUrl, actionsUrl }.
+export async function publishPack({
     repo,
-    category,
+    category = PACKS_CATEGORY,
     version,
-    gameDir,
-    target,
-    name,
+    data,
     description = '',
     changelog = '',
-    includeConfig = true,
 }) {
-    const pack = exportMrpack(gameDir, target, { name, version, includeConfig });
+    if (data.length > MAX_PACK_BYTES) {
+        throw new Error(
+            `The pack is ${Math.ceil(data.length / (1024 * 1024))} MB, and GitHub takes files up to 100 MB. ` +
+                'Leave out large files that are copied rather than linked from Modrinth.',
+        );
+    }
     const metadata = {};
     if (description.trim()) {
         metadata.description = description.trim();
@@ -51,16 +67,15 @@ export async function publishProfile({
     if (changelog.trim()) {
         metadata.changelog = changelog.trim();
     }
-    const files = [{ name: 'pack.mrpack', data: pack.data }];
+    const files = [{ name: 'pack.mrpack', data }];
     if (Object.keys(metadata).length > 0) {
         files.push({ name: 'bundle.json', data: JSON.stringify(metadata, null, 2) + '\n' });
     }
-    const result = await github.publish({
+    return github.publish({
         repo,
         category,
         version,
         files,
         message: `Add ${category} ${version} from TMods`,
     });
-    return { ...result, mods: pack.mods, extraFiles: pack.extraFiles };
 }

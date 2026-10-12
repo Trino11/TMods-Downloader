@@ -9,6 +9,7 @@ import BundlePage from './components/pages/bundle/BundlePage';
 import Settings from './components/pages/settings/Settings';
 import Profiles from './components/pages/profiles/Profiles';
 import ModrinthPage from './components/pages/modrinth/ModrinthPage';
+import PacksPage from './components/pages/packs/PacksPage';
 import FirstRunSetup from './components/setup/FirstRunSetup';
 import categories from './categories';
 import { getManifestUrl } from './services/settings';
@@ -108,6 +109,17 @@ function Screens() {
                             path='/modrinth'
                             element={
                                 <ModrinthPage
+                                    key={activeProfile.id}
+                                    profile={activeProfile}
+                                    gameDir={profileGameDir(activeProfile)}
+                                    onProfilesChange={reloadProfiles}
+                                />
+                            }
+                        />
+                        <Route
+                            path='/packs'
+                            element={
+                                <PacksPage
                                     key={activeProfile.id}
                                     profile={activeProfile}
                                     gameDir={profileGameDir(activeProfile)}

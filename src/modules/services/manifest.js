@@ -34,6 +34,14 @@ export async function fetchVersions(categoryId) {
     return manifest.versions[categoryId] || [];
 }
 
+// The whole packs the channel publishes (its packs category), newest first. Players
+// import them into a profile from the Packs page.
+export async function fetchPacks() {
+    const manifest = await fetchManifest(getManifestUrl());
+    const packs = manifest?.versions?.packs;
+    return Array.isArray(packs) ? packs : [];
+}
+
 // The version of a category to install when the player asks for "the latest". The
 // manifest can name it under `latest` (by id, as the first TMods manifests did);
 // otherwise it is the first one listed.

@@ -15,6 +15,7 @@ let profiles;
 let mods;
 let detectTarget;
 let gameVersionOf;
+let scan;
 const AdmZip = require('adm-zip');
 
 beforeEach(() => {
@@ -28,6 +29,7 @@ beforeEach(() => {
         profiles = require('../profiles');
         mods = require('../modrinthMods');
         ({ detectTarget, gameVersionOf } = require('../gameTarget'));
+        scan = require('../packScan');
     });
 });
 
@@ -201,7 +203,7 @@ describe('importMrpack', () => {
         const { profile, loaderNote } = await mrpack.importMrpack(buildPack());
 
         expect(profile.gameVersion).toBe('fabric-loader-0.15.0-1.21.1');
-        expect(loaderNote).toContain('used the fabric version you already have');
+        expect(loaderNote).toContain('used the Fabric version you already have');
     });
 
     it('falls back to the plain game version and asks for the loader when none is installed', async () => {
@@ -211,7 +213,7 @@ describe('importMrpack', () => {
 
         expect(profile).toMatchObject({ name: 'Mine', gameVersion: '1.21.1' });
         expect(loaderNote).toBe(
-            'Install fabric 0.16.5 for Minecraft 1.21.1, then pick it for this profile in Profiles.',
+            'Install Fabric 0.16.5 for Minecraft 1.21.1, then pick it for this profile in Profiles.',
         );
     });
 
@@ -264,6 +266,164 @@ describe('importMrpack', () => {
     });
 });
 
+describe('readPack', () => {
+    it("lists the pack's items by kind without writing anything, leaving out server-only files", () => {
+        const pack = mrpack.readPack(
+            buildPack({
+                index: { summary: ' Fast ' },
+                files: {
+                    'overrides/config/sodium.json': '{}',
+                    'overrides/config/xaero/map.txt': 'map',
+                    'client-overrides/options.txt': 'fov:90',
+                    'overrides/resourcepacks/Mine/pack.mcmeta': '{}',
+                    'overrides/notes/readme.txt': 'hi',
+                },
+            }),
+        );
+
+        expect(pack).toMatchObject({
+            name: 'Friends Pack',
+            version: '1.0',
+            summary: 'Fast',
+            gameVersion: '1.21.1',
+            loader: { loader: 'fabric', loaderVersion: '0.16.5' },
+        });
+        expect(pack.items.map(item => [item.kind, item.id, item.link])).toEqual([
+            ['mod', 'mods/fabric-api-0.100.0.jar', true],
+            ['mod', 'mods/sodium-0.6.0.jar', true],
+            ['resourcepack', 'resourcepacks/Mine', false],
+            ['config', 'config/sodium.json', false],
+            ['config', 'config/xaero', false],
+            ['settings', 'options.txt', false],
+            ['other', 'notes/readme.txt', false],
+        ]);
+        expect(axios.get).not.toHaveBeenCalled();
+        expect(profiles.listProfiles()).toHaveLength(1);
+    });
+
+    it("refuses files in TMods' own folder", () => {
+        expect(() => mrpack.readPack(buildPack({ files: { 'overrides/.tmods_loader/modrinth.json': '{}' } }))).toThrow(
+            "TMods' own folder",
+        );
+    });
+});
+
+describe('importMrpack into a new profile', () => {
+    it('installs only the picked items', async () => {
+        serve();
+        const { profile } = await mrpack.importMrpack(
+            buildPack({ files: { 'overrides/config/a.txt': 'a', 'overrides/options.txt': 'fov:90' } }),
+            { items: ['mods/sodium-0.6.0.jar', 'config/a.txt'] },
+        );
+
+        const dir = profiles.profileGameDir(profile);
+        expect(profileFiles(profile, 'mods')).toEqual(['sodium-0.6.0.jar']);
+        expect(fs.existsSync(path.join(dir, 'config', 'a.txt'))).toBe(true);
+        expect(fs.existsSync(path.join(dir, 'options.txt'))).toBe(false);
+    });
+});
+
+describe('importMrpack into an existing profile', () => {
+    const oldSodium = makeVersion('sodium', '0.5.0');
+    let profile;
+    let gameDir;
+
+    beforeEach(async () => {
+        serveModrinth(axios, {
+            'fabric-api': { title: 'Fabric API', versions: [fabricApi] },
+            sodium: { title: 'Sodium', versions: [sodium, oldSodium] },
+        });
+        installVersion('fabric-loader-0.16.5-1.21.1', '1.21.1');
+        profile = profiles.createProfile({ name: 'Survival', gameVersion: 'fabric-loader-0.16.5-1.21.1' });
+        gameDir = profiles.profileGameDir(profile);
+        // The player has an older Sodium (added by hand), their own mod and a config.
+        fs.mkdirSync(path.join(gameDir, 'mods'), { recursive: true });
+        fs.writeFileSync(path.join(gameDir, 'mods', 'sodium-old.jar'), oldSodium.data);
+        fs.writeFileSync(path.join(gameDir, 'mods', 'mine.jar'), 'mine');
+        fs.mkdirSync(path.join(gameDir, 'config'));
+        fs.writeFileSync(path.join(gameDir, 'config', 'sodium.json'), 'mine');
+    });
+
+    it('replaces other versions of the same mods, keeps the rest and backs up first', async () => {
+        const pack = buildPack({ files: { 'overrides/config/sodium.json': 'pack' } });
+
+        const result = await mrpack.importMrpack(pack, { into: profile.id });
+
+        expect(result).toMatchObject({ profile: { id: profile.id }, replaced: ['Sodium'] });
+        expect(profileFiles(profile, 'mods')).toEqual(['fabric-api-0.100.0.jar', 'mine.jar', 'sodium-0.6.0.jar']);
+        expect(fs.readFileSync(path.join(gameDir, 'config', 'sodium.json'), 'utf-8')).toBe('pack');
+        expect(
+            mods
+                .readModList(gameDir)
+                .mods.map(mod => `${mod.projectId}@${mod.versionId}`)
+                .sort(),
+        ).toEqual(['fabric-api@0.100.0', 'sodium@0.6.0']);
+        expect(mrpack.listPackBackups(gameDir)).toEqual([
+            { id: result.backupId, createdAt: expect.any(String), pack: 'Friends Pack' },
+        ]);
+        expect(profiles.listProfiles()).toHaveLength(2);
+    });
+
+    it('can be undone from its backup', async () => {
+        const { backupId } = await mrpack.importMrpack(
+            buildPack({ files: { 'overrides/config/sodium.json': 'pack', 'overrides/options.txt': 'fov:90' } }),
+            { into: profile.id },
+        );
+
+        mrpack.restorePackBackup(gameDir, backupId);
+
+        expect(profileFiles(profile, 'mods')).toEqual(['mine.jar', 'sodium-old.jar']);
+        expect(fs.readFileSync(path.join(gameDir, 'config', 'sodium.json'), 'utf-8')).toBe('mine');
+        expect(fs.existsSync(path.join(gameDir, 'options.txt'))).toBe(false);
+        expect(mrpack.listPackBackups(gameDir)).toEqual([]);
+    });
+
+    it('changes nothing when a download fails', async () => {
+        const broken = { ...fileEntry(sodium), hashes: { sha1: 'bad' } };
+
+        await expect(
+            mrpack.importMrpack(buildPack({ index: { files: [broken] } }), { into: profile.id }),
+        ).rejects.toThrow('checksum');
+
+        expect(profileFiles(profile, 'mods')).toEqual(['mine.jar', 'sodium-old.jar']);
+        expect(mrpack.listPackBackups(gameDir)).toEqual([]);
+        expect(fs.existsSync(path.join(gameDir, '.tmods_loader', 'pack-import'))).toBe(false);
+    });
+
+    it('still installs, replacing only same-named files, when Modrinth lookups fail', async () => {
+        axios.post.mockRejectedValue(new Error('offline'));
+        jest.spyOn(console, 'error').mockImplementation(() => {});
+
+        const { replaced } = await mrpack.importMrpack(buildPack(), { into: profile.id });
+
+        expect(replaced).toEqual([]);
+        expect(profileFiles(profile, 'mods')).toEqual([
+            'fabric-api-0.100.0.jar',
+            'mine.jar',
+            'sodium-0.6.0.jar',
+            'sodium-old.jar',
+        ]);
+    });
+
+    it('keeps the last five backups', async () => {
+        for (let i = 0; i < 6; i++) {
+            await mrpack.importMrpack(buildPack({ index: { files: [] }, files: { 'overrides/a.txt': `${i}` } }), {
+                into: profile.id,
+            });
+        }
+        expect(mrpack.listPackBackups(gameDir)).toHaveLength(5);
+    });
+
+    it('says when the pack is for another game version or loader', () => {
+        const pack = mrpack.readPack(buildPack({ index: { dependencies: { minecraft: '1.20.1', forge: '47.2.0' } } }));
+        expect(mrpack.packWarnings(pack, profile)).toEqual([
+            'The pack is for Minecraft 1.20.1, but Survival plays 1.21.1.',
+            'The pack needs Forge, but Survival uses Fabric.',
+        ]);
+        expect(mrpack.packWarnings(mrpack.readPack(buildPack()), profile)).toEqual([]);
+    });
+});
+
 describe('exportMrpack', () => {
     const target = {
         versionId: 'fabric-loader-0.16.5-1.21.1',
@@ -272,27 +432,52 @@ describe('exportMrpack', () => {
         loaderVersion: '0.16.5',
     };
 
-    it('lists enabled Modrinth mods as downloads and copies hand-added jars and config', async () => {
+    function exported(gameDir, ids, options = {}) {
+        const items = scan.scanProfile(gameDir).filter(item => (ids ? ids.includes(item.id) : item.ticked));
+        const chosen = 'target' in options ? options.target : target;
+        return mrpack.exportMrpack(gameDir, chosen, { name: 'Shared', items });
+    }
+
+    it('lists picked Modrinth files as downloads and copies everything else into overrides', async () => {
         serve();
         const gameDir = path.join(home, 'game');
         await mods.installMod(gameDir, target, 'sodium', 'Sodium');
         mods.setModEnabled(gameDir, 'fabric-api', false);
         fs.writeFileSync(path.join(gameDir, 'mods', 'mine.jar'), 'mine');
-        fs.mkdirSync(path.join(gameDir, 'config'));
+        fs.mkdirSync(path.join(gameDir, 'config', 'xaero'), { recursive: true });
         fs.writeFileSync(path.join(gameDir, 'config', 'a.toml'), 'a=1');
+        fs.writeFileSync(path.join(gameDir, 'config', 'xaero', 'map.txt'), 'map');
+        fs.mkdirSync(path.join(gameDir, 'shaderpacks'));
+        fs.writeFileSync(path.join(gameDir, 'shaderpacks', 'Mine.zip'), 'shader');
+        fs.writeFileSync(path.join(gameDir, 'shaderpacks', 'Mine.zip.txt'), 'shadow=on');
+        fs.writeFileSync(path.join(gameDir, 'options.txt'), 'fov:90');
 
-        const result = mrpack.exportMrpack(gameDir, target, { name: 'Shared' });
+        const result = exported(gameDir, [
+            'mods/sodium-0.6.0.jar',
+            'mods/mine.jar',
+            'config/a.toml',
+            'config/xaero',
+            'shaderpacks/Mine.zip',
+            'shaderpacks/Mine.zip.txt',
+            'options.txt',
+        ]);
 
-        expect(result).toMatchObject({ mods: 1, extraFiles: ['mine.jar'] });
+        expect(result).toMatchObject({ links: 1, copies: 6 });
         const zip = new AdmZip(Buffer.from(result.data));
         const index = mrpack.readIndex(window.tmods.zip.read(result.data));
         expect(index).toMatchObject({
             name: 'Shared',
+            versionId: '1.0.0',
             dependencies: { minecraft: '1.21.1', 'fabric-loader': '0.16.5' },
         });
         expect(index.files).toEqual([fileEntry(sodium)]);
         expect(zip.readAsText('overrides/mods/mine.jar')).toBe('mine');
         expect(zip.readAsText('overrides/config/a.toml')).toBe('a=1');
+        expect(zip.readAsText('overrides/config/xaero/map.txt')).toBe('map');
+        expect(zip.readAsText('overrides/shaderpacks/Mine.zip')).toBe('shader');
+        expect(zip.readAsText('overrides/shaderpacks/Mine.zip.txt')).toBe('shadow=on');
+        expect(zip.readAsText('overrides/options.txt')).toBe('fov:90');
+        expect(zip.getEntry('overrides/mods/fabric-api-0.100.0.jar.disabled')).toBeNull();
     });
 
     it('lists Modrinth resource packs and shaders under their folders', async () => {
@@ -303,25 +488,24 @@ describe('exportMrpack', () => {
             kind: 'resourcepack',
         });
 
-        const index = mrpack.readIndex(window.tmods.zip.read(mrpack.exportMrpack(gameDir, target, { name: 'P' }).data));
+        const index = mrpack.readIndex(window.tmods.zip.read(exported(gameDir).data));
 
         expect(index.files.map(file => file.path)).toEqual(['resourcepacks/faithful-1.0.zip']);
     });
 
-    it('can leave the config folder out', () => {
+    it('exports packs and settings without a mod loader, but not mods', () => {
         const gameDir = path.join(home, 'game');
-        fs.mkdirSync(path.join(gameDir, 'config'), { recursive: true });
-        fs.writeFileSync(path.join(gameDir, 'config', 'a.toml'), 'a=1');
+        fs.mkdirSync(path.join(gameDir, 'mods'), { recursive: true });
+        fs.writeFileSync(path.join(gameDir, 'mods', 'mine.jar'), 'mine');
+        fs.writeFileSync(path.join(gameDir, 'options.txt'), 'fov:90');
+        const vanilla = { gameVersion: '1.21.1' };
 
-        const zip = new AdmZip(
-            Buffer.from(mrpack.exportMrpack(gameDir, target, { name: 'x', includeConfig: false }).data),
+        const index = mrpack.readIndex(
+            window.tmods.zip.read(exported(gameDir, ['options.txt'], { target: vanilla }).data),
         );
-
-        expect(zip.getEntry('overrides/config/a.toml')).toBeNull();
-    });
-
-    it('needs a loader version', () => {
-        expect(() => mrpack.exportMrpack(home, null, { name: 'x' })).toThrow('loader version');
+        expect(index.dependencies).toEqual({ minecraft: '1.21.1' });
+        expect(() => exported(gameDir, ['mods/mine.jar'], { target: vanilla })).toThrow('loader version');
+        expect(() => exported(gameDir, ['options.txt'], { target: null })).toThrow('which Minecraft version');
     });
 
     it('round-trips: an exported pack imports into a new profile', async () => {
@@ -329,28 +513,56 @@ describe('exportMrpack', () => {
         installVersion(target.versionId, '1.21.1');
         const gameDir = path.join(home, 'game');
         await mods.installMod(gameDir, target, 'sodium', 'Sodium');
+        fs.mkdirSync(path.join(gameDir, 'schematics'));
+        fs.writeFileSync(path.join(gameDir, 'schematics', 'house.litematic'), 'house');
 
-        const { data } = mrpack.exportMrpack(gameDir, target, { name: 'Round trip' });
+        const { data } = exported(gameDir, [
+            'mods/sodium-0.6.0.jar',
+            'mods/fabric-api-0.100.0.jar',
+            'schematics/house.litematic',
+        ]);
         const { profile } = await mrpack.importMrpack(data);
 
         expect(profile.gameVersion).toBe(target.versionId);
         expect(profileFiles(profile, 'mods')).toEqual(['fabric-api-0.100.0.jar', 'sodium-0.6.0.jar']);
+        expect(profileFiles(profile, 'schematics')).toEqual(['house.litematic']);
     });
 });
 
-describe('installModrinthModpack', () => {
-    it('downloads the newest modpack file and imports it', async () => {
+describe('downloading packs', () => {
+    it('downloads the newest modpack file from Modrinth', async () => {
         const packData = buildPack();
         const packVersion = makeVersion('friends-pack', '2.0', { content: packData });
-        packVersion.files[0].filename = 'friends-2.0.mrpack';
-        serveModrinth(axios, {
-            'fabric-api': { title: 'Fabric API', versions: [fabricApi] },
-            sodium: { title: 'Sodium', versions: [sodium] },
-            'friends-pack': { title: 'Friends Pack', versions: [packVersion] },
-        });
+        serveModrinth(axios, { 'friends-pack': { title: 'Friends Pack', versions: [packVersion] } });
 
-        const { profile } = await mrpack.installModrinthModpack('friends-pack', 'Friends Pack');
+        const data = await mrpack.downloadModrinthModpack('friends-pack', 'Friends Pack');
 
-        expect(profileFiles(profile, 'mods')).toEqual(['fabric-api-0.100.0.jar', 'sodium-0.6.0.jar']);
+        expect(Buffer.compare(Buffer.from(data), packData)).toBe(0);
+    });
+
+    it("downloads a pack from the channel and checks the manifest's checksum", async () => {
+        const packData = buildPack();
+        const url = 'https://github.com/a/b/releases/download/x/packs-1.0.0.mrpack';
+        serveModrinth(axios, {}, { [url]: packData });
+        const sha256 = require('crypto').createHash('sha256').update(packData).digest('hex');
+
+        const data = await mrpack.downloadPublishedPack({ id: '1.0.0', url, sha256 });
+        expect(Buffer.compare(Buffer.from(data), packData)).toBe(0);
+        await expect(mrpack.downloadPublishedPack({ id: '1.0.0', url, sha256: 'f'.repeat(64) })).rejects.toThrow(
+            'corrupt',
+        );
+    });
+});
+
+describe('profileTarget', () => {
+    it('reads the profile version, or the one picked for the default profile', () => {
+        installVersion('fabric-loader-0.16.5-1.21.1', '1.21.1');
+        const profile = profiles.createProfile({ name: 'P', gameVersion: 'fabric-loader-0.16.5-1.21.1' });
+        expect(mrpack.profileTarget(profile)).toMatchObject({ gameVersion: '1.21.1', target: { loader: 'fabric' } });
+
+        const fallback = profiles.listProfiles().find(item => item.id === profiles.DEFAULT_PROFILE_ID);
+        expect(mrpack.profileTarget(fallback)).toEqual({ versionId: '', target: null, gameVersion: '' });
+        mods.setTargetVersion(profiles.profileGameDir(fallback), '1.20.1');
+        expect(mrpack.profileTarget(fallback)).toEqual({ versionId: '1.20.1', target: null, gameVersion: '1.20.1' });
     });
 });

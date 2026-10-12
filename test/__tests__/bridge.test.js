@@ -71,11 +71,26 @@ describe('createBridge', () => {
     ])('refuses %s', (label, target) => {
         fs.writeFileSync(path.join(home, 'secret.txt'), 'secret');
 
-        for (const method of ['fs.exists', 'fs.readFile', 'fs.readdir', 'fs.rm']) {
+        for (const method of ['fs.exists', 'fs.readFile', 'fs.readdir', 'fs.rm', 'fs.stat', 'fs.walk']) {
             expect(call(method, target())).toEqual({ error: expect.any(String) });
         }
         expect(call('fs.writeFile', target(), 'x')).toEqual({ error: expect.any(String) });
         expect(fs.readFileSync(path.join(home, 'secret.txt'), 'utf-8')).toBe('secret');
+    });
+
+    it('gives sizes and lists every file under a folder, without following links', () => {
+        fs.mkdirSync(inGame('config', 'xaero'), { recursive: true });
+        fs.writeFileSync(inGame('config', 'a.json'), '{}');
+        fs.writeFileSync(inGame('config', 'xaero', 'map.txt'), 'hello');
+        fs.writeFileSync(path.join(home, 'secret.txt'), 'secret');
+        fs.symlinkSync(path.join(home, 'secret.txt'), inGame('config', 'link.txt'));
+
+        expect(call('fs.stat', inGame('config', 'xaero', 'map.txt')).value).toEqual({ size: 5, isDirectory: false });
+        expect(call('fs.stat', inGame('config')).value).toEqual({ size: expect.any(Number), isDirectory: true });
+        expect(call('fs.walk', inGame('config')).value.sort((a, b) => a.name.localeCompare(b.name))).toEqual([
+            { name: 'a.json', size: 2 },
+            { name: 'xaero/map.txt', size: 5 },
+        ]);
     });
 
     it('refuses to copy or move files out of the Minecraft folder', () => {
