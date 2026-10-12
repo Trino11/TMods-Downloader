@@ -8,9 +8,12 @@ beforeEach(() => {
     }
 });
 
-// Electron's page has TextDecoder; jsdom doesn't.
+// Electron's page has TextDecoder and TextEncoder (React Router needs it); jsdom doesn't.
 if (typeof global.TextDecoder === 'undefined') {
     global.TextDecoder = require('util').TextDecoder;
+}
+if (typeof global.TextEncoder === 'undefined') {
+    global.TextEncoder = require('util').TextEncoder;
 }
 
 // adm-zip spots buffers with `instanceof Uint8Array`, which fails under jsdom because

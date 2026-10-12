@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import Home from '../pages/home/home';
 import { checkChannels, installChannelUpdates } from '../../services/channelUpdates';
 import { installBundle } from '../../services/bundleInstaller';
