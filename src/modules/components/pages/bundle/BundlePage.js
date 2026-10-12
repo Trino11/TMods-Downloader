@@ -6,10 +6,12 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import Downloadspinner from '../../utils/Downloadspinner';
 import Page from '../../utils/Page';
 import { ItemList } from '../../utils/ItemList';
+import { KeepVersionButton } from '../../utils/KeepVersion';
 import VersionItem from './VersionItem';
 import BackupList from './BackupList';
 import { fetchVersions } from '../../../services/manifest';
 import { installBundle, listBackups, readInstalledVersion, restoreBackup } from '../../../services/bundleInstaller';
+import { isPinned, setPinned } from '../../../services/pins';
 import { formatDateTime, useTranslation } from '../../../i18n';
 
 // `gameDir` is the active profile's game folder; App remounts the page when it changes.
@@ -17,6 +19,7 @@ function BundlePage({ category, gameDir }) {
     const { t } = useTranslation();
     const [versions, setVersions] = useState([]);
     const [installed, setInstalled] = useState(() => readInstalledVersion(category, gameDir));
+    const [pinned, setPinnedState] = useState(() => isPinned(gameDir, category.id));
     const [backups, setBackups] = useState(() => listBackups(category, gameDir));
     const [downloading, setDownloading] = useState(false);
     const [error, setError] = useState('');
@@ -46,6 +49,11 @@ function BundlePage({ category, gameDir }) {
         }
     }
 
+    function handleKeepChange(keep) {
+        setPinned(gameDir, category.id, keep);
+        setPinnedState(keep);
+    }
+
     function handleRestore(backup) {
         const vars = {
             content: category.label.toLowerCase(),
@@ -71,7 +79,7 @@ function BundlePage({ category, gameDir }) {
 
     return (
         <Page title={category.label} description={category.description}>
-            <Box>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
                 <Button
                     variant='contained'
                     startIcon={downloading ? <Downloadspinner /> : <RefreshIcon />}
@@ -79,6 +87,7 @@ function BundlePage({ category, gameDir }) {
                 >
                     {t('bundle.refresh')}
                 </Button>
+                {installed && <KeepVersionButton pinned={pinned} disabled={downloading} onChange={handleKeepChange} />}
             </Box>
             {error && <Alert severity='error'>{error}</Alert>}
             {versions.length > 0 && (

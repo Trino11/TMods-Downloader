@@ -10,6 +10,7 @@ import { detectTarget, gameVersionOf } from '../../services/gameTarget';
 import { checkUpdates, readModList, setTargetVersion, updateChangelog, updateMod } from '../../services/modrinthMods';
 import { fetchPackUpdates } from '../../services/manifest';
 import { downloadPublishedPack, importMrpack, packWarnings, readInstalledPack, readPack } from '../../services/mrpack';
+import { isPinned, setPinned } from '../../services/pins';
 
 jest.mock('axios', () => ({ get: jest.fn() }));
 jest.mock('../../services/channelUpdates', () => ({ checkChannels: jest.fn(), installChannelUpdates: jest.fn() }));
@@ -22,6 +23,7 @@ jest.mock('../../services/profiles', () => ({
     updateProfile: jest.fn(),
     listGameVersions: jest.fn(),
     listProfiles: jest.fn(),
+    profileGameDir: profile => `/games/${profile.id}`,
 }));
 jest.mock('../../services/manifest', () => ({
     ...jest.requireActual('../../services/manifest'),
@@ -35,6 +37,7 @@ jest.mock('../../services/mrpack', () => ({
     readInstalledPack: jest.fn(),
     readPack: jest.fn(),
 }));
+jest.mock('../../services/pins', () => ({ PACKS: 'packs', isPinned: jest.fn(), setPinned: jest.fn() }));
 jest.mock('../../services/gameVersions', () => ({
     ...jest.requireActual('../../services/gameVersions'),
     fetchMojangVersions: jest.fn(),
@@ -55,12 +58,15 @@ jest.mock('../../services/modrinthMods', () => ({
 
 const mods = { id: 'mods', label: 'Mods' };
 // What fetchPackUpdates says when the latest pack is `latest` and the profile has `installed`.
-function packUpdates(latest, installed = null, changes = []) {
+function packUpdates(latest, installed = null, changes = [], pinned = false) {
+    const newer = Boolean(installed && latest && latest.id !== installed);
     return {
         packs: latest ? [latest] : [],
         latest,
         installed,
-        outdated: Boolean(installed && latest && latest.id !== installed),
+        pinned: Boolean(installed && pinned),
+        newer,
+        outdated: newer && !pinned,
         changes,
     };
 }
@@ -75,6 +81,7 @@ let onProfilesChange;
 
 beforeEach(() => {
     localStorage.clear();
+    isPinned.mockReturnValue(false);
     listGameVersions.mockReturnValue(['latest-release', 'latest-snapshot']);
     onSelectProfile = jest.fn();
     onProfilesChange = jest.fn();
@@ -211,6 +218,26 @@ it('sets Fabric as the Modrinth target of the default profile', async () => {
     expect(updateProfile).not.toHaveBeenCalled();
 });
 
+it('leaves out the channels the profile keeps until updates are allowed again', async () => {
+    checkChannels.mockResolvedValue([
+        {
+            category: { ...mods, icon: () => null },
+            installed: '1.0',
+            latest: { id: '1.2' },
+            pinned: true,
+            outdated: false,
+            changes: [],
+        },
+    ]);
+    renderHome();
+
+    expect(await screen.findByText('Keeping 1.0 (1.2 is out)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Install all' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Allow updates' }));
+    await waitFor(() => expect(setPinned).toHaveBeenCalledWith('/games/fabric', 'mods', false));
+    await waitFor(() => expect(checkChannels).toHaveBeenCalledTimes(2));
+});
+
 it('shows the changelogs of channel and Modrinth updates', async () => {
     checkChannels.mockResolvedValue([
         {
@@ -269,7 +296,7 @@ it('says when the active profile has the latest pack', async () => {
 
     expect(await screen.findByText('Installed 1.0.0 in Fabric')).toBeInTheDocument();
     expect(readInstalledPack).toHaveBeenCalledWith('/games/fabric');
-    expect(fetchPackUpdates).toHaveBeenCalledWith('1.0.0');
+    expect(fetchPackUpdates).toHaveBeenCalledWith('1.0.0', false);
     expect(screen.getAllByText('Up to date').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled();
 });
@@ -292,6 +319,25 @@ it('offers the pack update with what it brings', async () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Update' }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     expect(downloadPublishedPack).toHaveBeenCalledWith(newer);
+});
+
+it("doesn't offer a newer pack while the profile keeps its version, until updates are allowed", async () => {
+    const newer = { ...latestPack, id: '1.1.0' };
+    readInstalledPack.mockReturnValue('1.0.0');
+    isPinned.mockReturnValue(true);
+    fetchPackUpdates.mockResolvedValue(packUpdates(newer, '1.0.0', [], true));
+    renderHome();
+
+    expect(await screen.findByText('Keeping 1.0.0 (1.1.0 is out) in Fabric')).toBeInTheDocument();
+    expect(isPinned).toHaveBeenCalledWith('/games/fabric', 'packs');
+    expect(fetchPackUpdates).toHaveBeenCalledWith('1.0.0', true);
+    expect(screen.getByText('Version kept')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Update' })).not.toBeInTheDocument();
+
+    fetchPackUpdates.mockResolvedValue(packUpdates(newer, '1.0.0'));
+    fireEvent.click(screen.getByRole('button', { name: 'Allow updates' }));
+    expect(setPinned).toHaveBeenCalledWith('/games/fabric', 'packs', false);
+    expect(await screen.findByRole('button', { name: 'Update' })).toBeInTheDocument();
 });
 
 it('says so when the channel has no packs', async () => {
@@ -329,6 +375,7 @@ it('downloads the latest pack and imports it into the active profile', async () 
         name: undefined,
         items: ['mods/sodium.jar'],
         channelVersion: '1.0.0',
+        keepVersion: false,
     });
     expect(onProfilesChange).toHaveBeenCalled();
     expect(fetchPackUpdates).toHaveBeenCalledTimes(2);

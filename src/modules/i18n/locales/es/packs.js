@@ -76,6 +76,7 @@ const packs = {
         importedAt: 'Importado el {date}',
     },
     importer: {
+        keepVersion: 'Mantener el pack {version}: no ofrecer packs más nuevos como actualización',
         created: 'Se creó el perfil "{profile}". Cámbiate a él con el selector de perfiles.',
         replaced: ' Se reemplazaron otras versiones de {mods}.',
         imported:

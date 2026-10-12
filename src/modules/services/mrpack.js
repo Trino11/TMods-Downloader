@@ -27,6 +27,7 @@ import {
 import { PACK_KINDS, groupItems, isEnabled, itemOf } from './packKinds';
 import { activeManifest, activeManifestUrl } from './manifests';
 import { mergeStagedServers } from './servers';
+import { PACKS, setPinned } from './pins';
 import { bytesToText, crypto, fs, path, zip as zips } from './node';
 import { t } from '../i18n';
 
@@ -474,12 +475,13 @@ async function importIntoProfile(pack, files, profile) {
 // called `name` (the pack's own name by default). `items` are the ids of the items to
 // install (readPack); all of them when left out. `channelVersion` is the manifest id
 // when the pack is a version of the channel's pack, so the profile remembers it and
-// can tell when a newer one is out. Into an existing profile, what the pack
+// can tell when a newer one is out; `keepVersion` then says whether the profile keeps
+// that version instead of being offered newer ones (services/pins.js). Into an existing profile, what the pack
 // touches is backed up first (restorePackBackup undoes it) and other versions of the
 // pack's mods are removed. Returns { profile, loaderNote, needsLoader, loader,
 // gameVersion, replaced, backupId }: `loaderNote` says what the player still has to
 // install, if anything, and `needsLoader` whether the pack's loader is missing.
-export async function importMrpack(data, { into = NEW_PROFILE, name, items, channelVersion } = {}) {
+export async function importMrpack(data, { into = NEW_PROFILE, name, items, channelVersion, keepVersion } = {}) {
     const pack = readPack(data);
     const wanted = items && new Set(items);
     const files = pack.items.filter(item => !wanted || wanted.has(item.id)).flatMap(item => item.files);
@@ -496,6 +498,9 @@ export async function importMrpack(data, { into = NEW_PROFILE, name, items, chan
     if (channelVersion) {
         const manifest = activeManifest();
         writeInstalledPack(profileGameDir(result.profile), channelVersion, manifest?.url || '');
+        if (keepVersion !== undefined) {
+            setPinned(profileGameDir(result.profile), PACKS, keepVersion);
+        }
         // A new profile made from the channel's pack follows the manifest it came from.
         if (into === NEW_PROFILE && manifest) {
             setProfileManifest(result.profile.id, manifest.id);

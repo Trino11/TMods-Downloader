@@ -10,17 +10,20 @@ import Typography from '@mui/material/Typography';
 import DownloadIcon from '@mui/icons-material/Download';
 import Downloadspinner from '../../utils/Downloadspinner';
 import { ChangelogButton } from '../../utils/Changelog';
+import { KeepVersionButton } from '../../utils/KeepVersion';
 import PackImporter from '../packs/PackImporter';
 import { PackStatusChip, describePackStatus } from '../packs/PackStatus';
 import { fetchPackUpdates } from '../../../services/manifest';
 import { downloadPublishedPack, readInstalledPack } from '../../../services/mrpack';
+import { PACKS, isPinned, setPinned } from '../../../services/pins';
 import { useTranslation } from '../../../i18n';
 
 // Quick action: the newest whole pack the channel publishes, and whether the active
 // profile has it (Up to date) or an older one (Update available, with what's new).
 // Download or Update fetches it and shows the Packs page's import step, where the
 // player picks what goes in and which profile it goes into (the active one by default,
-// or a new one). Home remounts it when the active profile changes.
+// or a new one). A profile that keeps its pack version isn't offered newer ones until
+// the player allows updates again. Home remounts it when the active profile changes.
 function LatestPack({ profile, gameDir, onProfilesChange }) {
     const { t } = useTranslation();
     // undefined while loading; status.latest is null when the channel has no packs.
@@ -34,7 +37,7 @@ function LatestPack({ profile, gameDir, onProfilesChange }) {
 
     useEffect(() => {
         let live = true;
-        fetchPackUpdates(readInstalledPack(gameDir))
+        fetchPackUpdates(readInstalledPack(gameDir), isPinned(gameDir, PACKS))
             .then(result => live && setStatus(result))
             .catch(fetchError => live && setLoadError(fetchError.message));
         return () => {
@@ -63,6 +66,11 @@ function LatestPack({ profile, gameDir, onProfilesChange }) {
             setPending({ data: await downloadPublishedPack(pack), pack });
             return '';
         });
+    }
+
+    function handleKeepChange(keep) {
+        setPinned(gameDir, PACKS, keep);
+        setChecks(count => count + 1);
     }
 
     function handleImported() {
@@ -94,9 +102,12 @@ function LatestPack({ profile, gameDir, onProfilesChange }) {
                                 entries={status.changes}
                             />
                         )}
+                        {pack && status.installed && (
+                            <KeepVersionButton pinned={status.pinned} disabled={busy} onChange={handleKeepChange} />
+                        )}
                         {pack && (
                             <Button
-                                // Up to date, it can still go into another profile.
+                                // Up to date (or kept), it can still go into another profile.
                                 variant={status.installed && !status.outdated ? 'outlined' : 'contained'}
                                 startIcon={busy ? <Downloadspinner /> : <DownloadIcon />}
                                 onClick={download}
@@ -139,6 +150,7 @@ function LatestPack({ profile, gameDir, onProfilesChange }) {
                         <PackImporter
                             data={pending.data}
                             channelPack={pending.pack}
+                            channelLatest={pending.pack.id}
                             activeProfile={profile}
                             busy={busy}
                             run={run}

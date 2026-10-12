@@ -330,6 +330,12 @@ describe('importMrpack into a new profile', () => {
         expect(mrpack.readInstalledPack(profiles.profileGameDir(profile))).toBe('2.0.0');
     });
 
+    it('keeps the channel pack version when asked', async () => {
+        serve();
+        const { profile } = await mrpack.importMrpack(buildPack(), { channelVersion: '1.0.0', keepVersion: true });
+        expect(require('../pins').isPinned(profiles.profileGameDir(profile), 'packs')).toBe(true);
+    });
+
     it('makes the new profile follow the manifest the channel pack came from', async () => {
         const urls = ['https://a.example.com/m.json', 'https://b.example.com/m.json'];
         localStorage.setItem(

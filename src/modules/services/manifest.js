@@ -105,18 +105,29 @@ export async function fetchLatestVersions(categoryIds) {
 
 // The whole packs the channel publishes (its packs category) and where a profile stands
 // with them, from a single fetch of the manifest. `installedId` is the pack version the
-// profile has (null when none). Returns { packs, latest, installed, outdated, changes }:
-// `packs` newest first, `latest` the one with the highest version number (null when
-// there are none), `outdated` whether the profile has an older (or other) one than
-// `latest`, and `changes` the changelog entries to show: what updating brings, or just
-// the latest version's when the profile is up to date or has no pack yet.
-export async function fetchPackUpdates(installedId = null) {
+// profile has (null when none) and `pinned` whether the profile keeps it (services/pins.js).
+// Returns { packs, latest, installed, pinned, newer, outdated, changes }: `packs` newest
+// first, `latest` the one with the highest version number (null when there are none),
+// `newer` whether the profile has an older (or other) one than `latest`, `outdated`
+// whether that should be offered as an update (not when the profile keeps its version),
+// and `changes` the changelog entries to show: what updating brings, or just the latest
+// version's when the profile is up to date or has no pack yet.
+export async function fetchPackUpdates(installedId = null, pinned = false) {
     const manifest = await fetchCurrentManifest();
     const packs = versionsNewestFirst(manifest, 'packs');
     const latest = packs[0] || null;
-    const outdated = Boolean(installedId && latest && latest.id !== installedId);
-    const changes = outdated ? versionsSince(manifest, 'packs', installedId, latest) : latest ? [latest] : [];
-    return { packs, latest, installed: installedId, outdated, changes: changelogEntries(changes) };
+    const newer = Boolean(installedId && latest && latest.id !== installedId);
+    const kept = Boolean(installedId && pinned);
+    const changes = newer ? versionsSince(manifest, 'packs', installedId, latest) : latest ? [latest] : [];
+    return {
+        packs,
+        latest,
+        installed: installedId,
+        pinned: kept,
+        newer,
+        outdated: newer && !kept,
+        changes: changelogEntries(changes),
+    };
 }
 
 // The text a manifest version carries in its optional `changelog` field, or ''.
