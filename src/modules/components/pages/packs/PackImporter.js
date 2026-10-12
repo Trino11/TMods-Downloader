@@ -13,8 +13,9 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import PackPicker from './PackPicker';
+import ReplaceContentDialog from '../../utils/ReplaceContent';
 import { LOADERS } from '../../../services/modrinth';
-import { NEW_PROFILE, importMrpack, packWarnings, readPack } from '../../../services/mrpack';
+import { NEW_PROFILE, foldersToReplace, importMrpack, packWarnings, readPack } from '../../../services/mrpack';
 import { PACKS, isPinned } from '../../../services/pins';
 import { listProfiles, profileGameDir } from '../../../services/profiles';
 import { t, useTranslation } from '../../../i18n';
@@ -56,6 +57,10 @@ function PackImporter({ data, channelPack, channelLatest, activeProfile, busy, r
     const [into, setInto] = useState(activeProfile.id);
     const [newName, setNewName] = useState(pack.name || '');
     const [warnings, setWarnings] = useState(null);
+    // Whether the import replaces what the profile's folders have (asked before importing
+    // into an existing profile), and whether that question is showing.
+    const [replace, setReplace] = useState(true);
+    const [asking, setAsking] = useState(false);
     // "Keep this version" starts on when the profile already keeps its pack, or when the
     // player picked an older pack than the newest one.
     const keepByDefault = useCallback(
@@ -82,7 +87,7 @@ function PackImporter({ data, channelPack, channelLatest, activeProfile, busy, r
     const intoNew = into === NEW_PROFILE;
     const others = profiles.filter(profile => profile.id !== activeProfile.id);
 
-    function importNow() {
+    function importNow(replaceContent = replace) {
         setWarnings(null);
         run(async () => {
             const result = await importMrpack(data, {
@@ -91,6 +96,7 @@ function PackImporter({ data, channelPack, channelLatest, activeProfile, busy, r
                 items: [...selected],
                 channelVersion: channelPack?.id,
                 keepVersion: channelPack ? keep : undefined,
+                replace: replaceContent,
             });
             onImported(result, intoNew);
             return importMessage(result, intoNew);
@@ -99,13 +105,28 @@ function PackImporter({ data, channelPack, channelLatest, activeProfile, busy, r
 
     function handleImport(event) {
         event.preventDefault();
+        if (intoNew) {
+            checkThenImport(true);
+        } else {
+            setAsking(true);
+        }
+    }
+
+    // The folders the picked items go into that replacing empties, for the question.
+    function pickedFolders() {
+        return foldersToReplace(pack.items.filter(item => selected.has(item.id)).flatMap(item => item.files));
+    }
+
+    function checkThenImport(replaceContent) {
+        setAsking(false);
+        setReplace(replaceContent);
         const target = profiles.find(profile => profile.id === into);
         const found = target ? packWarnings(pack, target) : [];
         if (found.length > 0) {
             setWarnings(found);
             return;
         }
-        importNow();
+        importNow(replaceContent);
     }
 
     return (
@@ -196,11 +217,17 @@ function PackImporter({ data, channelPack, channelLatest, activeProfile, busy, r
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setWarnings(null)}>{t('common.cancel')}</Button>
-                    <Button color='warning' onClick={importNow}>
+                    <Button color='warning' onClick={() => importNow()}>
                         {t('packs.importer.anyway')}
                     </Button>
                 </DialogActions>
             </Dialog>
+            <ReplaceContentDialog
+                open={asking}
+                folders={asking ? pickedFolders() : []}
+                onConfirm={checkThenImport}
+                onCancel={() => setAsking(false)}
+            />
         </Card>
     );
 }

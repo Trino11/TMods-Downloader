@@ -439,7 +439,16 @@ async function importIntoNewProfile(pack, files, name) {
     };
 }
 
-async function importIntoProfile(pack, files, profile) {
+// The folders of known kinds (packKinds.js) a pack's files go into, which an import that
+// replaces what's there empties first. Other folders (saves, for one) are never emptied.
+export function foldersToReplace(files) {
+    const known = new Set(PACK_KINDS.flatMap(kind => kind.folders || []));
+    return [...new Set(files.filter(file => file.path.includes('/')).map(file => file.path.split('/')[0]))].filter(
+        folder => known.has(folder),
+    );
+}
+
+async function importIntoProfile(pack, files, profile, replace) {
     const gameDir = profileGameDir(profile);
     const staged = path.join(gameDir, STATE_FOLDER, 'pack-import');
     fs.rmSync(staged, { recursive: true, force: true });
@@ -450,7 +459,14 @@ async function importIntoProfile(pack, files, profile) {
         // leaves it as it was.
         await writeFiles(staged, files);
         backupId = backUp(gameDir, files, pack.name);
-        replaced = await dropOtherVersions(gameDir, files, staged);
+        if (replace) {
+            for (const folder of foldersToReplace(files)) {
+                fs.rmSync(inGame(gameDir, folder), { recursive: true, force: true });
+            }
+            replaced = [];
+        } else {
+            replaced = await dropOtherVersions(gameDir, files, staged);
+        }
         // The pack's servers join the player's list instead of replacing it.
         mergeStagedServers(staged, gameDir);
         if (files.length > 0) {
@@ -477,11 +493,16 @@ async function importIntoProfile(pack, files, profile) {
 // when the pack is a version of the channel's pack, so the profile remembers it and
 // can tell when a newer one is out; `keepVersion` then says whether the profile keeps
 // that version instead of being offered newer ones (services/pins.js). Into an existing profile, what the pack
-// touches is backed up first (restorePackBackup undoes it) and other versions of the
-// pack's mods are removed. Returns { profile, loaderNote, needsLoader, loader,
+// touches is backed up first (restorePackBackup undoes it); with `replace` (the default)
+// the folders the pack fills (mods, config...) are then emptied, so the pack's files are
+// all that's left in them, and without it the pack is added to what's there, with other
+// versions of the pack's mods removed. Returns { profile, loaderNote, needsLoader, loader,
 // gameVersion, replaced, backupId }: `loaderNote` says what the player still has to
 // install, if anything, and `needsLoader` whether the pack's loader is missing.
-export async function importMrpack(data, { into = NEW_PROFILE, name, items, channelVersion, keepVersion } = {}) {
+export async function importMrpack(
+    data,
+    { into = NEW_PROFILE, name, items, channelVersion, keepVersion, replace = true } = {},
+) {
     const pack = readPack(data);
     const wanted = items && new Set(items);
     const files = pack.items.filter(item => !wanted || wanted.has(item.id)).flatMap(item => item.files);
@@ -493,7 +514,7 @@ export async function importMrpack(data, { into = NEW_PROFILE, name, items, chan
         if (!profile) {
             throw new Error(t('services.mrpack.profileGone'));
         }
-        result = await importIntoProfile(pack, files, profile);
+        result = await importIntoProfile(pack, files, profile, replace);
     }
     if (channelVersion) {
         const manifest = activeManifest();

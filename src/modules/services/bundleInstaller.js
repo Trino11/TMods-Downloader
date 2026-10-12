@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { managedFileNames } from './modrinthMods';
 import { crypto, fs, path, zip } from './node';
 import { defaultGameDir } from './paths';
 import { activeManifestUrl } from './manifests';
@@ -122,27 +121,13 @@ function backupFolder(category, gameDir) {
     fs.writeFileSync(path.join(target, 'backup.json'), JSON.stringify(meta), 'utf-8');
 }
 
-// Empties the category's folder so the bundle replaces it, except for mods installed
-// from Modrinth: the bundle doesn't know about them, so they stay.
-function clearFolder(category, gameDir) {
-    const folder = path.join(gameDir, category.backupFolder);
-    const keep = category.backupFolder === 'mods' ? managedFileNames(gameDir) : new Set();
-    if (keep.size === 0) {
-        fs.rmSync(folder, { recursive: true, force: true });
-        return;
-    }
-    for (const name of fs.readdirSync(folder)) {
-        if (!keep.has(name)) {
-            fs.rmSync(path.join(folder, name), { recursive: true, force: true });
-        }
-    }
-}
-
 // Downloads a version's zip and extracts it over the game folder, then records it as
 // installed. The zip is checked and unpacked into a staging folder first, so a failed
 // download or a broken zip never touches the player's files. When the manifest lists
-// a `sha256` for the version, the download must match it.
-export async function installBundle(category, version, gameDir = defaultGameDir) {
+// a `sha256` for the version, the download must match it. The category's folder is
+// backed up first; with `replace` (the default) it is then emptied, so the bundle's
+// files are all that's left in it, and without it the bundle is added to what's there.
+export async function installBundle(category, version, gameDir = defaultGameDir, { replace = true } = {}) {
     const response = await axios.get(version.url, { responseType: 'arraybuffer' });
     const data = new Uint8Array(response.data);
     if (version.sha256 && sha256(data) !== version.sha256.toLowerCase()) {
@@ -164,8 +149,8 @@ export async function installBundle(category, version, gameDir = defaultGameDir)
         if (category.backupFolder) {
             backupFolder(category, gameDir);
             pruneBackups(category, gameDir);
-            if (category.clearFolder) {
-                clearFolder(category, gameDir);
+            if (replace) {
+                fs.rmSync(path.join(gameDir, category.backupFolder), { recursive: true, force: true });
             }
         }
         // A bundle's servers join the player's list instead of replacing it.

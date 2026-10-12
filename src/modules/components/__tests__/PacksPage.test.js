@@ -31,6 +31,7 @@ jest.mock('../../services/mrpack', () => ({
     exportMrpack: jest.fn(),
     importMrpack: jest.fn(),
     listPackBackups: jest.fn(),
+    foldersToReplace: () => ['mods'],
     packWarnings: jest.fn(),
     profileTarget: jest.fn(),
     readInstalledPack: jest.fn(),
@@ -211,6 +212,9 @@ describe('Import', () => {
         expect(screen.getByLabelText('Import into')).toHaveValue('survival');
         fireEvent.click(screen.getByLabelText('Include all configs'));
         fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+        expect(await screen.findByText('This installs into mods/.')).toBeInTheDocument();
+        expect(screen.getByLabelText('Replace existing content')).toBeChecked();
+        fireEvent.click(await screen.findByRole('button', { name: 'Install' }));
 
         expect(
             await screen.findByText(/Imported into Survival. Replaced other versions of Sodium./),
@@ -219,8 +223,35 @@ describe('Import', () => {
             into: 'survival',
             name: undefined,
             items: ['mods/sodium.jar'],
+            replace: true,
         });
         expect(onProfilesChange).toHaveBeenCalled();
+    });
+
+    it('adds the pack to what the profile has when replacing is unticked', async () => {
+        show();
+        openTab('Import');
+        await chooseFile(document.getElementById('importPack'));
+        fireEvent.click(await screen.findByRole('button', { name: 'Import' }));
+        fireEvent.click(await screen.findByLabelText('Replace existing content'));
+        fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+
+        await waitFor(() =>
+            expect(importMrpack).toHaveBeenCalledWith(
+                expect.any(Uint8Array),
+                expect.objectContaining({ into: 'survival', replace: false }),
+            ),
+        );
+    });
+
+    it('imports nothing when the replace question is cancelled', async () => {
+        show();
+        openTab('Import');
+        await chooseFile(document.getElementById('importPack'));
+        fireEvent.click(await screen.findByRole('button', { name: 'Import' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
+
+        expect(importMrpack).not.toHaveBeenCalled();
     });
 
     it('can import into a new profile instead', async () => {
@@ -250,11 +281,11 @@ describe('Import', () => {
         openTab('Import');
         await chooseFile(document.getElementById('importPack'));
         fireEvent.click(await screen.findByRole('button', { name: 'Import' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Install' }));
 
-        const dialog = await screen.findByRole('dialog');
-        expect(within(dialog).getByText('The pack needs Forge, but Survival uses Fabric.')).toBeInTheDocument();
+        expect(await screen.findByText('The pack needs Forge, but Survival uses Fabric.')).toBeInTheDocument();
         expect(importMrpack).not.toHaveBeenCalled();
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Import anyway' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Import anyway' }));
         await waitFor(() => expect(importMrpack).toHaveBeenCalled());
     });
 
@@ -273,6 +304,7 @@ describe('Import', () => {
         expect(readPack).toHaveBeenCalledWith(new Uint8Array([9]));
 
         fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Install' }));
         await waitFor(() =>
             expect(importMrpack).toHaveBeenCalledWith(
                 new Uint8Array([9]),
@@ -343,6 +375,7 @@ describe('Import', () => {
         const keep = await screen.findByLabelText("Keep pack 1.0.0: don't offer newer packs as updates");
         expect(keep).toBeChecked();
         fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Install' }));
         await waitFor(() =>
             expect(importMrpack).toHaveBeenCalledWith(
                 new Uint8Array([9]),

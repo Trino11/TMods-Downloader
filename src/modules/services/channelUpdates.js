@@ -30,12 +30,13 @@ export async function checkChannels(categories, gameDir) {
 }
 
 // Installs the latest version of every outdated channel, one after the other, so a
-// failure in one doesn't stop the rest. Returns [{ category, error }] for the failures.
-export async function installChannelUpdates(statuses, gameDir) {
+// failure in one doesn't stop the rest. `replace` says whether each replaces its
+// folder's contents or adds to them (installBundle). Returns [{ category, error }] for the failures.
+export async function installChannelUpdates(statuses, gameDir, { replace = true } = {}) {
     const failures = [];
     for (const status of statuses.filter(s => s.outdated)) {
         try {
-            await installBundle(status.category, status.latest, gameDir);
+            await installBundle(status.category, status.latest, gameDir, { replace });
         } catch (error) {
             failures.push({ category: status.category, error });
         }
