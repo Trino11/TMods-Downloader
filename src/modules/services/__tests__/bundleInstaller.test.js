@@ -1,6 +1,8 @@
 import axios from 'axios';
 import categories from '../../categories';
 import { installBridge, removeBridge } from '../__fixtures__/bridge';
+import { serversDat } from '../__fixtures__/serversDat';
+import { parseServers } from '../serversDat';
 
 jest.mock('axios', () => ({ get: jest.fn() }));
 
@@ -100,6 +102,16 @@ describe('installBundle', () => {
         expect(readBackup(id, 'old.file')).toBe('old');
         expect(exists(`${folder}/old.file`)).toBe(false);
         expect(read(`${folder}/new.file`)).toBe('new');
+    });
+
+    it("adds the bundle's servers to the player's list instead of replacing it", async () => {
+        write('servers.dat', serversDat([{ name: 'Mine', ip: 'mine.example.com' }]));
+        serveZip({ 'servers.dat': serversDat([{ name: 'Bundle', ip: 'bundle.example.com' }]) });
+
+        await installBundle(category('configs'), version);
+
+        const list = parseServers(fs.readFileSync(path.join(minecraftDir, 'servers.dat')));
+        expect(list.map(server => server.name)).toEqual(['Bundle', 'Mine']);
     });
 
     it('backs up config without wiping it', async () => {

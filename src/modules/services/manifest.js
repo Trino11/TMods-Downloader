@@ -61,6 +61,11 @@ export async function validateManifestUrl(url) {
     }
 }
 
+// The channel's whole manifest.
+export function fetchCurrentManifest() {
+    return fetchManifest(getManifestUrl());
+}
+
 export async function fetchVersions(categoryId) {
     const manifest = await fetchManifest(getManifestUrl());
     return versionsNewestFirst(manifest, categoryId);

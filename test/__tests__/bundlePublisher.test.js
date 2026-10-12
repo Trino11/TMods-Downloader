@@ -213,6 +213,50 @@ describe('publishing a version', () => {
         ]);
     });
 
+    it("replaces the channel's server list, alone or with versions", async () => {
+        const { publisher, calls } = await ready();
+        const servers = [
+            { name: ' Lobby ', address: 'lobby.example.com', resourcePack: 'enabled' },
+            { address: 'mine.example.com:25570' },
+        ];
+
+        await publisher.publish({ repo: REPO, servers });
+
+        const body = key => calls.filter(call => call.key === key).map(call => call.body);
+        const [blob] = body(`POST /repos/${REPO}/git/blobs`);
+        expect(JSON.parse(Buffer.from(blob.content, 'base64').toString())).toEqual({
+            servers: [
+                { name: 'Lobby', address: 'lobby.example.com', resourcePack: 'enabled' },
+                { name: 'mine.example.com:25570', address: 'mine.example.com:25570' },
+            ],
+        });
+        expect(body(`POST /repos/${REPO}/git/trees`)[0].tree).toEqual([
+            { path: 'bundles/servers.json', mode: '100644', type: 'blob', sha: 'blob1' },
+        ]);
+        expect(body(`POST /repos/${REPO}/git/commits`)[0].message).toBe('Update the server list');
+
+        calls.length = 0;
+        await publisher.publish({ ...request, servers });
+        expect(body(`POST /repos/${REPO}/git/trees`)[0].tree.map(entry => entry.path)).toEqual([
+            'bundles/mods/1.1.0/pack.mrpack',
+            'bundles/mods/1.1.0/bundle.json',
+            'bundles/servers.json',
+        ]);
+        expect(body(`POST /repos/${REPO}/git/commits`)[0].message).toBe('Add mods 1.1.0, the server list');
+    });
+
+    it.each([
+        ['not a list', { servers: 'x' }, 'must be a list'],
+        ['a bad address', { servers: [{ name: 'a', address: 'a b' }] }, 'server address "a b"'],
+        ['a repeat', { servers: [{ address: 'a.com' }, { address: 'A.com:25565' }] }, 'A.com:25565 twice'],
+        ['an unknown choice', { servers: [{ address: 'a.com', resourcePack: 'maybe' }] }, 'Unknown resource pack'],
+        ['nothing at all', {}, 'nothing to publish'],
+    ])('refuses a server list with %s before writing anything', async (what, extra, message) => {
+        const { publisher, calls } = await ready();
+        await expect(publisher.publish({ repo: REPO, ...extra })).rejects.toThrow(message);
+        expect(calls.some(call => call.key.startsWith('POST'))).toBe(false);
+    });
+
     it('writes nothing when one of several versions already exists', async () => {
         const { publisher, calls } = await ready(
             publishRoutes({ [`GET /repos/${REPO}/contents/bundles/packs/2.0.0?ref=main`]: [] }),

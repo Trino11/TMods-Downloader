@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { makeVersion, required, serveModrinth } from '../__fixtures__/modrinthFake';
 import { installBridge, removeBridge } from '../__fixtures__/bridge';
+import { serversDat } from '../__fixtures__/serversDat';
+import { parseServers } from '../serversDat';
 
 jest.mock('axios', () => ({ get: jest.fn(), post: jest.fn() }));
 
@@ -368,6 +370,21 @@ describe('importMrpack into an existing profile', () => {
             { id: result.backupId, createdAt: expect.any(String), pack: 'Friends Pack' },
         ]);
         expect(profiles.listProfiles()).toHaveLength(2);
+    });
+
+    it("adds the pack's servers to the player's list instead of replacing it", async () => {
+        fs.writeFileSync(path.join(gameDir, 'servers.dat'), serversDat([{ name: 'Mine', ip: 'mine.example.com' }]));
+        const pack = buildPack({
+            index: { files: [] },
+            files: { 'overrides/servers.dat': serversDat([{ name: 'Pack', ip: 'pack.example.com' }]) },
+        });
+
+        const { backupId } = await mrpack.importMrpack(pack, { into: profile.id });
+
+        const names = () => parseServers(fs.readFileSync(path.join(gameDir, 'servers.dat'))).map(s => s.name);
+        expect(names()).toEqual(['Pack', 'Mine']);
+        mrpack.restorePackBackup(gameDir, backupId);
+        expect(names()).toEqual(['Mine']);
     });
 
     it('can be undone from its backup', async () => {

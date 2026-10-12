@@ -1,0 +1,6 @@
+{
+  "servers": [
+    { "name": "TMods Lobby", "address": "lobby.example.com", "resourcePack": "enabled" },
+    { "address": "survival.example.com:25570" }
+  ]
+}

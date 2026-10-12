@@ -6,6 +6,7 @@
 //   <source>/<category>/<version id>/bundle.json     optional: text, Modrinth versions, links
 //   <source>/<category>/<version id>/CHANGELOG.md    optional: the changelog, as text
 //   <source>/packs/<version id>/<name>.mrpack        a whole pack, published as the .mrpack
+//   <source>/servers.json                            optional: servers for players' Multiplayer list
 //
 // (sources.js reads a version folder) and writes the manifest plus the zips (and packs)
 // that need uploading into <out>. A version whose inputs match the previous manifest's `source`
@@ -55,6 +56,56 @@ function assetName(category, id) {
 // Newest first, comparing the numbers in ids as numbers (1.10.0 comes before 1.9.0).
 function compareIdsDescending(a, b) {
     return b.localeCompare(a, 'en', { numeric: true, sensitivity: 'base' });
+}
+
+// The file listing the servers TMods puts in every profile's Multiplayer list.
+const SERVERS_FILE = 'servers.json';
+const RESOURCE_PACK_CHOICES = ['prompt', 'enabled', 'disabled'];
+
+// Reads <source>/servers.json: { "servers": [{ "name", "address", "resourcePack" }] }.
+// Returns the manifest's `servers`, or null when there is no file. Mistakes stop the
+// publish, so a typo never reaches players.
+function readServers(source) {
+    const file = path.join(source, SERVERS_FILE);
+    if (!fs.existsSync(file)) {
+        return null;
+    }
+    const data = readJson(file, 'The server list');
+    const list = Array.isArray(data) ? data : data?.servers;
+    if (!Array.isArray(list)) {
+        throw new Error(`${SERVERS_FILE} needs a "servers" list.`);
+    }
+    const seen = new Set();
+    return list.map((entry, index) => {
+        const where = `${SERVERS_FILE}, server ${index + 1}`;
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+            throw new Error(`${where} must be an object with "name" and "address".`);
+        }
+        const unknown = Object.keys(entry).filter(key => !['name', 'address', 'resourcePack'].includes(key));
+        if (unknown.length > 0) {
+            throw new Error(`${where} has unknown field(s) ${unknown.join(', ')}. Use name, address and resourcePack.`);
+        }
+        const address = typeof entry.address === 'string' ? entry.address.trim() : '';
+        if (!address || /\s/.test(address)) {
+            throw new Error(`${where} needs an "address" without spaces, like "play.example.com".`);
+        }
+        const key = address.toLowerCase().replace(/:25565$/, '');
+        if (seen.has(key)) {
+            throw new Error(`${where} repeats the address ${address}.`);
+        }
+        seen.add(key);
+        if (entry.name !== undefined && typeof entry.name !== 'string') {
+            throw new Error(`${where}: "name" must be text.`);
+        }
+        if (entry.resourcePack !== undefined && !RESOURCE_PACK_CHOICES.includes(entry.resourcePack)) {
+            throw new Error(`${where}: "resourcePack" must be ${RESOURCE_PACK_CHOICES.join(', ')}.`);
+        }
+        return {
+            name: entry.name?.trim() || address,
+            address,
+            ...(entry.resourcePack ? { resourcePack: entry.resourcePack } : {}),
+        };
+    });
 }
 
 function previousEntry(previous, category, id) {
@@ -118,7 +169,12 @@ async function buildBundles({ source, downloadBase, previous = null, remote = cr
         manifest.versions[category].push({ id, ...entry, source: key, ...metadata });
     }
 
-    if (Object.keys(manifest.versions).length === 0) {
+    // Read last, so a broken servers.json is reported even when nothing else changed.
+    const servers = readServers(source);
+    if (servers) {
+        manifest.servers = servers;
+    }
+    if (Object.keys(manifest.versions).length === 0 && !servers?.length) {
         throw new Error(`${source} has no bundles. Add folders like ${source}/mods/1.0.0/mods/<your jars>.`);
     }
     return { manifest, uploads };
@@ -133,6 +189,9 @@ function releaseNotes(manifest, uploads) {
     ];
     for (const [category, versions] of Object.entries(manifest.versions)) {
         lines.push(`| ${category} | ${versions[0].id} |`);
+    }
+    if (manifest.servers?.length) {
+        lines.push('', `Servers: ${manifest.servers.map(server => `${server.name} (${server.address})`).join(', ')}`);
     }
     lines.push('', uploads.length ? 'New or changed in this release:' : 'No bundle changed; only the manifest is new.');
     for (const upload of uploads) {
@@ -183,6 +242,9 @@ async function main(argv) {
     const manifestUrl = `${repoUrl}/releases/latest/download/manifest.json`;
     for (const [category, versions] of Object.entries(manifest.versions)) {
         console.log(`${category}: ${versions.map(v => v.id).join(', ')} (latest ${versions[0].id})`);
+    }
+    if (manifest.servers) {
+        console.log(`servers: ${manifest.servers.map(server => server.address).join(', ') || 'none'}`);
     }
     for (const upload of uploads.filter(u => u.replaced)) {
         console.log(
