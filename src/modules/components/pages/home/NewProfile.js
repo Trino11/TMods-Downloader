@@ -9,10 +9,12 @@ import Typography from '@mui/material/Typography';
 import VersionPicker from '../../profiles/VersionPicker';
 import { buildVersionOptions, fetchMojangVersions, readCachedVersions } from '../../../services/gameVersions';
 import { LATEST_RELEASE, createProfile } from '../../../services/profiles';
+import { useTranslation } from '../../../i18n';
 
 // Quick action: makes a profile and switches to it. Editing and deleting stay on the
 // Profiles page.
 function NewProfile({ onCreated }) {
+    const { t } = useTranslation();
     const [versionOptions, setVersionOptions] = useState(() => buildVersionOptions(readCachedVersions()));
     const [name, setName] = useState('');
     const [gameVersion, setGameVersion] = useState(LATEST_RELEASE);
@@ -47,16 +49,15 @@ function NewProfile({ onCreated }) {
             <CardContent>
                 <Stack component='form' spacing={2} onSubmit={handleSubmit}>
                     <Typography variant='subtitle1' component='h2'>
-                        Create a profile
+                        {t('home.newProfile.title')}
                     </Typography>
                     <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                        A new profile gets its own folder and shows up in the Minecraft Launcher. TMods switches to it
-                        right away.
+                        {t('home.newProfile.description')}
                     </Typography>
                     <TextField
                         id='newProfileName'
-                        label='Name'
-                        placeholder='Profile name'
+                        label={t('profiles.name')}
+                        placeholder={t('profiles.namePlaceholder')}
                         fullWidth
                         value={name}
                         onChange={event => setName(event.target.value)}
@@ -65,7 +66,7 @@ function NewProfile({ onCreated }) {
                     <Stack direction='row' spacing={1} sx={{ alignItems: 'flex-start' }}>
                         <VersionPicker options={versionOptions} value={gameVersion} onChange={setGameVersion} />
                         <Button type='submit' variant='contained' sx={{ flexShrink: 0, height: 40 }}>
-                            Create
+                            {t('profiles.create')}
                         </Button>
                     </Stack>
                     {error && <Alert severity='error'>{error}</Alert>}

@@ -9,6 +9,7 @@ import Downloadspinner from '../utils/Downloadspinner';
 import { bundlesRepo } from '../../services/bundlePublish';
 import { github } from '../../services/node';
 import { setBundlesRepo } from '../../services/settings';
+import { t, useTranslation } from '../../i18n';
 
 const NEW_TOKEN_URL = 'https://github.com/settings/personal-access-tokens/new';
 
@@ -16,6 +17,7 @@ const NEW_TOKEN_URL = 'https://github.com/settings/personal-access-tokens/new';
 // GitHub token it uses. The token is handed to the main process, which keeps it
 // encrypted; this page can replace or forget it but never reads it back.
 function BundlesRepoSection() {
+    useTranslation();
     const [repo, setRepo] = useState(bundlesRepo);
     const [token, setToken] = useState('');
     const [hasToken, setHasToken] = useState(false);
@@ -50,9 +52,9 @@ function BundlesRepoSection() {
             setRepo(trimmed);
             const status = await github.status(trimmed);
             if (!status.hasToken) {
-                throw new Error('Add a GitHub token to publish.');
+                throw new Error(t('settings.bundlesRepo.needToken'));
             }
-            setReady(`Ready to publish to ${status.repo}.`);
+            setReady(t('settings.bundlesRepo.ready', { repo: status.repo }));
         } catch (saveError) {
             setError(saveError.message);
         } finally {
@@ -75,21 +77,19 @@ function BundlesRepoSection() {
         <Stack component='form' spacing={2} onSubmit={handleSubmit}>
             <div>
                 <Typography variant='h6' component='h2'>
-                    Your bundles repository
+                    {t('settings.bundlesRepo.title')}
                 </Typography>
                 <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                    Publish profiles from the Modrinth page's Modpacks tab straight to your bundles repository on
-                    GitHub. Create a{' '}
+                    {t('settings.bundlesRepo.descriptionBefore')}{' '}
                     <Link href={NEW_TOKEN_URL} target='_blank' rel='noreferrer'>
-                        fine-grained token
+                        {t('settings.bundlesRepo.tokenLink')}
                     </Link>{' '}
-                    for that repository only, with Contents set to read and write. TMods keeps it encrypted on this
-                    computer.
+                    {t('settings.bundlesRepo.descriptionAfter')}
                 </Typography>
             </div>
             <TextField
                 id='bundlesRepo'
-                label='Repository'
+                label={t('settings.bundlesRepo.repository')}
                 fullWidth
                 placeholder='owner/name'
                 value={repo}
@@ -99,7 +99,7 @@ function BundlesRepoSection() {
             />
             <TextField
                 id='githubToken'
-                label={hasToken ? 'GitHub token (saved; paste a new one to replace it)' : 'GitHub token'}
+                label={hasToken ? t('settings.bundlesRepo.tokenSaved') : t('settings.bundlesRepo.token')}
                 type='password'
                 autoComplete='off'
                 fullWidth
@@ -110,11 +110,11 @@ function BundlesRepoSection() {
             />
             <Stack direction='row' spacing={1}>
                 <Button type='submit' variant='contained' disabled={checking} sx={{ minWidth: 96 }}>
-                    {checking ? <Downloadspinner /> : 'Save and check'}
+                    {checking ? <Downloadspinner /> : t('settings.bundlesRepo.save')}
                 </Button>
                 {hasToken && (
                     <Button variant='outlined' color='error' disabled={checking} onClick={handleForget}>
-                        Forget token
+                        {t('settings.bundlesRepo.forget')}
                     </Button>
                 )}
             </Stack>

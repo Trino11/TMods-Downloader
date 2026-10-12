@@ -10,17 +10,20 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { OTHER_KIND, PACK_KINDS, formatSize } from '../../../services/packKinds';
+import { t, useTranslation } from '../../../i18n';
 
 function describe(item) {
     const parts = [];
     if (item.link) {
-        parts.push('Linked from Modrinth');
+        parts.push(t('packs.picker.linked'));
     } else {
-        parts.push(item.files.length > 1 ? `Folder, ${item.files.length} files, copied` : 'Copied');
+        parts.push(
+            item.files.length > 1 ? t('packs.picker.folder', { count: item.files.length }) : t('packs.picker.copied'),
+        );
         parts.push(formatSize(item.size));
     }
     if (!item.enabled) {
-        parts.push('turned off');
+        parts.push(t('packs.picker.turnedOff'));
     }
     return parts.join(' · ');
 }
@@ -32,6 +35,7 @@ export function copiedSize(items) {
 
 // One kind's items, folded away until opened, with a box that picks or drops them all.
 function KindGroup({ kind, items, selected, onChange, disabled }) {
+    useTranslation();
     const [open, setOpen] = useState(false);
     const picked = items.filter(item => selected.has(item.id));
     const all = picked.length === items.length;
@@ -60,7 +64,10 @@ function KindGroup({ kind, items, selected, onChange, disabled }) {
 
     return (
         <Accordion disableGutters variant='outlined' expanded={open} onChange={(event, expanded) => setOpen(expanded)}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-label={`Show ${kind.label.toLowerCase()}`}>
+            <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                aria-label={t('packs.picker.show', { kind: kind.label.toLowerCase() })}
+            >
                 <Stack direction='row' spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
                     <Checkbox
                         checked={all}
@@ -68,14 +75,17 @@ function KindGroup({ kind, items, selected, onChange, disabled }) {
                         disabled={disabled}
                         onClick={event => event.stopPropagation()}
                         onChange={event => setAll(event.target.checked)}
-                        slotProps={{ input: { 'aria-label': `Include all ${kind.label.toLowerCase()}` } }}
+                        slotProps={{
+                            input: { 'aria-label': t('packs.picker.includeAll', { kind: kind.label.toLowerCase() }) },
+                        }}
                         sx={{ p: 0.5 }}
                     />
                     <Box sx={{ minWidth: 0 }}>
                         <Typography sx={{ fontWeight: 500 }}>{kind.label}</Typography>
                         <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                            {picked.length} of {items.length} picked
-                            {copiedSize(picked) > 0 && ` · ${formatSize(copiedSize(picked))} copied`}
+                            {t('packs.picker.picked', { picked: picked.length, total: items.length })}
+                            {copiedSize(picked) > 0 &&
+                                t('packs.picker.copiedSize', { size: formatSize(copiedSize(picked)) })}
                         </Typography>
                     </Box>
                 </Stack>
@@ -89,7 +99,7 @@ function KindGroup({ kind, items, selected, onChange, disabled }) {
                                 checked={selected.has(item.id)}
                                 disabled={disabled}
                                 onChange={() => toggle(item)}
-                                slotProps={{ input: { 'aria-label': `Include ${item.id}` } }}
+                                slotProps={{ input: { 'aria-label': t('packs.picker.include', { item: item.id }) } }}
                             />
                             <Box sx={{ minWidth: 0 }}>
                                 <Typography sx={{ overflowWrap: 'anywhere' }}>{item.title || item.name}</Typography>
@@ -109,11 +119,12 @@ function KindGroup({ kind, items, selected, onChange, disabled }) {
 // Lists `items` (packScan.js or readPack) grouped by kind, each with a checkbox.
 // `selected` is a Set of item ids; `onChange` gets the new Set.
 function PackPicker({ items, selected, onChange, disabled = false }) {
+    useTranslation();
     const groups = [...PACK_KINDS, OTHER_KIND]
         .map(kind => ({ kind, items: items.filter(item => item.kind === kind.id) }))
         .filter(group => group.items.length > 0);
     if (groups.length === 0) {
-        return <Typography sx={{ color: 'text.secondary' }}>There are no files to pick here.</Typography>;
+        return <Typography sx={{ color: 'text.secondary' }}>{t('packs.picker.empty')}</Typography>;
     }
     const picked = items.filter(item => selected.has(item.id));
     return (
@@ -131,8 +142,11 @@ function PackPicker({ items, selected, onChange, disabled = false }) {
                 ))}
             </div>
             <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                {picked.length} of {items.length} picked. Copied files add {formatSize(copiedSize(picked))}; files
-                linked from Modrinth add almost nothing.
+                {t('packs.picker.summary', {
+                    picked: picked.length,
+                    total: items.length,
+                    size: formatSize(copiedSize(picked)),
+                })}
             </Typography>
         </Stack>
     );

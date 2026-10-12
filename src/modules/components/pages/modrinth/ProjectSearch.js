@@ -12,17 +12,19 @@ import SearchIcon from '@mui/icons-material/Search';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import { ItemList, ItemRow } from '../../utils/ItemList';
 import { PAGE_SIZE, search } from '../../../services/modrinth';
+import { formatNumber, useTranslation } from '../../../i18n';
 
 const SEARCH_DELAY_MS = 400;
 
 function formatDownloads(count) {
-    return new Intl.NumberFormat(undefined, { notation: 'compact' }).format(count);
+    return formatNumber(count, { notation: 'compact' });
 }
 
 // Searches Modrinth as the player types and lists the results with one action button
 // each. `filters` narrows the search ({ projectType, loader, gameVersion }); `action`
 // renders the button for a result.
 function ProjectSearch({ filters, placeholder, action }) {
+    const { t } = useTranslation();
     const [query, setQuery] = useState('');
     const [results, setResults] = useState({ hits: [], total: 0 });
     const [loading, setLoading] = useState(false);
@@ -40,7 +42,7 @@ function ProjectSearch({ filters, placeholder, action }) {
             setError('');
             search({ ...JSON.parse(filterKey), query })
                 .then(data => !cancelled && setResults(data))
-                .catch(searchError => !cancelled && setError(`Could not search Modrinth: ${searchError.message}`))
+                .catch(searchError => !cancelled && setError(searchError.message))
                 .finally(() => !cancelled && setLoading(false));
         }, SEARCH_DELAY_MS);
         return () => {
@@ -59,7 +61,7 @@ function ProjectSearch({ filters, placeholder, action }) {
             }
         } catch (searchError) {
             if (id === searchId.current) {
-                setError(`Could not search Modrinth: ${searchError.message}`);
+                setError(searchError.message);
             }
         } finally {
             if (id === searchId.current) {
@@ -87,7 +89,7 @@ function ProjectSearch({ filters, placeholder, action }) {
                 }}
             />
             <Box sx={{ height: 4 }}>{loading && <LinearProgress />}</Box>
-            {error && <Alert severity='error'>{error}</Alert>}
+            {error && <Alert severity='error'>{t('modrinth.search.error', { error })}</Alert>}
             {results.hits.length > 0 && (
                 <ItemList>
                     {results.hits.map(hit => (
@@ -109,7 +111,10 @@ function ProjectSearch({ filters, placeholder, action }) {
                                 {hit.title}
                             </Typography>{' '}
                             <Typography variant='body2' component='span' sx={{ color: 'text.secondary' }}>
-                                by {hit.author} · {formatDownloads(hit.downloads)} downloads
+                                {t('modrinth.search.byline', {
+                                    author: hit.author,
+                                    downloads: formatDownloads(hit.downloads),
+                                })}
                             </Typography>
                             {/* Search gives a plain-text summary; it is never rendered as HTML. */}
                             <Typography variant='body2'>{hit.description}</Typography>
@@ -119,13 +124,13 @@ function ProjectSearch({ filters, placeholder, action }) {
             )}
             {!loading && !error && results.hits.length === 0 && (
                 <Typography align='center' sx={{ color: 'text.secondary' }}>
-                    Nothing found.
+                    {t('modrinth.search.nothing')}
                 </Typography>
             )}
             {results.hits.length < results.total && results.hits.length >= PAGE_SIZE && (
                 <Box sx={{ textAlign: 'center' }}>
                     <Button variant='outlined' disabled={loading} onClick={loadMore}>
-                        More
+                        {t('modrinth.search.more')}
                     </Button>
                 </Box>
             )}

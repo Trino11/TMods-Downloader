@@ -20,12 +20,14 @@ import {
     updateProfile,
 } from '../../../services/profiles';
 import FabricInstall from './FabricInstall';
+import { useTranslation } from '../../../i18n';
 
 const emptyForm = { id: null, name: '', gameVersion: LATEST_RELEASE };
 
 // Create, edit and delete profiles. Each one gets its own game folder and an entry
 // in the official Minecraft Launcher; `onChange` reloads the list in the app.
 function Profiles({ profiles, activeId, onSelect, onChange }) {
+    const { t } = useTranslation();
     // Starts from the last list fetched (or just the installed versions) and refreshes
     // from Mojang; when that fails the cached list keeps the picker usable offline.
     const [versionOptions, setVersionOptions] = useState(() => buildVersionOptions(readCachedVersions()));
@@ -66,14 +68,8 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
     function handleSubmit(event) {
         event.preventDefault();
         const done = form.id
-            ? run(
-                  () => updateProfile(form.id, form),
-                  'Profile saved. Restart the Minecraft Launcher if it is open to see the change.',
-              )
-            : run(
-                  () => createProfile(form),
-                  'Profile created. Restart the Minecraft Launcher if it is open to see it.',
-              );
+            ? run(() => updateProfile(form.id, form), t('profiles.saved'))
+            : run(() => createProfile(form), t('profiles.created'));
         if (done) {
             resetForm();
         }
@@ -91,39 +87,32 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
         setVersionOptions(buildVersionOptions(readCachedVersions()));
         setForm(current => ({ ...current, gameVersion: versionId }));
         setError('');
-        setNotice(`Installed ${versionId}. It's now selected for this profile.`);
+        setNotice(t('profiles.fabricSelected', { version: versionId }));
     }
 
     function handleDelete(profile) {
         const folder = profileGameDir(profile);
-        if (
-            !window.confirm(
-                `Delete the profile "${profile.name}"? It is removed from TMods and the Minecraft Launcher. Its files stay in ${folder}.`,
-            )
-        ) {
+        if (!window.confirm(t('profiles.confirmDelete', { name: profile.name, folder }))) {
             return;
         }
-        run(() => deleteProfile(profile.id), `Profile deleted. Its files are still in ${folder}.`);
+        run(() => deleteProfile(profile.id), t('profiles.deleted', { folder }));
         if (form.id === profile.id) {
             resetForm();
         }
     }
 
     return (
-        <Page
-            title='Profiles'
-            description="Each profile has its own mods, configs and packs, and shows up in the official Minecraft Launcher, where you press Play. Fabric can be installed below. For Forge or NeoForge, run the loader's installer first, then pick its version here."
-        >
+        <Page title={t('profiles.title')} description={t('profiles.description')}>
             <Card variant='outlined'>
                 <CardContent>
                     <Stack component='form' spacing={2} onSubmit={handleSubmit}>
                         <Typography variant='subtitle1' component='h2'>
-                            {form.id ? 'Edit profile' : 'New profile'}
+                            {form.id ? t('profiles.editTitle') : t('profiles.newTitle')}
                         </Typography>
                         <TextField
                             id='profileName'
-                            label='Name'
-                            placeholder='Profile name'
+                            label={t('profiles.name')}
+                            placeholder={t('profiles.namePlaceholder')}
                             fullWidth
                             value={form.name}
                             onChange={event => setForm({ ...form, name: event.target.value })}
@@ -136,19 +125,15 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
                                 onChange={gameVersion => setForm({ ...form, gameVersion })}
                             />
                             <Button type='submit' variant='contained' sx={{ flexShrink: 0, height: 40 }}>
-                                {form.id ? 'Save' : 'Create'}
+                                {form.id ? t('common.save') : t('profiles.create')}
                             </Button>
                             {form.id && (
                                 <Button type='button' onClick={resetForm} sx={{ flexShrink: 0, height: 40 }}>
-                                    Cancel
+                                    {t('common.cancel')}
                                 </Button>
                             )}
                         </Stack>
-                        {versionsOffline && (
-                            <Alert severity='info'>
-                                Could not load the full Minecraft version list, showing the versions known offline.
-                            </Alert>
-                        )}
+                        {versionsOffline && <Alert severity='info'>{t('profiles.versionsOffline')}</Alert>}
                         {error && <Alert severity='error'>{error}</Alert>}
                         {notice && <Alert severity='success'>{notice}</Alert>}
                     </Stack>
@@ -165,18 +150,18 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
                             <>
                                 {profile.id === activeId ? (
                                     <Button variant='outlined' disabled>
-                                        Active
+                                        {t('profiles.active')}
                                     </Button>
                                 ) : (
                                     <Button variant='contained' onClick={() => onSelect(profile.id)}>
-                                        Use
+                                        {t('profiles.use')}
                                     </Button>
                                 )}
                                 {profile.id !== DEFAULT_PROFILE_ID && (
                                     <>
-                                        <Button onClick={() => handleEdit(profile)}>Edit</Button>
+                                        <Button onClick={() => handleEdit(profile)}>{t('profiles.edit')}</Button>
                                         <Button color='error' onClick={() => handleDelete(profile)}>
-                                            Delete
+                                            {t('profiles.delete')}
                                         </Button>
                                     </>
                                 )}
@@ -188,7 +173,7 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
                             <Chip
                                 size='small'
                                 variant='outlined'
-                                label={profile.gameVersion || 'Your usual launcher profiles'}
+                                label={profile.gameVersion || t('profiles.launcherProfiles')}
                             />
                         </Stack>
                         <Typography

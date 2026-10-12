@@ -25,6 +25,7 @@ import {
 } from './modrinthMods';
 import { PACK_KINDS, groupItems, isEnabled } from './packKinds';
 import { bytesToText, crypto, fs, path, zip as zips } from './node';
+import { t } from '../i18n';
 
 // Pass as `into` to install a pack into a profile of its own.
 export const NEW_PROFILE = 'new';
@@ -70,11 +71,11 @@ function safeTarget(gameDir, relative) {
         /^[a-zA-Z]:/.test(normalized) ||
         parts.some(part => part === '..' || part === '')
     ) {
-        throw new Error(`The pack contains an unsafe file path: ${relative}`);
+        throw new Error(t('services.mrpack.unsafePath', { path: relative }));
     }
     const target = path.join(gameDir, ...parts);
     if (!target.startsWith(path.join(gameDir) + path.sep)) {
-        throw new Error(`The pack contains an unsafe file path: ${relative}`);
+        throw new Error(t('services.mrpack.unsafePath', { path: relative }));
     }
     return target;
 }
@@ -84,7 +85,7 @@ function packPath(relative) {
     safeTarget(path.join(path.sep, 'probe'), relative);
     const normalized = String(relative).replace(/\\/g, '/');
     if (normalized.split('/')[0].toLowerCase() === STATE_FOLDER) {
-        throw new Error(`The pack contains a file in TMods' own folder: ${relative}`);
+        throw new Error(t('services.mrpack.stateFolderPath', { path: relative }));
     }
     return normalized;
 }
@@ -104,19 +105,19 @@ function allowedUrls(file) {
 export function readIndex(entries) {
     const entry = entries.find(e => e.name === INDEX_FILE);
     if (!entry) {
-        throw new Error('This is not a Modrinth modpack (no modrinth.index.json inside).');
+        throw new Error(t('services.mrpack.noIndex'));
     }
     let index;
     try {
         index = JSON.parse(bytesToText(entry.data));
     } catch {
-        throw new Error("The modpack's modrinth.index.json is not valid JSON.");
+        throw new Error(t('services.mrpack.badIndexJson'));
     }
     if (index.formatVersion !== 1 || index.game !== 'minecraft') {
-        throw new Error("This modpack is in a format TMods doesn't know.");
+        throw new Error(t('services.mrpack.unknownFormat'));
     }
     if (!index.dependencies?.minecraft) {
-        throw new Error("The modpack doesn't say which Minecraft version it is for.");
+        throw new Error(t('services.mrpack.noGameVersion'));
     }
     return index;
 }
@@ -140,18 +141,18 @@ export function readPack(data) {
     try {
         entries = zips.read(data);
     } catch {
-        throw new Error("This file is not a modpack (it isn't a zip).");
+        throw new Error(t('services.mrpack.notZip'));
     }
     const index = readIndex(entries);
     const files = new Map();
     for (const file of (index.files || []).filter(entry => entry.env?.client !== 'unsupported')) {
         const relative = packPath(file.path);
         if (!file.hashes?.sha1) {
-            throw new Error(`The pack lists ${file.path} without a checksum.`);
+            throw new Error(t('services.mrpack.noChecksum', { path: file.path }));
         }
         const urls = allowedUrls(file);
         if (urls.length === 0) {
-            throw new Error(`The pack downloads ${file.path} from a site TMods doesn't trust.`);
+            throw new Error(t('services.mrpack.untrustedHost', { path: file.path }));
         }
         files.set(relative, { path: relative, size: file.fileSize || 0, download: { urls, hashes: file.hashes } });
     }
@@ -241,11 +242,21 @@ export function packWarnings(pack, profile) {
     const { target, gameVersion } = profileTarget(profile);
     const warnings = [];
     if (gameVersion && gameVersion !== pack.gameVersion) {
-        warnings.push(`The pack is for Minecraft ${pack.gameVersion}, but ${profile.name} plays ${gameVersion}.`);
+        warnings.push(
+            t('services.mrpack.warnings.gameVersion', {
+                packVersion: pack.gameVersion,
+                profile: profile.name,
+                gameVersion,
+            }),
+        );
     }
     if (pack.loader && target?.loader !== pack.loader.loader) {
-        const has = target ? `uses ${LOADERS[target.loader]}` : 'has no mod loader';
-        warnings.push(`The pack needs ${LOADERS[pack.loader.loader]}, but ${profile.name} ${has}.`);
+        const vars = { loader: LOADERS[pack.loader.loader], profile: profile.name };
+        warnings.push(
+            target
+                ? t('services.mrpack.warnings.otherLoader', { ...vars, profileLoader: LOADERS[target.loader] })
+                : t('services.mrpack.warnings.noLoader', vars),
+        );
     }
     return warnings;
 }
@@ -315,7 +326,7 @@ export function restorePackBackup(gameDir, id) {
     try {
         meta = JSON.parse(fs.readFileSync(path.join(dir, 'backup.json'), 'utf-8'));
     } catch {
-        throw new Error('That backup is gone.');
+        throw new Error(t('services.mrpack.backupGone'));
     }
     for (const entry of meta.entries) {
         fs.rmSync(inGame(gameDir, entry), { recursive: true, force: true });
@@ -377,10 +388,14 @@ async function importIntoNewProfile(pack, files, name) {
 
     let loaderNote = '';
     if (pack.loader && !chosen.exact) {
-        const wanted = `${LOADERS[pack.loader.loader]} ${pack.loader.loaderVersion} for Minecraft ${pack.gameVersion}`;
+        const wanted = t('services.mrpack.loaderWanted', {
+            loader: LOADERS[pack.loader.loader],
+            loaderVersion: pack.loader.loaderVersion,
+            gameVersion: pack.gameVersion,
+        });
         loaderNote = chosen.installedLoader
-            ? `The pack asks for ${wanted}; TMods used the ${LOADERS[pack.loader.loader]} version you already have installed.`
-            : `Install ${wanted}, then pick it for this profile in Profiles.`;
+            ? t('services.mrpack.loaderNote.usedInstalled', { wanted, loader: LOADERS[pack.loader.loader] })
+            : t('services.mrpack.loaderNote.install', { wanted });
     }
     return {
         profile,
@@ -439,7 +454,7 @@ export async function importMrpack(data, { into = NEW_PROFILE, name, items } = {
     }
     const profile = listProfiles().find(item => item.id === into);
     if (!profile) {
-        throw new Error("That profile doesn't exist anymore.");
+        throw new Error(t('services.mrpack.profileGone'));
     }
     return importIntoProfile(pack, files, profile);
 }
@@ -448,7 +463,7 @@ export async function importMrpack(data, { into = NEW_PROFILE, name, items } = {
 export async function downloadModrinthModpack(projectId, title) {
     const version = pickVersion(await getProjectVersions(projectId));
     if (!version) {
-        throw new Error(`${title} has no version to download.`);
+        throw new Error(t('services.mrpack.noVersionToDownload', { title }));
     }
     const file = primaryFile(version);
     return downloadVerified([file.url], file.hashes);
@@ -460,7 +475,7 @@ export async function downloadPublishedPack(version) {
     const { data } = await axios.get(version.url, { responseType: 'arraybuffer' });
     const bytes = new Uint8Array(data);
     if (version.sha256 && crypto.createHash('sha256').update(bytes).digest('hex') !== version.sha256.toLowerCase()) {
-        throw new Error(`The download of ${version.id} is corrupt (its checksum doesn't match).`);
+        throw new Error(t('services.mrpack.corruptDownload', { id: version.id }));
     }
     return bytes;
 }
@@ -471,10 +486,10 @@ export async function downloadPublishedPack(version) {
 // Returns { data, links, copies } (how many items went in each way).
 export function exportMrpack(gameDir, target, { name, version = '1.0.0', items }) {
     if (!target?.gameVersion) {
-        throw new Error("TMods doesn't know which Minecraft version this profile plays. Pick it on the Modrinth page.");
+        throw new Error(t('services.mrpack.unknownGameVersion'));
     }
     if (items.some(item => item.kind === 'mod') && !target.loaderVersion) {
-        throw new Error('Pick the loader version this profile plays with before exporting mods.');
+        throw new Error(t('services.mrpack.pickLoaderVersion'));
     }
     const links = items.filter(item => item.link);
     const copies = items.filter(item => !item.link);

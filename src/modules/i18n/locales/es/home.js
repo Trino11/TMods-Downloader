@@ -1,0 +1,60 @@
+// The Home page and its quick actions.
+const home = {
+    title: 'Inicio',
+    description: 'Acciones rápidas para el perfil activo, {name}.',
+    created: 'Se creó {name} y cambiaste a él.',
+    browseModrinth: 'Explorar Modrinth',
+    manageProfiles: 'Gestionar perfiles',
+    settings: 'Ajustes',
+    version: 'Versión {version}',
+    fabric: {
+        title: 'Instalar Fabric en {name}',
+        descriptionDefault: 'Añade Fabric al Minecraft Launcher y lo usa para los mods de Modrinth de esta carpeta.',
+        descriptionProfile: 'Añade Fabric al Minecraft Launcher y cambia este perfil a él.',
+        installedDefault: 'Se instaló {version}. Elígelo en el Minecraft Launcher para jugar con Fabric.',
+        installedProfile: 'Se instaló {version} y {name} ahora lo usa. Reinicia el Minecraft Launcher si está abierto.',
+    },
+    newProfile: {
+        title: 'Crear un perfil',
+        description:
+            'Un perfil nuevo tiene su propia carpeta y aparece en el Minecraft Launcher. TMods cambia a él enseguida.',
+    },
+    updates: {
+        title: 'Actualizaciones de {name}',
+        check: 'Buscar actualizaciones',
+        installAll: 'Instalar todo',
+        installAllCount: 'Instalar todo ({count})',
+        install: 'Instalar',
+        update: 'Actualizar',
+        nothingPublished: 'Nada publicado',
+        upToDate: 'Al día',
+        updateAvailable: 'Actualización disponible',
+        notInstalled: 'No instalado',
+        installed: 'Instalado {version}',
+        latestIs: 'La última es {version}',
+        whatsNewIn: 'Novedades de {name}',
+        whatsNewMods: 'Novedades de tus mods de Modrinth',
+        fromModrinth: 'De Modrinth',
+        checkChannelsFailed: 'No se pudieron revisar los canales: {error}',
+        checkModrinthFailed: 'No se pudo buscar actualizaciones en Modrinth: {error}',
+        installedOne: 'Se instaló {name} {version}.',
+        someFailed: 'Algunas actualizaciones fallaron. {problems}',
+        allUpToDate: 'Todo está al día.',
+        updatedMods: {
+            one: 'Se actualizó {count} elemento desde Modrinth.',
+            other: 'Se actualizaron {count} elementos desde Modrinth.',
+        },
+    },
+    latestPack: {
+        title: 'Último pack',
+        loading: 'Cargando el último pack de tu canal...',
+        loadFailed: 'No se pudieron cargar los packs de tu canal: {error}',
+        none: 'Tu canal aún no tiene packs. Publica uno desde la página Packs.',
+        whatsNew: 'Novedades del pack {id}',
+        download: 'Descargar',
+        pack: 'Pack {id}',
+        pickProfile: 'Antes de cambiar nada, eliges en qué perfil se instala.',
+    },
+};
+
+export default home;

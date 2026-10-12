@@ -8,12 +8,14 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Downloadspinner from '../../utils/Downloadspinner';
 import { installFabric, listFabricGameVersions } from '../../../services/fabric';
+import { t, useTranslation } from '../../../i18n';
 
 // Installs Fabric for a Minecraft version straight from Fabric's servers, so a
 // profile can use it without running Fabric's installer. `onInstalled` gets the new
 // launcher version id; `preferredVersion` is the Minecraft version picked at first when
 // Fabric supports it, and `notice` a success message shown under the row.
-function FabricInstall({ onInstalled, preferredVersion, title = 'Install Fabric', description, notice }) {
+function FabricInstall({ onInstalled, preferredVersion, title, description, notice }) {
+    useTranslation();
     const [versions, setVersions] = useState([]);
     const [gameVersion, setGameVersion] = useState('');
     const [busy, setBusy] = useState(false);
@@ -28,7 +30,7 @@ function FabricInstall({ onInstalled, preferredVersion, title = 'Install Fabric'
                     setGameVersion(list.includes(preferredVersion) ? preferredVersion : list[0] || '');
                 }
             })
-            .catch(() => live && setError('Could not reach Fabric to list Minecraft versions.'));
+            .catch(() => live && setError(t('profiles.fabric.listFailed')));
         return () => {
             live = false;
         };
@@ -40,7 +42,7 @@ function FabricInstall({ onInstalled, preferredVersion, title = 'Install Fabric'
         try {
             onInstalled(await installFabric(gameVersion));
         } catch (installError) {
-            setError(`Could not install Fabric: ${installError.message}`);
+            setError(t('profiles.fabric.installFailed', { error: installError.message }));
         } finally {
             setBusy(false);
         }
@@ -51,7 +53,7 @@ function FabricInstall({ onInstalled, preferredVersion, title = 'Install Fabric'
             <CardContent>
                 <Stack spacing={2}>
                     <Typography variant='subtitle1' component='h2'>
-                        {title}
+                        {title || t('profiles.fabric.title')}
                     </Typography>
                     {description && (
                         <Typography variant='body2' sx={{ color: 'text.secondary' }}>
@@ -61,7 +63,7 @@ function FabricInstall({ onInstalled, preferredVersion, title = 'Install Fabric'
                     <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
                         <TextField
                             id='fabricVersion'
-                            label='Fabric Minecraft version'
+                            label={t('profiles.fabric.versionLabel')}
                             select
                             value={gameVersion}
                             onChange={event => setGameVersion(event.target.value)}
@@ -81,7 +83,7 @@ function FabricInstall({ onInstalled, preferredVersion, title = 'Install Fabric'
                             disabled={busy || !gameVersion}
                             startIcon={busy ? <Downloadspinner /> : null}
                         >
-                            {busy ? 'Installing...' : 'Install Fabric'}
+                            {busy ? t('profiles.fabric.installing') : t('profiles.fabric.install')}
                         </Button>
                     </Stack>
                     {error && <Alert severity='error'>{error}</Alert>}

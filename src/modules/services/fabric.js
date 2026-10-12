@@ -7,6 +7,7 @@
 import axios from 'axios';
 import { minecraftDir } from './paths';
 import { fs, path } from './node';
+import { t } from '../i18n';
 
 export const META_URL = 'https://meta.fabricmc.net/v2';
 
@@ -32,15 +33,16 @@ export async function latestLoaderVersion(gameVersion) {
     const entries = await get(`/versions/loader/${encodeURIComponent(gameVersion)}`);
     const stable = entries.find(entry => entry.loader.stable);
     if (!stable) {
-        throw new Error(`Fabric has no stable loader for Minecraft ${gameVersion}.`);
+        throw new Error(t('services.fabric.noStableLoader', { gameVersion }));
     }
     return stable.loader.version;
 }
 
 // Version strings end up in a folder name, so refuse anything that could leave it.
-function checkVersion(label, version) {
+// `messageKey` is the error to show, under services.fabric.
+function checkVersion(messageKey, version) {
     if (!version || /[\\/]|\.\./.test(version)) {
-        throw new Error(`Invalid ${label} version: ${version}`);
+        throw new Error(t(`services.fabric.${messageKey}`, { version }));
     }
 }
 
@@ -48,15 +50,15 @@ function checkVersion(label, version) {
 // loader unless one is given) and returns the launcher version id to put on a profile.
 // Reinstalling the same version just rewrites the json.
 export async function installFabric(gameVersion, { loaderVersion } = {}) {
-    checkVersion('Minecraft', gameVersion);
+    checkVersion('invalidGameVersion', gameVersion);
     const loader = loaderVersion || (await latestLoaderVersion(gameVersion));
-    checkVersion('Fabric loader', loader);
+    checkVersion('invalidLoaderVersion', loader);
 
     const profile = await get(
         `/versions/loader/${encodeURIComponent(gameVersion)}/${encodeURIComponent(loader)}/profile/json`,
     );
     if (!profile || profile.inheritsFrom !== gameVersion || !Array.isArray(profile.libraries)) {
-        throw new Error(`Fabric sent an unexpected launcher profile for Minecraft ${gameVersion}.`);
+        throw new Error(t('services.fabric.unexpectedProfile', { gameVersion }));
     }
 
     const id = fabricVersionId(gameVersion, loader);

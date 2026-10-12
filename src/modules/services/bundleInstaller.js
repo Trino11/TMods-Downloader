@@ -2,6 +2,7 @@ import axios from 'axios';
 import { managedFileNames } from './modrinthMods';
 import { crypto, fs, path, zip } from './node';
 import { defaultGameDir } from './paths';
+import { t } from '../i18n';
 
 // Every function below works on a game folder passed in as `gameDir`, so the same
 // install, backup and restore logic applies to any profile folder. It defaults to
@@ -114,7 +115,7 @@ export async function installBundle(category, version, gameDir = defaultGameDir)
     const response = await axios.get(version.url, { responseType: 'arraybuffer' });
     const data = new Uint8Array(response.data);
     if (version.sha256 && sha256(data) !== version.sha256.toLowerCase()) {
-        throw new Error(`The download of ${version.id} is corrupt (its checksum doesn't match).`);
+        throw new Error(t('services.bundleInstaller.corruptDownload', { id: version.id }));
     }
 
     const staging = path.join(stateDir(category, gameDir), 'staging');
@@ -124,7 +125,7 @@ export async function installBundle(category, version, gameDir = defaultGameDir)
             zip.extract(data, staging);
         } catch (error) {
             if (/not a valid zip/i.test(error.message)) {
-                throw new Error(`The download of ${version.id} is not a valid zip.`, { cause: error });
+                throw new Error(t('services.bundleInstaller.notZip', { id: version.id }), { cause: error });
             }
             throw error;
         }
@@ -149,7 +150,7 @@ export async function installBundle(category, version, gameDir = defaultGameDir)
 export function restoreBackup(category, backupId, gameDir = defaultGameDir) {
     const backup = listBackups(category, gameDir).find(b => b.id === backupId);
     if (!backup) {
-        throw new Error(`Backup ${backupId} not found for ${category.id}`);
+        throw new Error(t('services.bundleInstaller.backupNotFound', { id: backupId, category: category.id }));
     }
     const source = path.join(backupsDir(category, gameDir), backup.id, 'files');
     const folder = path.join(gameDir, category.backupFolder);

@@ -7,15 +7,17 @@ import DownloadIcon from '@mui/icons-material/Download';
 import { ItemRow } from '../../utils/ItemList';
 import { ChangelogButton } from '../../utils/Changelog';
 import { changelogEntries } from '../../../services/manifest';
+import { useTranslation } from '../../../i18n';
 
 function VersionItem({ version, showTarget, installed, disabled, onDownload }) {
+    const { t } = useTranslation();
     const changelog = changelogEntries([version]);
     return (
         <ItemRow
             actions={
                 <>
                     {changelog.length > 0 && (
-                        <ChangelogButton title={`What's new in ${version.id}`} entries={changelog} />
+                        <ChangelogButton title={t('bundle.whatsNewIn', { version: version.id })} entries={changelog} />
                     )}
                     <Button
                         variant={installed ? 'outlined' : 'contained'}
@@ -23,7 +25,7 @@ function VersionItem({ version, showTarget, installed, disabled, onDownload }) {
                         disabled={disabled}
                         onClick={onDownload}
                     >
-                        {installed ? 'Downloaded' : 'Download'}
+                        {installed ? t('bundle.downloaded') : t('bundle.download')}
                     </Button>
                 </>
             }

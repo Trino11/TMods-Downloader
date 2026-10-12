@@ -1,28 +1,84 @@
+import { formatNumber, t } from '../i18n';
+
 // Every kind of file a pack can carry, in the order the Packs page lists them. Export
 // scans a profile for these, and import sorts a pack's files into them. Adding a kind is
 // one entry here.
+// Labels are getters so they follow the chosen language.
 //
 // `folders`: game-folder folders whose entries are this kind (each file or subfolder at
 // the top of one is an item). `paths`: single files that are this kind.
 // `ticked`: picked by default when exporting. `modrinth`: the Modrinth kind (services/
 // modrinth.js KINDS) whose files can go into a pack as download links.
 export const PACK_KINDS = [
-    { id: 'mod', label: 'Mods', folders: ['mods'], ticked: true, modrinth: 'mod' },
-    { id: 'resourcepack', label: 'Resource packs', folders: ['resourcepacks'], ticked: true, modrinth: 'resourcepack' },
-    { id: 'shader', label: 'Shaders', folders: ['shaderpacks'], ticked: true, modrinth: 'shader' },
-    { id: 'config', label: 'Configs', folders: ['config', 'defaultconfigs'], ticked: true },
-    { id: 'schematic', label: 'Schematics', folders: ['schematics'], ticked: false },
+    {
+        id: 'mod',
+        get label() {
+            return t('packs.kinds.mods');
+        },
+        folders: ['mods'],
+        ticked: true,
+        modrinth: 'mod',
+    },
+    {
+        id: 'resourcepack',
+        get label() {
+            return t('packs.kinds.resourcepacks');
+        },
+        folders: ['resourcepacks'],
+        ticked: true,
+        modrinth: 'resourcepack',
+    },
+    {
+        id: 'shader',
+        get label() {
+            return t('packs.kinds.shaders');
+        },
+        folders: ['shaderpacks'],
+        ticked: true,
+        modrinth: 'shader',
+    },
+    {
+        id: 'config',
+        get label() {
+            return t('packs.kinds.configs');
+        },
+        folders: ['config', 'defaultconfigs'],
+        ticked: true,
+    },
+    {
+        id: 'schematic',
+        get label() {
+            return t('packs.kinds.schematics');
+        },
+        folders: ['schematics'],
+        ticked: false,
+    },
     {
         id: 'settings',
-        label: 'Game settings',
+        get label() {
+            return t('packs.kinds.settings');
+        },
         paths: ['options.txt', 'optionsof.txt', 'optionsshaders.txt'],
         ticked: false,
     },
-    { id: 'servers', label: 'Server list', paths: ['servers.dat'], ticked: false },
+    {
+        id: 'servers',
+        get label() {
+            return t('packs.kinds.servers');
+        },
+        paths: ['servers.dat'],
+        ticked: false,
+    },
 ];
 
 // What a pack from elsewhere may hold beyond the kinds above. Export never adds these.
-export const OTHER_KIND = { id: 'other', label: 'Other files', ticked: true };
+export const OTHER_KIND = {
+    id: 'other',
+    get label() {
+        return t('packs.kinds.other');
+    },
+    ticked: true,
+};
 
 const DISABLED_SUFFIX = '.disabled';
 
@@ -74,11 +130,12 @@ export function groupItems(files) {
 
 // Sizes the way the Packs page shows them.
 export function formatSize(bytes) {
+    const oneDecimal = value => formatNumber(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
     if (bytes < 1024) {
-        return `${bytes} B`;
+        return t('packs.size.bytes', { size: formatNumber(bytes) });
     }
     if (bytes < 1024 * 1024) {
-        return `${(bytes / 1024).toFixed(1)} KB`;
+        return t('packs.size.kilobytes', { size: oneDecimal(bytes / 1024) });
     }
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return t('packs.size.megabytes', { size: oneDecimal(bytes / (1024 * 1024)) });
 }

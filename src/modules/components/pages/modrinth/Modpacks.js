@@ -9,6 +9,7 @@ import { Link as RouterLink } from 'react-router';
 import ProjectSearch from './ProjectSearch';
 import PackImporter from '../packs/PackImporter';
 import { downloadModrinthModpack } from '../../../services/mrpack';
+import { useTranslation } from '../../../i18n';
 
 const modpackFilters = { projectType: 'modpack' };
 
@@ -16,7 +17,10 @@ const modpackFilters = { projectType: 'modpack' };
 // Packs page, where the player picks what goes in and which profile it goes into.
 // `run` performs an action with the page's busy state and messages.
 function Modpacks({ profile, busy, run, onProfileCreated }) {
+    const { t } = useTranslation();
     const [pending, setPending] = useState(null);
+    // The link sits wherever the language puts it in the sentence.
+    const [hintBefore, hintAfter] = t('modrinth.modpacks.packsHint').split('{link}');
 
     function install(hit) {
         run(async () => {
@@ -28,18 +32,18 @@ function Modpacks({ profile, busy, run, onProfileCreated }) {
     return (
         <Stack spacing={2}>
             <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                To export, import or publish a .mrpack file, use the{' '}
+                {hintBefore}
                 <Link component={RouterLink} to='/packs'>
-                    Packs
-                </Link>{' '}
-                page.
+                    {t('modrinth.modpacks.packsLink')}
+                </Link>
+                {hintAfter}
             </Typography>
             <ProjectSearch
                 filters={modpackFilters}
-                placeholder='Search modpacks'
+                placeholder={t('modrinth.modpacks.search')}
                 action={hit => (
                     <Button variant='contained' disabled={busy} onClick={() => install(hit)}>
-                        Install
+                        {t('modrinth.install.button')}
                     </Button>
                 )}
             />

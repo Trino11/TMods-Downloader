@@ -16,6 +16,7 @@ import { VERSION } from '../../../config';
 import { detectTarget } from '../../../services/gameTarget';
 import { DEFAULT_PROFILE_ID, LATEST_RELEASE, LATEST_SNAPSHOT, updateProfile } from '../../../services/profiles';
 import { setTargetVersion } from '../../../services/modrinthMods';
+import { useTranslation } from '../../../i18n';
 
 // The Minecraft version a profile plays, so Fabric is offered for that one first.
 function minecraftVersion(profile) {
@@ -29,6 +30,7 @@ function minecraftVersion(profile) {
 // Landing page: quick actions on the active profile. `onSelectProfile` switches the
 // active profile and `onProfilesChange` reloads the list after a change.
 function Home({ profile, gameDir, onSelectProfile, onProfilesChange }) {
+    const { t } = useTranslation();
     const [created, setCreated] = useState('');
     const [fabricNotice, setFabricNotice] = useState('');
 
@@ -43,46 +45,44 @@ function Home({ profile, gameDir, onSelectProfile, onProfilesChange }) {
     function handleFabricInstalled(versionId) {
         if (profile.id === DEFAULT_PROFILE_ID) {
             setTargetVersion(gameDir, versionId);
-            setFabricNotice(`Installed ${versionId}. Pick it in the Minecraft Launcher to play with Fabric.`);
+            setFabricNotice(t('home.fabric.installedDefault', { version: versionId }));
             return;
         }
         updateProfile(profile.id, { name: profile.name, gameVersion: versionId });
         onProfilesChange();
-        setFabricNotice(
-            `Installed ${versionId} and switched ${profile.name} to it. Restart the Minecraft Launcher if it is open.`,
-        );
+        setFabricNotice(t('home.fabric.installedProfile', { version: versionId, name: profile.name }));
     }
 
     return (
-        <Page title='Home' description={`Quick actions for the active profile, ${profile.name}.`}>
-            {created && <Alert severity='success'>Created {created} and switched to it.</Alert>}
+        <Page title={t('home.title')} description={t('home.description', { name: profile.name })}>
+            {created && <Alert severity='success'>{t('home.created', { name: created })}</Alert>}
             <Stack direction='row' spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
                 <Button component={Link} to='/modrinth' variant='outlined' startIcon={<TravelExploreIcon />}>
-                    Browse Modrinth
+                    {t('home.browseModrinth')}
                 </Button>
                 <Button component={Link} to='/profiles' variant='outlined' startIcon={<BadgeIcon />}>
-                    Manage profiles
+                    {t('home.manageProfiles')}
                 </Button>
                 <Button component={Link} to='/settings' variant='outlined' startIcon={<SettingsIcon />}>
-                    Settings
+                    {t('home.settings')}
                 </Button>
             </Stack>
             <LatestPack profile={profile} onProfilesChange={onProfilesChange} />
             <ChannelUpdates key={profile.id} profile={profile} gameDir={gameDir} />
             <NewProfile onCreated={handleCreated} />
             <FabricInstall
-                title={`Install Fabric on ${profile.name}`}
+                title={t('home.fabric.title', { name: profile.name })}
                 description={
                     profile.id === DEFAULT_PROFILE_ID
-                        ? 'Adds Fabric to the Minecraft Launcher and uses it for Modrinth mods in this folder.'
-                        : 'Adds Fabric to the Minecraft Launcher and switches this profile to it.'
+                        ? t('home.fabric.descriptionDefault')
+                        : t('home.fabric.descriptionProfile')
                 }
                 preferredVersion={minecraftVersion(profile)}
                 notice={fabricNotice}
                 onInstalled={handleFabricInstalled}
             />
             <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                Version {VERSION}
+                {t('home.version', { version: VERSION })}
             </Typography>
         </Page>
     );

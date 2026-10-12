@@ -17,25 +17,36 @@ import { installBundle } from '../../../services/bundleInstaller';
 import { detectTarget, gameVersionOf } from '../../../services/gameTarget';
 import { DEFAULT_PROFILE_ID } from '../../../services/profiles';
 import { checkUpdates, readModList, updateChangelog, updateMod } from '../../../services/modrinthMods';
+import { t, useTranslation } from '../../../i18n';
 
 function StatusChip({ status }) {
     if (!status.latest) {
-        return <Chip size='small' variant='outlined' label='Nothing published' />;
+        return <Chip size='small' variant='outlined' label={t('home.updates.nothingPublished')} />;
     }
     if (!status.outdated) {
-        return <Chip size='small' color='success' variant='outlined' label='Up to date' />;
+        return <Chip size='small' color='success' variant='outlined' label={t('home.updates.upToDate')} />;
     }
-    return <Chip size='small' color='warning' label={status.installed ? 'Update available' : 'Not installed'} />;
+    return (
+        <Chip
+            size='small'
+            color='warning'
+            label={status.installed ? t('home.updates.updateAvailable') : t('home.updates.notInstalled')}
+        />
+    );
 }
 
 function describe(status) {
     if (!status.latest) {
-        return status.installed ? `Installed ${status.installed}` : 'Not installed';
+        return status.installed
+            ? t('home.updates.installed', { version: status.installed })
+            : t('home.updates.notInstalled');
     }
     if (!status.outdated) {
-        return `Installed ${status.installed}`;
+        return t('home.updates.installed', { version: status.installed });
     }
-    return status.installed ? `${status.installed} → ${status.latest.id}` : `Latest is ${status.latest.id}`;
+    return status.installed
+        ? `${status.installed} → ${status.latest.id}`
+        : t('home.updates.latestIs', { version: status.latest.id });
 }
 
 // The changelogs of every pending Modrinth update, each version labelled with its project.
@@ -55,6 +66,7 @@ async function loadModChangelogs(updates, target, gameVersion) {
 // Quick action: checks every manifest channel (and what came from Modrinth) of the active
 // profile for updates and installs the latest of each with one click.
 function ChannelUpdates({ profile, gameDir }) {
+    useTranslation();
     const [statuses, setStatuses] = useState(null);
     const [modUpdates, setModUpdates] = useState([]);
     const [checking, setChecking] = useState(false);
@@ -82,13 +94,15 @@ function ChannelUpdates({ profile, gameDir }) {
         try {
             setStatuses(await checkChannels(categories, gameDir));
         } catch (checkError) {
-            setCheckError(`Could not check the channels: ${checkError.message}`);
+            setCheckError(t('home.updates.checkChannelsFailed', { error: checkError.message }));
         }
         if ((target || gameVersion) && readModList(gameDir).mods.length > 0) {
             try {
                 setModUpdates(await checkUpdates(gameDir, target, gameVersion));
             } catch (checkError) {
-                setCheckError(current => current || `Could not check Modrinth for updates: ${checkError.message}`);
+                setCheckError(
+                    current => current || t('home.updates.checkModrinthFailed', { error: checkError.message }),
+                );
             }
         } else {
             setModUpdates([]);
@@ -118,7 +132,7 @@ function ChannelUpdates({ profile, gameDir }) {
     function installOne(status) {
         run(async () => {
             await installBundle(status.category, status.latest, gameDir);
-            return `Installed ${status.category.label} ${status.latest.id}.`;
+            return t('home.updates.installedOne', { name: status.category.label, version: status.latest.id });
         });
     }
 
@@ -138,9 +152,9 @@ function ChannelUpdates({ profile, gameDir }) {
                 ...modFailures,
             ];
             if (problems.length > 0) {
-                throw new Error(`Some updates failed. ${problems.join(' ')}`);
+                throw new Error(t('home.updates.someFailed', { problems: problems.join(' ') }));
             }
-            return 'Everything is up to date.';
+            return t('home.updates.allUpToDate');
         });
     }
 
@@ -149,7 +163,7 @@ function ChannelUpdates({ profile, gameDir }) {
             for (const { mod, version } of modUpdates) {
                 await updateMod(gameDir, mod.projectId, version);
             }
-            return `Updated ${modUpdates.length} ${modUpdates.length === 1 ? 'item' : 'items'} from Modrinth.`;
+            return t('home.updates.updatedMods', { count: modUpdates.length });
         });
     }
 
@@ -162,14 +176,14 @@ function ChannelUpdates({ profile, gameDir }) {
                 <Stack spacing={2}>
                     <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
                         <Typography variant='subtitle1' component='h2' sx={{ flexGrow: 1 }}>
-                            Updates for {profile.name}
+                            {t('home.updates.title', { name: profile.name })}
                         </Typography>
                         <Button
                             startIcon={checking ? <Downloadspinner /> : <RefreshIcon />}
                             onClick={check}
                             disabled={disabled}
                         >
-                            Check for updates
+                            {t('home.updates.check')}
                         </Button>
                         <Button
                             variant='contained'
@@ -177,7 +191,9 @@ function ChannelUpdates({ profile, gameDir }) {
                             onClick={installAll}
                             disabled={disabled || pending === 0}
                         >
-                            {pending > 0 ? `Install all (${pending})` : 'Install all'}
+                            {pending > 0
+                                ? t('home.updates.installAllCount', { count: pending })
+                                : t('home.updates.installAll')}
                         </Button>
                     </Stack>
                     {statuses && (
@@ -192,7 +208,9 @@ function ChannelUpdates({ profile, gameDir }) {
                                                 {status.changes?.length > 0 && (
                                                     <ChangelogButton
                                                         size='small'
-                                                        title={`What's new in ${status.category.label}`}
+                                                        title={t('home.updates.whatsNewIn', {
+                                                            name: status.category.label,
+                                                        })}
                                                         entries={status.changes}
                                                     />
                                                 )}
@@ -201,7 +219,7 @@ function ChannelUpdates({ profile, gameDir }) {
                                                     disabled={disabled}
                                                     onClick={() => installOne(status)}
                                                 >
-                                                    Install
+                                                    {t('home.updates.install')}
                                                 </Button>
                                             </>
                                         )
@@ -224,18 +242,20 @@ function ChannelUpdates({ profile, gameDir }) {
                                                 // A new button (and so a fresh load) for each set of updates.
                                                 key={modUpdates.map(({ version }) => version.id).join()}
                                                 size='small'
-                                                title="What's new in your Modrinth mods"
+                                                title={t('home.updates.whatsNewMods')}
                                                 load={() => loadModChangelogs(modUpdates, target, gameVersion)}
                                             />
                                             <Button size='small' disabled={disabled} onClick={updateMods}>
-                                                Update
+                                                {t('home.updates.update')}
                                             </Button>
                                         </>
                                     }
                                 >
                                     <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
-                                        <Typography sx={{ fontWeight: 500 }}>From Modrinth</Typography>
-                                        <Chip size='small' color='warning' label='Update available' />
+                                        <Typography sx={{ fontWeight: 500 }}>
+                                            {t('home.updates.fromModrinth')}
+                                        </Typography>
+                                        <Chip size='small' color='warning' label={t('home.updates.updateAvailable')} />
                                     </Stack>
                                     <Typography variant='body2' sx={{ color: 'text.secondary' }}>
                                         {modUpdates.map(({ mod }) => mod.title).join(', ')}

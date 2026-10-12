@@ -1,0 +1,34 @@
+// The Profiles page, the profile form and the Fabric installer.
+const profiles = {
+    title: 'Perfiles',
+    description:
+        'Cada perfil tiene sus propios mods, configuraciones y packs, y aparece en el Minecraft Launcher oficial, donde le das a Jugar. Puedes instalar Fabric más abajo. Para Forge o NeoForge, ejecuta primero el instalador del loader y luego elige su versión aquí.',
+    editTitle: 'Editar perfil',
+    newTitle: 'Nuevo perfil',
+    name: 'Nombre',
+    namePlaceholder: 'Nombre del perfil',
+    create: 'Crear',
+    versionsOffline:
+        'No se pudo cargar la lista completa de versiones de Minecraft; se muestran las versiones conocidas sin conexión.',
+    saved: 'Perfil guardado. Reinicia el Minecraft Launcher si está abierto para ver el cambio.',
+    created: 'Perfil creado. Reinicia el Minecraft Launcher si está abierto para verlo.',
+    fabricSelected: 'Se instaló {version}. Ya está seleccionada para este perfil.',
+    confirmDelete:
+        '¿Borrar el perfil "{name}"? Se quita de TMods y del Minecraft Launcher. Sus archivos se quedan en {folder}.',
+    deleted: 'Perfil borrado. Sus archivos siguen en {folder}.',
+    active: 'Activo',
+    use: 'Usar',
+    edit: 'Editar',
+    delete: 'Borrar',
+    launcherProfiles: 'Tus perfiles habituales del launcher',
+    fabric: {
+        title: 'Instalar Fabric',
+        versionLabel: 'Versión de Minecraft para Fabric',
+        install: 'Instalar Fabric',
+        installing: 'Instalando...',
+        listFailed: 'No se pudo conectar con Fabric para listar las versiones de Minecraft.',
+        installFailed: 'No se pudo instalar Fabric: {error}',
+    },
+};
+
+export default profiles;

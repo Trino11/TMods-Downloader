@@ -5,6 +5,7 @@
 import { LOADERS, getProjects, getProjectVersions, pickVersion, versionsFromHashes } from './modrinth';
 import { installMod, listUnmanaged, modsDir, readModList, setModEnabled, sha1, updateMod } from './modrinthMods';
 import { fs, path } from './node';
+import { t } from '../i18n';
 
 const DISABLED_SUFFIX = '.disabled';
 
@@ -27,7 +28,9 @@ function runsOnLoader(loaders, target) {
 }
 
 function formatGameVersions(versions) {
-    return versions.length <= 3 ? versions.join(', ') : `${versions[0]} to ${versions[versions.length - 1]}`;
+    return versions.length <= 3
+        ? versions.join(', ')
+        : t('services.modCompat.versionRange', { from: versions[0], to: versions[versions.length - 1] });
 }
 
 // Why a version doesn't fit `target`, or null when it does. Versions Modrinth sends
@@ -37,15 +40,22 @@ function mismatch(version, target) {
     const gameVersions = version.game_versions || [];
     const loaderOk = loaders.length === 0 || runsOnLoader(loaders, target);
     const gameOk = gameVersions.length === 0 || gameVersions.includes(target.gameVersion);
-    const madeFor = loaders.map(loaderName).join(' or ');
+    const madeFor = loaders.map(loaderName).join(t('services.modCompat.or'));
     if (!loaderOk && !gameOk) {
-        return `Made for ${madeFor} on Minecraft ${formatGameVersions(gameVersions)}, but this profile plays ${targetLabel(target)}.`;
+        return t('services.modCompat.wrongLoaderAndGame', {
+            loaders: madeFor,
+            versions: formatGameVersions(gameVersions),
+            target: targetLabel(target),
+        });
     }
     if (!loaderOk) {
-        return `Made for ${madeFor}, but this profile uses ${loaderName(target.loader)}.`;
+        return t('services.modCompat.wrongLoader', { loaders: madeFor, loader: loaderName(target.loader) });
     }
     if (!gameOk) {
-        return `Made for Minecraft ${formatGameVersions(gameVersions)}, but this profile plays ${target.gameVersion}.`;
+        return t('services.modCompat.wrongGame', {
+            versions: formatGameVersions(gameVersions),
+            gameVersion: target.gameVersion,
+        });
     }
     return null;
 }
@@ -112,8 +122,8 @@ function dependenciesOf(version, type) {
 
 function disableFix(mod) {
     return mod.tracked
-        ? { type: 'disable', label: 'Disable', projectId: mod.projectId }
-        : { type: 'disableFile', label: 'Disable', fileName: mod.fileName };
+        ? { type: 'disable', label: t('services.modCompat.fix.disable'), projectId: mod.projectId }
+        : { type: 'disableFile', label: t('services.modCompat.fix.disable'), fileName: mod.fileName };
 }
 
 // Lists what is wrong with the enabled mods for `target` ({ loader, gameVersion }).
@@ -169,12 +179,12 @@ export async function checkCompatibility(gameDir, target) {
                 if (better && better.id !== mod.version.id) {
                     fix = {
                         type: 'switchVersion',
-                        label: `Switch to ${better.version_number}`,
+                        label: t('services.modCompat.fix.switchVersion', { version: better.version_number }),
                         projectId: mod.projectId,
                         version: better,
                     };
                 } else {
-                    message += ` It has no version for ${targetLabel(target)} yet.`;
+                    message += ` ${t('services.modCompat.noVersionYet', { target: targetLabel(target) })}`;
                 }
             }
             add(mod, 'mismatch', message, fix);
@@ -189,22 +199,26 @@ export async function checkCompatibility(gameDir, target) {
                 add(
                     mod,
                     'disabled',
-                    `Needs ${dep.title}, which is disabled.`,
+                    t('services.modCompat.needsDisabled', { title: dep.title }),
                     dep.tracked
-                        ? { type: 'enable', label: `Enable ${dep.title}`, title: dep.title, projectId: dep.projectId }
+                        ? {
+                              type: 'enable',
+                              label: t('services.modCompat.fix.enable', { title: dep.title }),
+                              title: dep.title,
+                              projectId: dep.projectId,
+                          }
                         : {
                               type: 'enableFile',
-                              label: `Enable ${dep.title}`,
+                              label: t('services.modCompat.fix.enable', { title: dep.title }),
                               title: dep.title,
                               fileName: dep.fileName,
                           },
                 );
             } else if (installable.get(depId)) {
-                const handAdded =
-                    unknownJars > 0 ? ' If you added it by hand from another site, you can ignore this.' : '';
-                add(mod, 'missing', `Needs ${titleOf(depId)}, which isn't installed.${handAdded}`, {
+                const handAdded = unknownJars > 0 ? ` ${t('services.modCompat.maybeHandAdded')}` : '';
+                add(mod, 'missing', t('services.modCompat.needsMissing', { title: titleOf(depId) }) + handAdded, {
                     type: 'install',
-                    label: `Install ${titleOf(depId)}`,
+                    label: t('services.modCompat.fix.install', { title: titleOf(depId) }),
                     projectId: depId,
                     title: titleOf(depId),
                 });
@@ -212,7 +226,7 @@ export async function checkCompatibility(gameDir, target) {
                 add(
                     mod,
                     'missing',
-                    `Needs ${titleOf(depId)}, which isn't installed and has no version for ${targetLabel(target)}.`,
+                    t('services.modCompat.needsUnavailable', { title: titleOf(depId), target: targetLabel(target) }),
                     disableFix(mod),
                 );
             }
@@ -220,7 +234,12 @@ export async function checkCompatibility(gameDir, target) {
 
         for (const otherId of dependenciesOf(mod.version, 'incompatible')) {
             if (enabledIds.has(otherId) && otherId !== mod.projectId) {
-                add(mod, 'incompatible', `Doesn't work together with ${titleOf(otherId)}.`, disableFix(mod));
+                add(
+                    mod,
+                    'incompatible',
+                    t('services.modCompat.incompatible', { title: titleOf(otherId) }),
+                    disableFix(mod),
+                );
             }
         }
     }
@@ -230,7 +249,7 @@ export async function checkCompatibility(gameDir, target) {
 // Renames a hand-added jar to turn it on or off, the way TMods does for its own mods.
 function setFileEnabled(gameDir, fileName, enabled) {
     if (!fileName || fileName !== path.basename(fileName)) {
-        throw new Error(`Refusing to rename "${fileName}".`);
+        throw new Error(t('services.modCompat.refuseRename', { fileName }));
     }
     const isEnabled = !fileName.endsWith(DISABLED_SUFFIX);
     if (isEnabled === enabled) {
@@ -246,25 +265,25 @@ export async function applyFix(gameDir, target, problem) {
     switch (fix.type) {
         case 'switchVersion':
             await updateMod(gameDir, fix.projectId, fix.version);
-            return `Switched ${mod.title} to ${fix.version.version_number}.`;
+            return t('services.modCompat.done.switched', { title: mod.title, version: fix.version.version_number });
         case 'install': {
             const titles = await installMod(gameDir, target, fix.projectId, fix.title, { asDependency: true });
-            return `Installed ${titles.join(', ')}.`;
+            return t('services.modCompat.done.installed', { titles: titles.join(', ') });
         }
         case 'enable':
             setModEnabled(gameDir, fix.projectId, true);
-            return `Enabled ${fix.title}.`;
+            return t('services.modCompat.done.enabled', { title: fix.title });
         case 'enableFile':
             setFileEnabled(gameDir, fix.fileName, true);
-            return `Enabled ${fix.title}.`;
+            return t('services.modCompat.done.enabled', { title: fix.title });
         case 'disable':
             setModEnabled(gameDir, fix.projectId, false);
-            return `Disabled ${mod.title}.`;
+            return t('services.modCompat.done.disabled', { title: mod.title });
         case 'disableFile':
             setFileEnabled(gameDir, fix.fileName, false);
-            return `Disabled ${mod.title}.`;
+            return t('services.modCompat.done.disabled', { title: mod.title });
         default:
-            throw new Error(`Unknown fix "${fix.type}".`);
+            throw new Error(t('services.modCompat.unknownFix', { type: fix.type }));
     }
 }
 
@@ -287,8 +306,8 @@ export async function checkBeforeInstall(gameDir, target, projectId) {
     const warnings = conflicting.map(mod => {
         const title = mod.title || titles.get(mod.projectId) || mod.fileName;
         return clashes.has(mod.projectId)
-            ? `It says it doesn't work together with ${title}, which is installed.`
-            : `${title}, which is installed, says it doesn't work together with this mod.`;
+            ? t('services.modCompat.clashesWithInstalled', { title })
+            : t('services.modCompat.installedClashes', { title });
     });
     const reason = mismatch(version, target);
     if (reason) {

@@ -10,9 +10,11 @@ import VersionItem from './VersionItem';
 import BackupList from './BackupList';
 import { fetchVersions } from '../../../services/manifest';
 import { installBundle, listBackups, readInstalledVersion, restoreBackup } from '../../../services/bundleInstaller';
+import { formatDateTime, useTranslation } from '../../../i18n';
 
 // `gameDir` is the active profile's game folder; App remounts the page when it changes.
 function BundlePage({ category, gameDir }) {
+    const { t } = useTranslation();
     const [versions, setVersions] = useState([]);
     const [installed, setInstalled] = useState(() => readInstalledVersion(category, gameDir));
     const [backups, setBackups] = useState(() => listBackups(category, gameDir));
@@ -25,8 +27,8 @@ function BundlePage({ category, gameDir }) {
                 setVersions(list);
                 setError('');
             })
-            .catch(fetchError => setError(`Could not load the list of versions: ${fetchError.message}`));
-    }, [category.id]);
+            .catch(fetchError => setError(t('bundle.errors.loadVersions', { message: fetchError.message })));
+    }, [category.id, t]);
 
     useEffect(refresh, [refresh]);
 
@@ -37,7 +39,7 @@ function BundlePage({ category, gameDir }) {
             await installBundle(category, version, gameDir);
             setInstalled(version.id);
         } catch (installError) {
-            setError(`Could not install ${version.id}: ${installError.message}`);
+            setError(t('bundle.errors.install', { version: version.id, message: installError.message }));
         } finally {
             setBackups(listBackups(category, gameDir));
             setDownloading(false);
@@ -45,12 +47,15 @@ function BundlePage({ category, gameDir }) {
     }
 
     function handleRestore(backup) {
-        const label = backup.version ? `version ${backup.version}` : 'the backup';
-        if (
-            !window.confirm(
-                `Replace your current ${category.label.toLowerCase()} with ${label} from ${new Date(backup.createdAt).toLocaleString()}? Your current files are backed up first.`,
-            )
-        ) {
+        const vars = {
+            content: category.label.toLowerCase(),
+            version: backup.version,
+            date: formatDateTime(backup.createdAt),
+        };
+        const question = backup.version
+            ? t('bundle.restore.confirmVersion', vars)
+            : t('bundle.restore.confirmBackup', vars);
+        if (!window.confirm(question)) {
             return;
         }
         setError('');
@@ -58,7 +63,7 @@ function BundlePage({ category, gameDir }) {
             restoreBackup(category, backup.id, gameDir);
             setInstalled(readInstalledVersion(category, gameDir));
         } catch (restoreError) {
-            setError(`Could not restore the backup: ${restoreError.message}`);
+            setError(t('bundle.errors.restore', { message: restoreError.message }));
         } finally {
             setBackups(listBackups(category, gameDir));
         }
@@ -72,7 +77,7 @@ function BundlePage({ category, gameDir }) {
                     startIcon={downloading ? <Downloadspinner /> : <RefreshIcon />}
                     onClick={refresh}
                 >
-                    Refresh
+                    {t('bundle.refresh')}
                 </Button>
             </Box>
             {error && <Alert severity='error'>{error}</Alert>}
