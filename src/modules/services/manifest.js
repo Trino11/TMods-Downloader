@@ -66,13 +66,6 @@ export async function fetchVersions(categoryId) {
     return versionsNewestFirst(manifest, categoryId);
 }
 
-// The whole packs the channel publishes (its packs category), newest first. Players
-// import them into a profile from the Packs page.
-export async function fetchPacks() {
-    const manifest = await fetchManifest(getManifestUrl());
-    return versionsNewestFirst(manifest, 'packs');
-}
-
 // Newest first, comparing the numbers in ids as numbers (1.10.0 comes before 1.9.0), the
 // same order the bundles publish action lists them in. Hand-made manifests may list
 // versions in any order, so the app never trusts the order it gets.
@@ -99,11 +92,20 @@ export async function fetchLatestVersions(categoryIds) {
     return Object.fromEntries(categoryIds.map(id => [id, latestVersion(manifest, id)]));
 }
 
-// The latest whole pack the channel publishes (its packs category), or null when there
-// is none. Home offers it as a one-click download.
-export async function fetchLatestPack() {
+// The whole packs the channel publishes (its packs category) and where a profile stands
+// with them, from a single fetch of the manifest. `installedId` is the pack version the
+// profile has (null when none). Returns { packs, latest, installed, outdated, changes }:
+// `packs` newest first, `latest` the one with the highest version number (null when
+// there are none), `outdated` whether the profile has an older (or other) one than
+// `latest`, and `changes` the changelog entries to show: what updating brings, or just
+// the latest version's when the profile is up to date or has no pack yet.
+export async function fetchPackUpdates(installedId = null) {
     const manifest = await fetchManifest(getManifestUrl());
-    return latestVersion(manifest, 'packs');
+    const packs = versionsNewestFirst(manifest, 'packs');
+    const latest = packs[0] || null;
+    const outdated = Boolean(installedId && latest && latest.id !== installedId);
+    const changes = outdated ? versionsSince(manifest, 'packs', installedId, latest) : latest ? [latest] : [];
+    return { packs, latest, installed: installedId, outdated, changes: changelogEntries(changes) };
 }
 
 // The text a manifest version carries in its optional `changelog` field, or ''.

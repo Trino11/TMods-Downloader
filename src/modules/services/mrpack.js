@@ -36,6 +36,8 @@ const OVERRIDE_FOLDERS = ['overrides/', 'client-overrides/'];
 // TMods' own state in a game folder, which a pack may not write to.
 const STATE_FOLDER = '.tmods_loader';
 const TRACKING_FILE = `${STATE_FOLDER}/modrinth.json`;
+// Which version of the channel's pack (its manifest id) was last imported into the folder.
+const PACK_FILE = `${STATE_FOLDER}/pack.json`;
 const BACKUPS_KEPT = 5;
 
 // The hosts Modrinth itself accepts in pack download links. Files elsewhere are refused,
@@ -289,11 +291,27 @@ export function listPackBackups(gameDir) {
         .sort((a, b) => (a.id < b.id ? 1 : -1));
 }
 
+// The id of the channel pack version last imported into a game folder, or null when
+// none was (packs imported from a file or from Modrinth aren't the channel's).
+export function readInstalledPack(gameDir) {
+    try {
+        const { id } = JSON.parse(fs.readFileSync(inGame(gameDir, PACK_FILE), 'utf-8'));
+        return typeof id === 'string' && id ? id : null;
+    } catch {
+        return null;
+    }
+}
+
+function writeInstalledPack(gameDir, id) {
+    fs.mkdirSync(path.join(gameDir, STATE_FOLDER), { recursive: true });
+    fs.writeFileSync(inGame(gameDir, PACK_FILE), JSON.stringify({ id, importedAt: new Date().toISOString() }, null, 2));
+}
+
 // Copies everything an import of `files` may change: the files and folders at the top
-// of the game folder it writes into, and TMods' list of Modrinth files. Keeps the last
-// few backups. Returns the new backup's id.
+// of the game folder it writes into, TMods' list of Modrinth files and the record of
+// the channel pack installed. Keeps the last few backups. Returns the new backup's id.
 function backUp(gameDir, files, packName) {
-    const entries = [...new Set(files.map(file => file.path.split('/')[0])), TRACKING_FILE];
+    const entries = [...new Set(files.map(file => file.path.split('/')[0])), TRACKING_FILE, PACK_FILE];
     const base = new Date().toISOString().replace(/[:.]/g, '-');
     let id = base;
     for (let n = 1; fs.existsSync(path.join(backupsDir(gameDir), id)); n++) {
@@ -440,23 +458,31 @@ async function importIntoProfile(pack, files, profile) {
 
 // Installs a pack (its bytes). `into` is a profile id, or NEW_PROFILE for a new profile
 // called `name` (the pack's own name by default). `items` are the ids of the items to
-// install (readPack); all of them when left out. Into an existing profile, what the pack
+// install (readPack); all of them when left out. `channelVersion` is the manifest id
+// when the pack is a version of the channel's pack, so the profile remembers it and
+// can tell when a newer one is out. Into an existing profile, what the pack
 // touches is backed up first (restorePackBackup undoes it) and other versions of the
 // pack's mods are removed. Returns { profile, loaderNote, needsLoader, loader,
 // gameVersion, replaced, backupId }: `loaderNote` says what the player still has to
 // install, if anything, and `needsLoader` whether the pack's loader is missing.
-export async function importMrpack(data, { into = NEW_PROFILE, name, items } = {}) {
+export async function importMrpack(data, { into = NEW_PROFILE, name, items, channelVersion } = {}) {
     const pack = readPack(data);
     const wanted = items && new Set(items);
     const files = pack.items.filter(item => !wanted || wanted.has(item.id)).flatMap(item => item.files);
+    let result;
     if (into === NEW_PROFILE) {
-        return importIntoNewProfile(pack, files, name);
+        result = await importIntoNewProfile(pack, files, name);
+    } else {
+        const profile = listProfiles().find(item => item.id === into);
+        if (!profile) {
+            throw new Error(t('services.mrpack.profileGone'));
+        }
+        result = await importIntoProfile(pack, files, profile);
     }
-    const profile = listProfiles().find(item => item.id === into);
-    if (!profile) {
-        throw new Error(t('services.mrpack.profileGone'));
+    if (channelVersion) {
+        writeInstalledPack(profileGameDir(result.profile), channelVersion);
     }
-    return importIntoProfile(pack, files, profile);
+    return result;
 }
 
 // Downloads the newest version of a modpack from Modrinth. Returns its bytes.

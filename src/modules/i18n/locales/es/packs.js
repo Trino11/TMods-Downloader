@@ -44,7 +44,18 @@ const packs = {
         save: 'Guardar .mrpack',
         saved: 'Se guardó {file} ({size}): {links} enlazados desde Modrinth, {copies} copiados.',
     },
+    status: {
+        notInstalled: 'No instalado',
+        updateAvailable: 'Actualización disponible',
+        upToDate: 'Al día',
+        installed: 'Instalado {version}',
+    },
     import: {
+        channelStatusTitle: 'Pack del canal en {profile}',
+        channelStatusNone: '{profile} todavía no tiene un pack de tu canal.',
+        update: 'Actualizar',
+        whatsNew: 'Novedades del pack {id}',
+        installedChip: 'Instalado',
         channelError: 'No se pudieron cargar los packs de tu canal: {error}',
         channelLoading: 'Cargando los packs de tu canal...',
         channelEmpty: 'Tu canal aún no tiene packs. Publica uno desde la pestaña Publicar.',

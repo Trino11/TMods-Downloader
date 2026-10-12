@@ -9,10 +9,11 @@ import {
     listPackBackups,
     packWarnings,
     profileTarget,
+    readInstalledPack,
     readPack,
     restorePackBackup,
 } from '../../services/mrpack';
-import { fetchPacks } from '../../services/manifest';
+import { fetchPackUpdates } from '../../services/manifest';
 import { bundlesRepo, existingVersions, publishPack } from '../../services/bundlePublish';
 import { listProfiles } from '../../services/profiles';
 
@@ -25,10 +26,17 @@ jest.mock('../../services/mrpack', () => ({
     listPackBackups: jest.fn(),
     packWarnings: jest.fn(),
     profileTarget: jest.fn(),
+    readInstalledPack: jest.fn(),
     readPack: jest.fn(),
     restorePackBackup: jest.fn(),
 }));
-jest.mock('../../services/manifest', () => ({ fetchPacks: jest.fn() }));
+jest.mock('../../services/manifest', () => ({ fetchPackUpdates: jest.fn() }));
+
+// What fetchPackUpdates says for these packs (newest first) and the installed id.
+function packUpdates(packs, installed = null, changes = []) {
+    const latest = packs[0] || null;
+    return { packs, latest, installed, outdated: Boolean(installed && latest && latest.id !== installed), changes };
+}
 jest.mock('../../services/bundlePublish', () => ({
     ...jest.requireActual('../../services/bundlePublish'),
     bundlesRepo: jest.fn(),
@@ -102,7 +110,8 @@ beforeEach(() => {
     readPack.mockReturnValue(pack);
     packWarnings.mockReturnValue([]);
     importMrpack.mockResolvedValue({ profile, loaderNote: '', replaced: ['Sodium'], backupId: 'b1' });
-    fetchPacks.mockResolvedValue([]);
+    fetchPackUpdates.mockResolvedValue(packUpdates([]));
+    readInstalledPack.mockReturnValue(null);
     listProfiles.mockReturnValue([{ id: 'default', name: 'Default' }, profile]);
     bundlesRepo.mockReturnValue('Trino11/TMods-bundles');
     existingVersions.mockResolvedValue(['1.0.0']);
@@ -208,15 +217,68 @@ describe('Import', () => {
 
     it("previews a pack from the player's channel", async () => {
         const published = { id: '2.0.0', url: 'https://x/packs-2.0.0.mrpack', target: 'Fabric 1.21.1' };
-        fetchPacks.mockResolvedValue([published]);
+        fetchPackUpdates.mockResolvedValue(packUpdates([published]));
         downloadPublishedPack.mockResolvedValue(new Uint8Array([9]));
         show();
         openTab('Import');
+        expect(await screen.findByText("Survival doesn't have a pack from your channel yet.")).toBeInTheDocument();
+        expect(screen.getByText('Not installed')).toBeInTheDocument();
         fireEvent.click(await screen.findByRole('button', { name: 'Preview' }));
 
         expect(await screen.findByText('Friends Pack 1.0')).toBeInTheDocument();
         expect(downloadPublishedPack).toHaveBeenCalledWith(published);
         expect(readPack).toHaveBeenCalledWith(new Uint8Array([9]));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+        await waitFor(() =>
+            expect(importMrpack).toHaveBeenCalledWith(
+                new Uint8Array([9]),
+                expect.objectContaining({ channelVersion: '2.0.0' }),
+            ),
+        );
+        await waitFor(() => expect(fetchPackUpdates).toHaveBeenCalledTimes(2));
+    });
+
+    it("says when the profile's channel pack is up to date", async () => {
+        const published = [
+            { id: '2.0.0', url: 'https://x/packs-2.0.0.mrpack' },
+            { id: '1.0.0', url: 'https://x/1' },
+        ];
+        readInstalledPack.mockReturnValue('2.0.0');
+        fetchPackUpdates.mockResolvedValue(packUpdates(published, '2.0.0'));
+        show();
+        openTab('Import');
+
+        expect(await screen.findByText('Up to date')).toBeInTheDocument();
+        expect(screen.getByText('Installed 2.0.0')).toBeInTheDocument();
+        expect(fetchPackUpdates).toHaveBeenCalledWith('2.0.0');
+        expect(readInstalledPack).toHaveBeenCalledWith('/game');
+        expect(screen.queryByRole('button', { name: 'Update' })).not.toBeInTheDocument();
+    });
+
+    it("offers the update when the profile's channel pack is older, with what's new", async () => {
+        const published = [
+            { id: '2.0.0', url: 'https://x/packs-2.0.0.mrpack' },
+            { id: '1.0.0', url: 'https://x/1' },
+        ];
+        readInstalledPack.mockReturnValue('1.0.0');
+        fetchPackUpdates.mockResolvedValue(
+            packUpdates(published, '1.0.0', [{ id: '2.0.0', label: '2.0.0', text: 'Adds shaders' }]),
+        );
+        downloadPublishedPack.mockResolvedValue(new Uint8Array([9]));
+        show();
+        openTab('Import');
+
+        expect(await screen.findByText('Update available')).toBeInTheDocument();
+        expect(screen.getByText('1.0.0 → 2.0.0')).toBeInTheDocument();
+        expect(screen.getByText('Installed')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: "What's new" }));
+        expect(await screen.findByText('Adds shaders')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Update' }));
+        expect(await screen.findByText('Friends Pack 1.0')).toBeInTheDocument();
+        expect(downloadPublishedPack).toHaveBeenCalledWith(published[0]);
     });
 
     it('says what is wrong with a file that is not a pack', async () => {

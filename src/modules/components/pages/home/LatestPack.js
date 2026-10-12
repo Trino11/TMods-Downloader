@@ -11,17 +11,21 @@ import DownloadIcon from '@mui/icons-material/Download';
 import Downloadspinner from '../../utils/Downloadspinner';
 import { ChangelogButton } from '../../utils/Changelog';
 import PackImporter from '../packs/PackImporter';
-import { changelogEntries, changelogOf, fetchLatestPack } from '../../../services/manifest';
-import { downloadPublishedPack } from '../../../services/mrpack';
+import { PackStatusChip, describePackStatus } from '../packs/PackStatus';
+import { fetchPackUpdates } from '../../../services/manifest';
+import { downloadPublishedPack, readInstalledPack } from '../../../services/mrpack';
 import { useTranslation } from '../../../i18n';
 
-// Quick action: the newest whole pack the channel publishes. Download fetches it and
-// shows the Packs page's import step, where the player picks what goes in and which
-// profile it goes into (the active one by default, or a new one).
-function LatestPack({ profile, onProfilesChange }) {
+// Quick action: the newest whole pack the channel publishes, and whether the active
+// profile has it (Up to date) or an older one (Update available, with what's new).
+// Download or Update fetches it and shows the Packs page's import step, where the
+// player picks what goes in and which profile it goes into (the active one by default,
+// or a new one). Home remounts it when the active profile changes.
+function LatestPack({ profile, gameDir, onProfilesChange }) {
     const { t } = useTranslation();
-    // undefined while loading, null when the channel has no packs.
-    const [pack, setPack] = useState(undefined);
+    // undefined while loading; status.latest is null when the channel has no packs.
+    const [status, setStatus] = useState(undefined);
+    const [checks, setChecks] = useState(0);
     const [loadError, setLoadError] = useState('');
     const [pending, setPending] = useState(null);
     const [busy, setBusy] = useState(false);
@@ -30,13 +34,15 @@ function LatestPack({ profile, onProfilesChange }) {
 
     useEffect(() => {
         let live = true;
-        fetchLatestPack()
-            .then(latest => live && setPack(latest))
+        fetchPackUpdates(readInstalledPack(gameDir))
+            .then(result => live && setStatus(result))
             .catch(fetchError => live && setLoadError(fetchError.message));
         return () => {
             live = false;
         };
-    }, []);
+    }, [gameDir, checks]);
+
+    const pack = status?.latest;
 
     // Runs one action at a time; it returns the message to show when it succeeds.
     const run = useCallback(async action => {
@@ -54,20 +60,21 @@ function LatestPack({ profile, onProfilesChange }) {
 
     function download() {
         run(async () => {
-            setPending(await downloadPublishedPack(pack));
+            setPending({ data: await downloadPublishedPack(pack), pack });
             return '';
         });
     }
 
     function handleImported() {
         setPending(null);
+        setChecks(count => count + 1);
         onProfilesChange();
     }
 
     let body;
     if (loadError) {
         body = t('home.latestPack.loadFailed', { error: loadError });
-    } else if (pack === undefined) {
+    } else if (status === undefined) {
         body = t('home.latestPack.loading');
     } else if (!pack) {
         body = t('home.latestPack.none');
@@ -81,20 +88,21 @@ function LatestPack({ profile, onProfilesChange }) {
                         <Typography variant='subtitle1' component='h2' sx={{ flexGrow: 1 }}>
                             {t('home.latestPack.title')}
                         </Typography>
-                        {pack && changelogOf(pack) && (
+                        {pack && status.changes.length > 0 && (
                             <ChangelogButton
                                 title={t('home.latestPack.whatsNew', { id: pack.id })}
-                                entries={changelogEntries([pack])}
+                                entries={status.changes}
                             />
                         )}
                         {pack && (
                             <Button
-                                variant='contained'
+                                // Up to date, it can still go into another profile.
+                                variant={status.installed && !status.outdated ? 'outlined' : 'contained'}
                                 startIcon={busy ? <Downloadspinner /> : <DownloadIcon />}
                                 onClick={download}
                                 disabled={busy}
                             >
-                                {t('home.latestPack.download')}
+                                {status.outdated ? t('home.latestPack.update') : t('home.latestPack.download')}
                             </Button>
                         )}
                     </Stack>
@@ -104,12 +112,20 @@ function LatestPack({ profile, onProfilesChange }) {
                         </Typography>
                     ) : (
                         <div>
-                            <Typography sx={{ fontWeight: 500 }}>
-                                {t('home.latestPack.pack', { id: pack.id })}
-                            </Typography>
+                            <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
+                                <Typography sx={{ fontWeight: 500 }}>
+                                    {t('home.latestPack.pack', { id: pack.id })}
+                                </Typography>
+                                <PackStatusChip status={status} />
+                            </Stack>
                             <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                                {[pack.target, pack.description].filter(Boolean).join(' · ') ||
-                                    t('home.latestPack.pickProfile')}
+                                {status.installed
+                                    ? t('home.latestPack.inProfile', {
+                                          status: describePackStatus(status),
+                                          profile: profile.name,
+                                      })
+                                    : [pack.target, pack.description].filter(Boolean).join(' · ') ||
+                                      t('home.latestPack.pickProfile')}
                             </Typography>
                         </div>
                     )}
@@ -121,7 +137,8 @@ function LatestPack({ profile, onProfilesChange }) {
                 <DialogContent sx={{ p: 0 }}>
                     {pending && (
                         <PackImporter
-                            data={pending}
+                            data={pending.data}
+                            channelPack={pending.pack}
                             activeProfile={profile}
                             busy={busy}
                             run={run}

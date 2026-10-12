@@ -8,8 +8,8 @@ import { fetchMojangVersions } from '../../services/gameVersions';
 import { installFabric, listFabricGameVersions } from '../../services/fabric';
 import { detectTarget, gameVersionOf } from '../../services/gameTarget';
 import { checkUpdates, readModList, setTargetVersion, updateChangelog, updateMod } from '../../services/modrinthMods';
-import { fetchLatestPack } from '../../services/manifest';
-import { downloadPublishedPack, importMrpack, packWarnings, readPack } from '../../services/mrpack';
+import { fetchPackUpdates } from '../../services/manifest';
+import { downloadPublishedPack, importMrpack, packWarnings, readInstalledPack, readPack } from '../../services/mrpack';
 
 jest.mock('axios', () => ({ get: jest.fn() }));
 jest.mock('../../services/channelUpdates', () => ({ checkChannels: jest.fn(), installChannelUpdates: jest.fn() }));
@@ -25,13 +25,14 @@ jest.mock('../../services/profiles', () => ({
 }));
 jest.mock('../../services/manifest', () => ({
     ...jest.requireActual('../../services/manifest'),
-    fetchLatestPack: jest.fn(),
+    fetchPackUpdates: jest.fn(),
 }));
 jest.mock('../../services/mrpack', () => ({
     NEW_PROFILE: 'new',
     downloadPublishedPack: jest.fn(),
     importMrpack: jest.fn(),
     packWarnings: jest.fn(),
+    readInstalledPack: jest.fn(),
     readPack: jest.fn(),
 }));
 jest.mock('../../services/gameVersions', () => ({
@@ -49,6 +50,17 @@ jest.mock('../../services/modrinthMods', () => ({
 }));
 
 const mods = { id: 'mods', label: 'Mods' };
+// What fetchPackUpdates says when the latest pack is `latest` and the profile has `installed`.
+function packUpdates(latest, installed = null, changes = []) {
+    return {
+        packs: latest ? [latest] : [],
+        latest,
+        installed,
+        outdated: Boolean(installed && latest && latest.id !== installed),
+        changes,
+    };
+}
+
 const fabricProfile = { id: 'fabric', name: 'Fabric', gameVersion: 'fabric-loader-0.16.5-1.20.1' };
 const defaultProfile = { id: 'default', name: 'Default (.minecraft)', gameVersion: '' };
 const target = { versionId: fabricProfile.gameVersion, gameVersion: '1.20.1', loader: 'fabric' };
@@ -73,7 +85,8 @@ beforeEach(() => {
         { category: { ...mods, icon: () => null }, installed: '1.0', latest: { id: '1.1' }, outdated: true },
     ]);
     installChannelUpdates.mockResolvedValue([]);
-    fetchLatestPack.mockResolvedValue(null);
+    fetchPackUpdates.mockResolvedValue(packUpdates(null));
+    readInstalledPack.mockReturnValue(null);
 });
 
 function renderHome(profile = fabricProfile) {
@@ -232,15 +245,49 @@ const latestPack = {
     description: 'Base pack',
     changelog: 'First release',
 };
+const firstRelease = [{ id: '1.0.0', label: '1.0.0', text: 'First release' }];
 
 it('shows the latest pack of the channel apart from the updates', async () => {
-    fetchLatestPack.mockResolvedValue(latestPack);
+    fetchPackUpdates.mockResolvedValue(packUpdates(latestPack, null, firstRelease));
     renderHome();
 
     expect(await screen.findByText('Pack 1.0.0')).toBeInTheDocument();
     expect(screen.getByText('Fabric 26.3 · Base pack')).toBeInTheDocument();
+    expect(screen.getByText('Not installed')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: "What's new" }));
     expect(await screen.findByText('First release')).toBeInTheDocument();
+});
+
+it('says when the active profile has the latest pack', async () => {
+    readInstalledPack.mockReturnValue('1.0.0');
+    fetchPackUpdates.mockResolvedValue(packUpdates(latestPack, '1.0.0', firstRelease));
+    renderHome();
+
+    expect(await screen.findByText('Installed 1.0.0 in Fabric')).toBeInTheDocument();
+    expect(readInstalledPack).toHaveBeenCalledWith('/games/fabric');
+    expect(fetchPackUpdates).toHaveBeenCalledWith('1.0.0');
+    expect(screen.getAllByText('Up to date').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled();
+});
+
+it('offers the pack update with what it brings', async () => {
+    const newer = { ...latestPack, id: '1.1.0', changelog: 'Adds shaders' };
+    readInstalledPack.mockReturnValue('1.0.0');
+    fetchPackUpdates.mockResolvedValue(
+        packUpdates(newer, '1.0.0', [{ id: '1.1.0', label: '1.1.0', text: 'Adds shaders' }]),
+    );
+    downloadPublishedPack.mockResolvedValue(new Uint8Array([1]));
+    readPack.mockReturnValue({ name: 'TMods', version: '1.1.0', gameVersion: '26.3', loader: null, items: [] });
+    listProfiles.mockReturnValue([fabricProfile]);
+    renderHome();
+
+    expect(await screen.findByText('1.0.0 → 1.1.0 in Fabric')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: "What's new" }));
+    expect(await screen.findByText('Adds shaders')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Update' }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(downloadPublishedPack).toHaveBeenCalledWith(newer);
 });
 
 it('says so when the channel has no packs', async () => {
@@ -251,7 +298,7 @@ it('says so when the channel has no packs', async () => {
 });
 
 it('downloads the latest pack and imports it into the active profile', async () => {
-    fetchLatestPack.mockResolvedValue(latestPack);
+    fetchPackUpdates.mockResolvedValue(packUpdates(latestPack));
     downloadPublishedPack.mockResolvedValue(new Uint8Array([1]));
     readPack.mockReturnValue({
         name: 'TMods',
@@ -277,12 +324,14 @@ it('downloads the latest pack and imports it into the active profile', async () 
         into: 'fabric',
         name: undefined,
         items: ['mods/sodium.jar'],
+        channelVersion: '1.0.0',
     });
     expect(onProfilesChange).toHaveBeenCalled();
+    expect(fetchPackUpdates).toHaveBeenCalledTimes(2);
 });
 
 it('shows why the latest pack could not be loaded', async () => {
-    fetchLatestPack.mockRejectedValue(new Error('Network Error'));
+    fetchPackUpdates.mockRejectedValue(new Error('Network Error'));
     renderHome();
 
     expect(await screen.findByText("Could not load your channel's packs: Network Error")).toBeInTheDocument();
