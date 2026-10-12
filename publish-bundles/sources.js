@@ -5,6 +5,9 @@
 //   <name>.mrpack a Modrinth modpack: its listed downloads plus its overrides
 //   bundle.json   "modrinth": { "<project>": "<version>" } and "files": [{ path, url, hash }]
 //
+// A version of the packs category is different: it is one .mrpack, published as it is
+// so players can import the whole pack into a profile (readPack).
+//
 // Nothing is downloaded here. Each input gets a `key` that names exactly what it is
 // (a file's hash, a download's hash, a pinned Modrinth version), so a version whose keys
 // match the last publish can keep its zip without downloading or zipping anything.
@@ -30,6 +33,8 @@ const PACK_LOADERS = {
 
 // Bump when the zip layout or the keys change, so every bundle is rebuilt once.
 const FORMAT = 'tmods-bundle-2';
+// The same for packs, which are published as the .mrpack itself.
+const PACK_FORMAT = 'tmods-pack-1';
 
 function sha256(data) {
     return crypto.createHash('sha256').update(data).digest('hex');
@@ -184,11 +189,11 @@ function fileInputs(files, where) {
 }
 
 // A .mrpack's downloads, its overrides (client-overrides win) and the target and
-// description it implies.
-function mrpackInputs(file, where) {
+// description it implies. `data` is the pack's bytes.
+function mrpackInputs(data, where) {
     let entries;
     try {
-        entries = readZip(fs.readFileSync(file));
+        entries = readZip(data);
     } catch (error) {
         throw new Error(`${where} can't be read: ${error.message}.`, { cause: error });
     }
@@ -252,7 +257,7 @@ function readVersion(versionDir, label) {
 
     const defaults = {};
     for (const pack of packs) {
-        const result = mrpackInputs(pack, `${label}/${path.basename(pack)}`);
+        const result = mrpackInputs(fs.readFileSync(pack), `${label}/${path.basename(pack)}`);
         inputs.push(...result.inputs);
         defaults.target = result.target;
         defaults.description = result.description;
@@ -263,6 +268,12 @@ function readVersion(versionDir, label) {
         throw new Error(`${label} has no files to bundle.`);
     }
 
+    const key = sha256([FORMAT, ...inputs.map(input => input.key).sort()].join('\n'));
+    return { metadata: textOf(metadata, defaults), inputs, key };
+}
+
+// The manifest's text fields: bundle.json's, else what the .mrpack says.
+function textOf(metadata, defaults) {
     const text = {};
     for (const key of TEXT_KEYS) {
         const value = metadata[key] ?? defaults[key];
@@ -270,8 +281,32 @@ function readVersion(versionDir, label) {
             text[key] = value;
         }
     }
-    const key = sha256([FORMAT, ...inputs.map(input => input.key).sort()].join('\n'));
-    return { metadata: text, inputs, key };
+    return text;
 }
 
-module.exports = { FORMAT, METADATA_FILE, CHANGELOG_FILE, readVersion, safePath };
+// Reads a version of the packs category: exactly one .mrpack, plus the optional text
+// files. Returns { metadata, data, inputs, key }: `data` is the pack to publish as it is,
+// `inputs` its downloads and overrides (fetched only to check every link still works),
+// and `key` changes whenever the pack's bytes do.
+function readPack(versionDir, label) {
+    const metadata = readMetadata(versionDir, label);
+    for (const key of ['modrinth', 'files']) {
+        if (metadata[key] !== undefined) {
+            throw new Error(
+                `${label}/${METADATA_FILE}: a pack is published as its .mrpack, so "${key}" can't add to it.`,
+            );
+        }
+    }
+    const files = listFiles(versionDir).filter(({ name }) => name !== METADATA_FILE && name !== CHANGELOG_FILE);
+    if (files.length !== 1 || !/^[^/]+\.mrpack$/i.test(files[0].name)) {
+        throw new Error(
+            `${label} must hold exactly one .mrpack file (plus an optional ${METADATA_FILE} or ${CHANGELOG_FILE}).`,
+        );
+    }
+    const data = fs.readFileSync(files[0].full);
+    const result = mrpackInputs(data, `${label}/${files[0].name}`);
+    const key = sha256([PACK_FORMAT, sha256(data)].join('\n'));
+    return { metadata: textOf(metadata, result), data, inputs: result.inputs, key };
+}
+
+module.exports = { FORMAT, PACK_FORMAT, METADATA_FILE, CHANGELOG_FILE, readPack, readVersion, safePath };

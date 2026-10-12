@@ -254,7 +254,7 @@ describe('registerGitHubHandlers', () => {
     });
 
     it('knows the same categories as the app', () => {
-        expect(CATEGORIES).toEqual(categories.map(category => category.id));
+        expect(CATEGORIES).toEqual([...categories.map(category => category.id), 'packs']);
     });
 
     it('uses the channels preload.js exposes', () => {

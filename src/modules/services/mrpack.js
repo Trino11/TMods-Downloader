@@ -1,14 +1,41 @@
 // Modrinth modpacks (.mrpack, https://support.modrinth.com/en/articles/8802351). A pack
-// is a zip with modrinth.index.json, which lists each mod by download URL and checksum,
+// is a zip with modrinth.index.json, which lists files by download URL and checksum,
 // plus overrides/ folders (configs and anything else) copied over the game folder.
-// Importing one makes a new profile; exporting turns a profile into a file to share.
-import { createProfile, deleteProfile, listGameVersions, profileGameDir } from './profiles';
-import { detectTarget } from './gameTarget';
-import { KINDS, getProjectVersions, pickVersion, primaryFile } from './modrinth';
-import { adoptUnmanaged, downloadVerified, listUnmanaged, modsDir, readModList, writeFileSafely } from './modrinthMods';
-import { bytesToText, fs, path, zip as zips } from './node';
+// The Packs page exports the files picked in a profile as one, previews a pack, and
+// installs the items picked from it into a new profile or an existing one.
+import axios from 'axios';
+import {
+    createProfile,
+    deleteProfile,
+    DEFAULT_PROFILE_ID,
+    listGameVersions,
+    listProfiles,
+    profileGameDir,
+} from './profiles';
+import { detectTarget, gameVersionOf } from './gameTarget';
+import { KINDS, LOADERS, getProjectVersions, pickVersion, primaryFile, versionsFromHashes } from './modrinth';
+import {
+    adoptUnmanaged,
+    downloadVerified,
+    dropTracked,
+    readModList,
+    sha1,
+    trackedPath,
+    writeFileSafely,
+} from './modrinthMods';
+import { PACK_KINDS, groupItems, isEnabled } from './packKinds';
+import { bytesToText, crypto, fs, path, zip as zips } from './node';
+
+// Pass as `into` to install a pack into a profile of its own.
+export const NEW_PROFILE = 'new';
 
 const INDEX_FILE = 'modrinth.index.json';
+// client-overrides come last so they win over overrides, as the format says.
+const OVERRIDE_FOLDERS = ['overrides/', 'client-overrides/'];
+// TMods' own state in a game folder, which a pack may not write to.
+const STATE_FOLDER = '.tmods_loader';
+const TRACKING_FILE = `${STATE_FOLDER}/modrinth.json`;
+const BACKUPS_KEPT = 5;
 
 // The hosts Modrinth itself accepts in pack download links. Files elsewhere are refused,
 // so a pack from a stranger can't make TMods fetch from anywhere it likes.
@@ -52,6 +79,16 @@ function safeTarget(gameDir, relative) {
     return target;
 }
 
+// A pack's path with forward slashes, once it is known to be safe and not TMods' own.
+function packPath(relative) {
+    safeTarget(path.join(path.sep, 'probe'), relative);
+    const normalized = String(relative).replace(/\\/g, '/');
+    if (normalized.split('/')[0].toLowerCase() === STATE_FOLDER) {
+        throw new Error(`The pack contains a file in TMods' own folder: ${relative}`);
+    }
+    return normalized;
+}
+
 function allowedUrls(file) {
     return (file.downloads || []).filter(url => {
         try {
@@ -93,6 +130,53 @@ function packLoader(index) {
     return null;
 }
 
+// Reads and checks a pack (its bytes) without writing anything. Returns { name, version,
+// summary, gameVersion, loader, items }: `loader` is null or { loader, loaderVersion },
+// and `items` are grouped like the Packs page lists them ({ id, kind, name, size, files,
+// link, enabled }), each file { path, size } plus either `download` ({ urls, hashes }) or
+// `data`. Files only servers need are left out.
+export function readPack(data) {
+    let entries;
+    try {
+        entries = zips.read(data);
+    } catch {
+        throw new Error("This file is not a modpack (it isn't a zip).");
+    }
+    const index = readIndex(entries);
+    const files = new Map();
+    for (const file of (index.files || []).filter(entry => entry.env?.client !== 'unsupported')) {
+        const relative = packPath(file.path);
+        if (!file.hashes?.sha1) {
+            throw new Error(`The pack lists ${file.path} without a checksum.`);
+        }
+        const urls = allowedUrls(file);
+        if (urls.length === 0) {
+            throw new Error(`The pack downloads ${file.path} from a site TMods doesn't trust.`);
+        }
+        files.set(relative, { path: relative, size: file.fileSize || 0, download: { urls, hashes: file.hashes } });
+    }
+    for (const prefix of OVERRIDE_FOLDERS) {
+        for (const entry of entries) {
+            if (!entry.isDirectory && entry.name.startsWith(prefix)) {
+                const relative = packPath(entry.name.slice(prefix.length));
+                files.set(relative, { path: relative, size: entry.data.length, data: entry.data });
+            }
+        }
+    }
+    return {
+        name: typeof index.name === 'string' && index.name.trim() ? index.name.trim() : 'Modpack',
+        version: typeof index.versionId === 'string' ? index.versionId : '',
+        summary: typeof index.summary === 'string' ? index.summary.trim() : '',
+        gameVersion: index.dependencies.minecraft,
+        loader: packLoader(index),
+        items: groupItems([...files.values()]).map(item => ({
+            ...item,
+            link: item.files.every(file => file.download),
+            enabled: isEnabled(item.id),
+        })),
+    };
+}
+
 // The installed launcher version to play the pack with: the exact loader version it
 // asks for, else the same loader on the same game version. Without either, the profile
 // gets the plain game version and the player has to install the loader.
@@ -118,62 +202,18 @@ async function inBatches(items, size, work) {
     }
 }
 
-// Installs a .mrpack (its bytes) as a new profile. Returns { profile, loaderNote },
-// where loaderNote says what the player still has to install, if anything.
-export async function importMrpack(data, { name } = {}) {
-    let entries;
-    try {
-        entries = zips.read(data);
-    } catch {
-        throw new Error("This file is not a modpack (it isn't a zip).");
-    }
-    const index = readIndex(entries);
-    const gameVersion = index.dependencies.minecraft;
-    const loader = packLoader(index);
+// Writes `files` (from readPack) under `dir`, downloading the ones that are links.
+async function writeFiles(dir, files) {
+    await inBatches(files, DOWNLOADS_AT_ONCE, async file => {
+        const contents = file.data || (await downloadVerified(file.download.urls, file.download.hashes));
+        writeFileSafely(safeTarget(dir, file.path), contents);
+    });
+}
 
-    // Check every path and link before creating anything.
-    const probe = path.join(path.sep, 'probe');
-    const files = (index.files || []).filter(file => file.env?.client !== 'unsupported');
-    for (const file of files) {
-        safeTarget(probe, file.path);
-        if (!file.hashes?.sha1) {
-            throw new Error(`The pack lists ${file.path} without a checksum.`);
-        }
-        if (allowedUrls(file).length === 0) {
-            throw new Error(`The pack downloads ${file.path} from a site TMods doesn't trust.`);
-        }
-    }
-    const overrides = ['overrides/', 'client-overrides/'].flatMap(prefix =>
-        entries
-            .filter(entry => !entry.isDirectory && entry.name.startsWith(prefix))
-            .map(entry => ({ entry, relative: entry.name.slice(prefix.length) })),
-    );
-    for (const { relative } of overrides) {
-        safeTarget(probe, relative);
-    }
-
-    const chosen = chooseGameVersion(gameVersion, loader);
-    const profile = createProfile({ name: name || index.name || 'Modpack', gameVersion: chosen.versionId });
-    const gameDir = profileGameDir(profile);
-    try {
-        await inBatches(files, DOWNLOADS_AT_ONCE, async file => {
-            const contents = await downloadVerified(allowedUrls(file), file.hashes);
-            writeFileSafely(safeTarget(gameDir, file.path), contents);
-        });
-        // client-overrides come last so they win over overrides, as the format says.
-        for (const { entry, relative } of overrides) {
-            writeFileSafely(safeTarget(gameDir, relative), entry.data);
-        }
-    } catch (error) {
-        // The profile is brand new, so nothing of the player's is in its folder.
-        deleteProfile(profile.id);
-        fs.rmSync(gameDir, { recursive: true, force: true });
-        throw error;
-    }
-
-    // Track the pack's mods, resource packs and shaders so they can be updated and
-    // exported. Not being able to look them up right now doesn't undo the install; they
-    // show as added by hand.
+// Tracks the mods, resource packs and shaders a pack brought, so they can be updated and
+// exported. Not being able to look them up right now doesn't undo the install; they
+// show as added by hand.
+async function trackModrinthFiles(gameDir) {
     for (const kind of Object.keys(KINDS)) {
         try {
             await adoptUnmanaged(gameDir, kind);
@@ -181,62 +221,287 @@ export async function importMrpack(data, { name } = {}) {
             console.error(`Could not look up the modpack's ${KINDS[kind].label.toLowerCase()} on Modrinth:`, error);
         }
     }
-
-    let loaderNote = '';
-    if (loader && !chosen.exact) {
-        const wanted = `${loader.loader} ${loader.loaderVersion} for Minecraft ${gameVersion}`;
-        loaderNote = chosen.installedLoader
-            ? `The pack asks for ${wanted}; TMods used the ${loader.loader} version you already have installed.`
-            : `Install ${wanted}, then pick it for this profile in Profiles.`;
-    }
-    return { profile, loaderNote };
 }
 
-// Downloads the newest version of a modpack from Modrinth and imports it.
-export async function installModrinthModpack(projectId, title) {
+// The launcher version a profile plays, its mod loader target ({ loader, loaderVersion,
+// gameVersion }, null without one) and its Minecraft version ('' when unknown). The
+// default profile can be played with any version, so it uses the one picked on the
+// Modrinth page.
+export function profileTarget(profile) {
+    const versionId =
+        profile.id === DEFAULT_PROFILE_ID
+            ? readModList(profileGameDir(profile)).target?.versionId || ''
+            : profile.gameVersion || '';
+    const target = versionId ? detectTarget(versionId) : null;
+    return { versionId, target, gameVersion: target?.gameVersion || (versionId && gameVersionOf(versionId)) || '' };
+}
+
+// Why `pack` may not work in `profile`, as sentences; empty when it fits.
+export function packWarnings(pack, profile) {
+    const { target, gameVersion } = profileTarget(profile);
+    const warnings = [];
+    if (gameVersion && gameVersion !== pack.gameVersion) {
+        warnings.push(`The pack is for Minecraft ${pack.gameVersion}, but ${profile.name} plays ${gameVersion}.`);
+    }
+    if (pack.loader && target?.loader !== pack.loader.loader) {
+        const has = target ? `uses ${LOADERS[target.loader]}` : 'has no mod loader';
+        warnings.push(`The pack needs ${LOADERS[pack.loader.loader]}, but ${profile.name} ${has}.`);
+    }
+    return warnings;
+}
+
+function backupsDir(gameDir) {
+    return path.join(gameDir, STATE_FOLDER, 'pack-backups');
+}
+
+function inGame(gameDir, relative) {
+    return path.join(gameDir, ...relative.split('/'));
+}
+
+// The backups imports into this folder made, newest first, as { id, createdAt, pack }.
+export function listPackBackups(gameDir) {
+    const dir = backupsDir(gameDir);
+    if (!fs.existsSync(dir)) {
+        return [];
+    }
+    return fs
+        .readdirSync(dir)
+        .map(id => {
+            try {
+                const meta = JSON.parse(fs.readFileSync(path.join(dir, id, 'backup.json'), 'utf-8'));
+                return { id, createdAt: meta.createdAt, pack: meta.pack || '' };
+            } catch {
+                return null;
+            }
+        })
+        .filter(Boolean)
+        .sort((a, b) => (a.id < b.id ? 1 : -1));
+}
+
+// Copies everything an import of `files` may change: the files and folders at the top
+// of the game folder it writes into, and TMods' list of Modrinth files. Keeps the last
+// few backups. Returns the new backup's id.
+function backUp(gameDir, files, packName) {
+    const entries = [...new Set(files.map(file => file.path.split('/')[0])), TRACKING_FILE];
+    const base = new Date().toISOString().replace(/[:.]/g, '-');
+    let id = base;
+    for (let n = 1; fs.existsSync(path.join(backupsDir(gameDir), id)); n++) {
+        id = `${base}_${n}`;
+    }
+    const dir = path.join(backupsDir(gameDir), id);
+    const existed = entries.filter(entry => fs.existsSync(inGame(gameDir, entry)));
+    for (const entry of existed) {
+        const copy = inGame(path.join(dir, 'files'), entry);
+        fs.mkdirSync(path.dirname(copy), { recursive: true });
+        fs.cpSync(inGame(gameDir, entry), copy);
+    }
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+        path.join(dir, 'backup.json'),
+        JSON.stringify({ createdAt: new Date().toISOString(), pack: packName, entries, existed }, null, 2),
+    );
+    for (const old of listPackBackups(gameDir).slice(BACKUPS_KEPT)) {
+        fs.rmSync(path.join(backupsDir(gameDir), old.id), { recursive: true, force: true });
+    }
+    return id;
+}
+
+// Puts the folder back the way it was before the import that made backup `id`: what the
+// import touched is replaced by the backup's copy, or removed if it didn't exist then.
+// The backup is used up.
+export function restorePackBackup(gameDir, id) {
+    const dir = path.join(backupsDir(gameDir), id);
+    let meta;
+    try {
+        meta = JSON.parse(fs.readFileSync(path.join(dir, 'backup.json'), 'utf-8'));
+    } catch {
+        throw new Error('That backup is gone.');
+    }
+    for (const entry of meta.entries) {
+        fs.rmSync(inGame(gameDir, entry), { recursive: true, force: true });
+        if (meta.existed.includes(entry)) {
+            fs.mkdirSync(path.dirname(inGame(gameDir, entry)), { recursive: true });
+            fs.cpSync(inGame(path.join(dir, 'files'), entry), inGame(gameDir, entry));
+        }
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// Before an import into an existing profile: removes and forgets the mods, resource
+// packs and shaders the profile has that the pack brings too, in whatever version, so
+// the game never loads two copies of one mod. Modrinth says which project each file
+// belongs to; when it can't be reached, only entries at the same path are replaced.
+// `staged` is where the pack's files were downloaded. Returns the titles of the other
+// versions removed.
+async function dropOtherVersions(gameDir, files, staged) {
+    const folders = new Set(PACK_KINDS.filter(kind => kind.modrinth).flatMap(kind => kind.folders));
+    const incoming = files.filter(file => {
+        const parts = file.path.split('/');
+        return parts.length === 2 && folders.has(parts[0]);
+    });
+    if (incoming.length === 0) {
+        return [];
+    }
+    let projects = new Set();
+    try {
+        // Hand-added files are looked up first, so their projects are known too.
+        for (const kind of Object.keys(KINDS)) {
+            await adoptUnmanaged(gameDir, kind);
+        }
+        const hashes = incoming.map(
+            file => file.download?.hashes.sha1 || sha1(fs.readFileSync(safeTarget(staged, file.path))),
+        );
+        projects = new Set(Object.values(await versionsFromHashes(hashes)).map(version => version.project_id));
+    } catch (error) {
+        console.error("Could not look the pack's files up on Modrinth:", error);
+    }
+    const paths = new Set(incoming.map(file => file.path));
+    return dropTracked(gameDir, mod => projects.has(mod.projectId) || paths.has(trackedPath(mod)))
+        .filter(mod => !paths.has(trackedPath(mod)))
+        .map(mod => mod.title);
+}
+
+async function importIntoNewProfile(pack, files, name) {
+    const chosen = chooseGameVersion(pack.gameVersion, pack.loader);
+    const profile = createProfile({ name: name || pack.name, gameVersion: chosen.versionId });
+    const gameDir = profileGameDir(profile);
+    try {
+        await writeFiles(gameDir, files);
+    } catch (error) {
+        // The profile is brand new, so nothing of the player's is in its folder.
+        deleteProfile(profile.id);
+        fs.rmSync(gameDir, { recursive: true, force: true });
+        throw error;
+    }
+    await trackModrinthFiles(gameDir);
+
+    let loaderNote = '';
+    if (pack.loader && !chosen.exact) {
+        const wanted = `${LOADERS[pack.loader.loader]} ${pack.loader.loaderVersion} for Minecraft ${pack.gameVersion}`;
+        loaderNote = chosen.installedLoader
+            ? `The pack asks for ${wanted}; TMods used the ${LOADERS[pack.loader.loader]} version you already have installed.`
+            : `Install ${wanted}, then pick it for this profile in Profiles.`;
+    }
+    return {
+        profile,
+        loaderNote,
+        needsLoader: Boolean(pack.loader && !chosen.exact && !chosen.installedLoader),
+        loader: pack.loader,
+        gameVersion: pack.gameVersion,
+        replaced: [],
+        backupId: null,
+    };
+}
+
+async function importIntoProfile(pack, files, profile) {
+    const gameDir = profileGameDir(profile);
+    const staged = path.join(gameDir, STATE_FOLDER, 'pack-import');
+    fs.rmSync(staged, { recursive: true, force: true });
+    let backupId;
+    let replaced;
+    try {
+        // Everything is downloaded before the profile changes, so a failed download
+        // leaves it as it was.
+        await writeFiles(staged, files);
+        backupId = backUp(gameDir, files, pack.name);
+        replaced = await dropOtherVersions(gameDir, files, staged);
+        if (files.length > 0) {
+            fs.cpSync(staged, gameDir);
+        }
+    } finally {
+        fs.rmSync(staged, { recursive: true, force: true });
+    }
+    await trackModrinthFiles(gameDir);
+    return {
+        profile,
+        loaderNote: '',
+        needsLoader: false,
+        loader: pack.loader,
+        gameVersion: pack.gameVersion,
+        replaced,
+        backupId,
+    };
+}
+
+// Installs a pack (its bytes). `into` is a profile id, or NEW_PROFILE for a new profile
+// called `name` (the pack's own name by default). `items` are the ids of the items to
+// install (readPack); all of them when left out. Into an existing profile, what the pack
+// touches is backed up first (restorePackBackup undoes it) and other versions of the
+// pack's mods are removed. Returns { profile, loaderNote, needsLoader, loader,
+// gameVersion, replaced, backupId }: `loaderNote` says what the player still has to
+// install, if anything, and `needsLoader` whether the pack's loader is missing.
+export async function importMrpack(data, { into = NEW_PROFILE, name, items } = {}) {
+    const pack = readPack(data);
+    const wanted = items && new Set(items);
+    const files = pack.items.filter(item => !wanted || wanted.has(item.id)).flatMap(item => item.files);
+    if (into === NEW_PROFILE) {
+        return importIntoNewProfile(pack, files, name);
+    }
+    const profile = listProfiles().find(item => item.id === into);
+    if (!profile) {
+        throw new Error("That profile doesn't exist anymore.");
+    }
+    return importIntoProfile(pack, files, profile);
+}
+
+// Downloads the newest version of a modpack from Modrinth. Returns its bytes.
+export async function downloadModrinthModpack(projectId, title) {
     const version = pickVersion(await getProjectVersions(projectId));
     if (!version) {
         throw new Error(`${title} has no version to download.`);
     }
     const file = primaryFile(version);
-    const data = await downloadVerified([file.url], file.hashes);
-    return importMrpack(data, { name: title });
+    return downloadVerified([file.url], file.hashes);
 }
 
-// Packs a game folder into a .mrpack: enabled Modrinth mods, resource packs and shaders
-// as download links, and
-// hand-added jars and the config folder as overrides. `target` is the folder's
-// detected loader. Returns { data, mods, extraFiles }.
-export function exportMrpack(gameDir, target, { name, version = '1.0.0', includeConfig = true }) {
-    if (!target?.loaderVersion) {
-        throw new Error('Pick the loader version this profile plays with before exporting.');
+// Downloads a pack published in the player's channel (the manifest's packs category),
+// checking it against the manifest's checksum. Returns its bytes.
+export async function downloadPublishedPack(version) {
+    const { data } = await axios.get(version.url, { responseType: 'arraybuffer' });
+    const bytes = new Uint8Array(data);
+    if (version.sha256 && crypto.createHash('sha256').update(bytes).digest('hex') !== version.sha256.toLowerCase()) {
+        throw new Error(`The download of ${version.id} is corrupt (its checksum doesn't match).`);
     }
-    const mods = readModList(gameDir).mods.filter(mod => mod.enabled && mod.url);
+    return bytes;
+}
+
+// Packs the picked `items` of a game folder (packScan.js) into a .mrpack: items with a
+// Modrinth link as downloads, everything else copied into overrides/. `target` is the
+// profile's { gameVersion, loader, loaderVersion }; the loader is only needed for mods.
+// Returns { data, links, copies } (how many items went in each way).
+export function exportMrpack(gameDir, target, { name, version = '1.0.0', items }) {
+    if (!target?.gameVersion) {
+        throw new Error("TMods doesn't know which Minecraft version this profile plays. Pick it on the Modrinth page.");
+    }
+    if (items.some(item => item.kind === 'mod') && !target.loaderVersion) {
+        throw new Error('Pick the loader version this profile plays with before exporting mods.');
+    }
+    const links = items.filter(item => item.link);
+    const copies = items.filter(item => !item.link);
+    const dependencies = { minecraft: target.gameVersion };
+    if (target.loaderVersion && LOADER_KEYS[target.loader]) {
+        dependencies[LOADER_KEYS[target.loader]] = target.loaderVersion;
+    }
     const index = {
         formatVersion: 1,
         game: 'minecraft',
         versionId: version,
         name: name || 'TMods modpack',
-        files: mods.map(mod => ({
-            path: `${KINDS[mod.kind].folder}/${mod.fileName}`,
-            hashes: { sha1: mod.sha1, sha512: mod.sha512 },
-            downloads: [mod.url],
-            fileSize: mod.size,
+        files: links.map(item => ({
+            path: item.id,
+            hashes: item.link.hashes,
+            downloads: [item.link.url],
+            fileSize: item.link.size,
         })),
-        dependencies: {
-            minecraft: target.gameVersion,
-            [LOADER_KEYS[target.loader]]: target.loaderVersion,
-        },
+        dependencies,
     };
 
     const entries = [{ name: INDEX_FILE, data: JSON.stringify(index, null, 2) }];
-    const extraJars = listUnmanaged(gameDir).filter(file => file.endsWith('.jar'));
-    for (const jar of extraJars) {
-        entries.push({ file: path.join(modsDir(gameDir), jar), into: 'overrides/mods' });
+    for (const item of copies) {
+        for (const file of item.files) {
+            const parts = file.path.split('/');
+            entries.push({ file: inGame(gameDir, file.path), into: ['overrides', ...parts.slice(0, -1)].join('/') });
+        }
     }
-    const configDir = path.join(gameDir, 'config');
-    if (includeConfig && fs.existsSync(configDir)) {
-        entries.push({ folder: configDir, into: 'overrides/config' });
-    }
-    return { data: zips.create(entries), mods: mods.length, extraFiles: extraJars };
+    return { data: zips.create(entries), links: links.length, copies: copies.length };
 }

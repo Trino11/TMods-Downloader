@@ -84,6 +84,27 @@ function createBridge({ fs, path, crypto, AdmZip, platform, minecraftDir, roots 
                 isDirectory: entry.isDirectory(),
             })),
         'fs.copy': (from, to) => fs.cpSync(inside(from), inside(to), { recursive: true }),
+        'fs.stat': p => {
+            const stat = fs.statSync(inside(p));
+            return { size: stat.size, isDirectory: stat.isDirectory() };
+        },
+        // Every file under a folder as { name, size }, `name` relative with forward
+        // slashes. Links are skipped, so nothing outside the folder is listed.
+        'fs.walk': p => {
+            const files = [];
+            const walk = (dir, prefix) => {
+                for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                    const full = path.join(dir, entry.name);
+                    if (entry.isDirectory()) {
+                        walk(full, `${prefix}${entry.name}/`);
+                    } else if (entry.isFile()) {
+                        files.push({ name: prefix + entry.name, size: fs.statSync(full).size });
+                    }
+                }
+            };
+            walk(inside(p), '');
+            return files;
+        },
 
         'crypto.hash': (algorithm, data) => {
             if (!HASH_ALGORITHMS.includes(algorithm)) {

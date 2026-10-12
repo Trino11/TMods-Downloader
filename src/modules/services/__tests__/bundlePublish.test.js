@@ -1,7 +1,4 @@
 import { installBridge, removeBridge } from '../__fixtures__/bridge';
-import { exportMrpack } from '../mrpack';
-
-jest.mock('../mrpack', () => ({ exportMrpack: jest.fn() }));
 
 const fs = require('fs');
 const os = require('os');
@@ -58,58 +55,66 @@ describe('bundlesRepo', () => {
     });
 });
 
-describe('publishProfile', () => {
-    const target = { loader: 'fabric', gameVersion: '1.21.1', loaderVersion: '0.16.5' };
+describe('publishPack', () => {
+    const pack = new Uint8Array([1, 2, 3]);
 
     beforeEach(() => {
-        exportMrpack.mockReturnValue({ data: new Uint8Array([1]), mods: 3, extraFiles: ['mine.jar'] });
         bridge.github.publish.mockResolvedValue({ commitUrl: 'c', actionsUrl: 'a' });
     });
 
-    it('commits the exported pack and its text as a new version', async () => {
-        const result = await service.publishProfile({
+    it('commits the pack and its text as a new version of the packs category by default', async () => {
+        const result = await service.publishPack({
             repo: 'a/b',
-            category: 'mods',
             version: '1.2.0',
-            gameDir: '/game',
-            target,
-            name: 'Survival',
+            data: pack,
             description: ' Faster ',
             changelog: '- Added Sodium\n',
-            includeConfig: false,
         });
 
-        expect(exportMrpack).toHaveBeenCalledWith('/game', target, {
-            name: 'Survival',
-            version: '1.2.0',
-            includeConfig: false,
-        });
         expect(bridge.github.publish).toHaveBeenCalledWith({
             repo: 'a/b',
-            category: 'mods',
+            category: 'packs',
             version: '1.2.0',
             files: [
-                { name: 'pack.mrpack', data: new Uint8Array([1]) },
+                { name: 'pack.mrpack', data: pack },
                 { name: 'bundle.json', data: '{\n  "description": "Faster",\n  "changelog": "- Added Sodium"\n}\n' },
             ],
-            message: 'Add mods 1.2.0 from TMods',
+            message: 'Add packs 1.2.0 from TMods',
         });
-        expect(result).toEqual({ commitUrl: 'c', actionsUrl: 'a', mods: 3, extraFiles: ['mine.jar'] });
+        expect(result).toEqual({ commitUrl: 'c', actionsUrl: 'a' });
     });
 
-    it('leaves bundle.json out when there is no text', async () => {
-        await service.publishProfile({ repo: 'a/b', category: 'mods', version: '1', gameDir: '/g', target, name: 'x' });
-        expect(bridge.github.publish.mock.calls[0][0].files.map(file => file.name)).toEqual(['pack.mrpack']);
+    it('can publish into another category and leaves bundle.json out when there is no text', async () => {
+        await service.publishPack({ repo: 'a/b', category: 'mods', version: '1', data: pack });
+        const request = bridge.github.publish.mock.calls[0][0];
+        expect(request.category).toBe('mods');
+        expect(request.files.map(file => file.name)).toEqual(['pack.mrpack']);
+    });
+
+    it('refuses packs over the 100 MB GitHub takes', async () => {
+        const big = { length: service.MAX_PACK_BYTES + 1 };
+        await expect(service.publishPack({ repo: 'a/b', version: '1', data: big })).rejects.toThrow(
+            /101 MB, and GitHub takes files up to 100 MB/,
+        );
+        expect(bridge.github.publish).not.toHaveBeenCalled();
+    });
+
+    it('offers whole packs first, then every category the main process accepts', () => {
+        const { CATEGORIES } = require('../../../../public/bundlePublisher');
+        expect(service.PUBLISH_CATEGORIES.map(category => category.id)).toEqual([
+            'packs',
+            ...CATEGORIES.filter(id => id !== 'packs'),
+        ]);
     });
 
     it("shows the main process's message without Electron's wrapping", async () => {
         bridge.github.publish.mockRejectedValue(
             new Error(
-                "Error invoking remote method 'github:publish': Error: mods 1 is already in a/b. Pick a new version.",
+                "Error invoking remote method 'github:publish': Error: packs 1 is already in a/b. Pick a new version.",
             ),
         );
-        await expect(
-            service.publishProfile({ repo: 'a/b', category: 'mods', version: '1', gameDir: '/g', target, name: 'x' }),
-        ).rejects.toThrow(/^mods 1 is already in a\/b. Pick a new version.$/);
+        await expect(service.publishPack({ repo: 'a/b', version: '1', data: pack })).rejects.toThrow(
+            /^packs 1 is already in a\/b. Pick a new version.$/,
+        );
     });
 });

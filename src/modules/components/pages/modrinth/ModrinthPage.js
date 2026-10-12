@@ -433,14 +433,7 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
             )}
 
             {tab === 'modpacks' && (
-                <Modpacks
-                    profile={profile}
-                    gameDir={gameDir}
-                    target={target}
-                    busy={busy}
-                    run={run}
-                    onProfileCreated={onProfilesChange}
-                />
+                <Modpacks profile={profile} busy={busy} run={run} onProfileCreated={onProfilesChange} />
             )}
             <InstallWarning
                 pending={pendingInstall}

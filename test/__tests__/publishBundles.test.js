@@ -357,6 +357,75 @@ describe('bundles built from references', () => {
     ])('refuses a broken .mrpack (%#)', async (files, message) => {
         await expect(build(files)).rejects.toThrow(message);
     });
+
+    describe('whole packs', () => {
+        it('publishes the .mrpack as it is, after checking its links work', async () => {
+            const pack = mrpack(packIndex, { 'overrides/options.txt': 'fov:90' });
+            const { manifest, uploads, fetch } = await build({
+                'packs/1.0.0/pack.mrpack': pack,
+                'packs/1.0.0/CHANGELOG.md': 'First pack.\n',
+            });
+
+            expect(uploads.map(upload => upload.name)).toEqual(['packs-1.0.0.mrpack']);
+            expect(Buffer.compare(uploads[0].data, pack)).toBe(0);
+            expect(manifest.latest.packs).toBe('1.0.0');
+            expect(manifest.versions.packs[0]).toEqual({
+                id: '1.0.0',
+                url: `${BASE}/packs-1.0.0.mrpack`,
+                sha256: hash('sha256', pack),
+                source: expect.stringMatching(/^[0-9a-f]{64}$/),
+                target: 'Fabric 1.21.1',
+                description: 'Sodium and friends',
+                changelog: 'First pack.',
+            });
+            expect(fetch).toHaveBeenCalledWith('https://example.com/lithium.jar', expect.anything());
+        });
+
+        it('sits next to the zip categories', async () => {
+            const { manifest, uploads } = await build({
+                'packs/1.0.0/pack.mrpack': mrpack(packIndex),
+                'mods/1.0.0/bundle.json': JSON.stringify({ modrinth: { sodium: '0.6.0' } }),
+            });
+            expect(Object.keys(manifest.versions)).toEqual(['mods', 'packs']);
+            expect(uploads.map(upload => upload.name)).toEqual(['mods-1.0.0.zip', 'packs-1.0.0.mrpack']);
+        });
+
+        it('reuses a published pack without downloading anything when it has not changed', async () => {
+            const files = { 'packs/1.0.0/pack.mrpack': mrpack(packIndex) };
+            const first = await build(files);
+            fs.rmSync(first.source, { recursive: true });
+            const second = await build(files, { previous: first.manifest });
+
+            expect(second.fetch).not.toHaveBeenCalled();
+            expect(second.uploads).toEqual([]);
+            expect(second.manifest).toEqual(first.manifest);
+        });
+
+        it.each([
+            [
+                {
+                    'packs/1/a.mrpack': mrpack({
+                        ...packIndex,
+                        files: [{ ...packIndex.files[0], hashes: { sha512: hash('sha512', 'other') } }],
+                    }),
+                },
+                /doesn't match its sha512 checksum/,
+            ],
+            [{ 'packs/1/a.mrpack': mrpack(packIndex), 'packs/1/config/x.txt': 'x' }, /exactly one .mrpack/],
+            [{ 'packs/1/a.mrpack': mrpack(packIndex), 'packs/1/b.mrpack': mrpack(packIndex) }, /exactly one .mrpack/],
+            [{ 'packs/1/bundle.json': JSON.stringify({ description: 'x' }) }, /exactly one .mrpack/],
+            [
+                {
+                    'packs/1/a.mrpack': mrpack(packIndex),
+                    'packs/1/bundle.json': JSON.stringify({ modrinth: { sodium: '0.6.0' } }),
+                },
+                /"modrinth" can't add to it/,
+            ],
+            [{ 'packs/1/a.mrpack': 'not a zip' }, /can't be read/],
+        ])('refuses a pack that is not one working .mrpack (%#)', async (files, message) => {
+            await expect(build(files)).rejects.toThrow(message);
+        });
+    });
 });
 
 describe('the build-bundles command', () => {

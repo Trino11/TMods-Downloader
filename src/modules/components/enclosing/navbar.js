@@ -9,6 +9,7 @@ import Typography from '@mui/material/Typography';
 import HomeIcon from '@mui/icons-material/Home';
 import BadgeIcon from '@mui/icons-material/Badge';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
+import Inventory2Icon from '@mui/icons-material/Inventory2';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ViewInArIcon from '@mui/icons-material/ViewInAr';
 import { NavLink } from 'react-router';
@@ -70,6 +71,7 @@ function Navbar({ profiles, activeProfileId, onSelectProfile }) {
                 <NavItem to='/home' icon={HomeIcon} label='Home' />
                 <NavItem to='/profiles' icon={BadgeIcon} label='Profiles' />
                 <NavItem to='/modrinth' icon={TravelExploreIcon} label='Modrinth' />
+                <NavItem to='/packs' icon={Inventory2Icon} label='Packs' />
                 {categories.map(category => (
                     <NavItem key={category.id} to={`/${category.id}`} icon={category.icon} label={category.label} />
                 ))}

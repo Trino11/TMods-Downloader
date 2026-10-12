@@ -22,6 +22,13 @@ export const fs = {
     renameSync: (from, to) => bridge.fs.rename(from, to),
     // Recursive, like every copy the app makes.
     cpSync: (from, to) => bridge.fs.copy(from, to),
+    statSync: p => {
+        const { size, isDirectory } = bridge.fs.stat(p);
+        return { size, isDirectory: () => isDirectory };
+    },
+    // Not Node's: every file under a folder as { name, size }, `name` relative with
+    // forward slashes.
+    walkSync: p => bridge.fs.walk(p),
     readdirSync: (p, { withFileTypes = false } = {}) => {
         const entries = bridge.fs.readdir(p);
         if (!withFileTypes) {

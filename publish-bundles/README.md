@@ -26,12 +26,16 @@ bundles/
   configs/
     1.0.0/
       config/sodium-options.json
+  packs/
+    1.0.0/
+      pack.mrpack        a whole pack, imported into a profile
   bundles.json           optional
 .github/workflows/publish.yml
 ```
 
 - Each folder under `bundles/` is a category: `mods`, `schematics`, `resourcepacks`,
-  `configs` or `shaderpacks`. Any other name stops the publish, to catch typos.
+  `configs`, `shaderpacks` or `packs`. Any other name stops the publish, to catch typos.
+  `packs` works differently from the rest; see [Whole packs](#whole-packs).
 - Each folder inside a category is one version; its name is the version id players see.
 - Versions are listed newest first, comparing numbers as numbers (`1.10.0` before
   `1.9.0`), and the first one is the latest. To pick another, add
@@ -47,7 +51,7 @@ folder (`mods/…`, `config/…`, `resourcepacks/…`). Empty folders and `.gitk
 `.DS_Store` and `Thumbs.db` are skipped.
 
 **A `.mrpack`.** One Modrinth modpack file at the top of the version folder, as TMods
-(Modrinth page, Export), the Modrinth app, Prism or packwiz write it. Its downloads go in
+(Packs page, Export), the Modrinth app, Prism or packwiz write it. Its downloads go in
 (files marked server-only are left out), then its `overrides/` and `client-overrides/`.
 Its Minecraft version, loader and summary become the version's `target` and
 `description`, unless `bundle.json` gives its own.
@@ -80,17 +84,32 @@ Every download is checked against its checksum, and two inputs landing on the sa
 stop the publish. Neither `bundle.json`, `CHANGELOG.md` nor the `.mrpack` itself goes
 into the zip.
 
+### Whole packs
+
+A version in `packs/` is a whole pack: mods, resource packs, shaders, configs and
+anything else, installed together into one profile. It holds exactly one `.mrpack`, plus
+an optional `bundle.json` (only `description`, `target` and `changelog`) or
+`CHANGELOG.md`.
+
+The `.mrpack` is published as it is, not zipped: players open the app's Packs page,
+Import tab, pick it from your channel and choose a profile for it (the current one, or a
+new one). Before publishing, the action still downloads every file the pack links to
+and checks its checksum, so a broken link stops the publish instead of reaching players.
+
+Apps from before the Packs page ignore the `packs` category.
+
 ### Or publish from TMods
 
 TMods can do this for you. In Settings, under "Your bundles repository", enter the
 repository and a
 [fine-grained token](https://github.com/settings/personal-access-tokens/new) that can
 only reach that repository, with Contents set to read and write. TMods checks the token
-and keeps it encrypted on that computer. Then on the Modrinth page's Modpacks tab,
-"Publish to your bundles repository" exports the active profile as a `.mrpack` and
-commits it, with an optional description and changelog in `bundle.json`, as a new version
-folder. It suggests the version after the newest one already published, and refuses to
-overwrite one that exists. The workflow below picks the commit up and publishes it.
+and keeps it encrypted on that computer. Then the Packs page's Publish tab commits a new
+version folder: the files you tick in the active profile, exported as a `.mrpack`, or a
+`.mrpack` file you already have, with an optional description and changelog in
+`bundle.json`. It goes into `packs` by default, or any other category you pick. It
+suggests the version after the newest one already published, and refuses to overwrite
+one that exists. The workflow below picks the commit up and publishes it.
 
 ## 3. The workflow
 
@@ -149,8 +168,8 @@ It always serves the newest release's manifest, so it never changes.
 
 ## How releases work
 
-Each publish creates one release holding `manifest.json` and the zips that are new or
-changed. Each manifest entry records what its zip was built from (`source`: the files'
+Each publish creates one release holding `manifest.json` and the zips (and packs) that
+are new or changed. Each manifest entry records what its zip was built from (`source`: the files'
 checksums and the pinned versions), so a version that didn't change keeps pointing at
 the release it was first uploaded to, and nothing is downloaded or zipped for it again.
 When nothing changed at all, no release is made.

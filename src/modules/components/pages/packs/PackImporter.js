@@ -1,0 +1,170 @@
+import { useMemo, useState } from 'react';
+import Alert from '@mui/material/Alert';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
+import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import PackPicker from './PackPicker';
+import { LOADERS } from '../../../services/modrinth';
+import { NEW_PROFILE, importMrpack, packWarnings, readPack } from '../../../services/mrpack';
+import { listProfiles } from '../../../services/profiles';
+
+function describeTarget(pack) {
+    const loader = pack.loader ? ` · ${LOADERS[pack.loader.loader]} ${pack.loader.loaderVersion}` : '';
+    return `Minecraft ${pack.gameVersion}${loader}`;
+}
+
+// What an import did, in words.
+export function importMessage(result, intoNew) {
+    if (intoNew) {
+        return [
+            `Created the profile "${result.profile.name}". Switch to it with the profile picker.`,
+            result.loaderNote,
+        ]
+            .filter(Boolean)
+            .join(' ');
+    }
+    const replaced = result.replaced.length ? ` Replaced other versions of ${result.replaced.join(', ')}.` : '';
+    return `Imported into ${result.profile.name}.${replaced} A backup was made first; you can undo the import on the Packs page.`;
+}
+
+// Shows what a pack (its bytes, `data`) holds and installs the picked items into the
+// profile chosen in the selector: the active one by default, or a new one. `run`
+// performs an action with the page's busy state and messages; `onImported` gets the
+// import's result and whether it made a new profile.
+function PackImporter({ data, activeProfile, busy, run, onImported, onCancel }) {
+    const pack = useMemo(() => {
+        try {
+            return readPack(data);
+        } catch (error) {
+            return { error: error.message };
+        }
+    }, [data]);
+    const profiles = useMemo(() => listProfiles(), []);
+    const [selected, setSelected] = useState(() => new Set((pack.items || []).map(item => item.id)));
+    const [into, setInto] = useState(activeProfile.id);
+    const [newName, setNewName] = useState(pack.name || '');
+    const [warnings, setWarnings] = useState(null);
+
+    if (pack.error) {
+        return (
+            <Alert severity='error' action={<Button onClick={onCancel}>Close</Button>}>
+                {pack.error}
+            </Alert>
+        );
+    }
+
+    const intoNew = into === NEW_PROFILE;
+    const others = profiles.filter(profile => profile.id !== activeProfile.id);
+
+    function importNow() {
+        setWarnings(null);
+        run(async () => {
+            const result = await importMrpack(data, {
+                into,
+                name: intoNew ? newName.trim() : undefined,
+                items: [...selected],
+            });
+            onImported(result, intoNew);
+            return importMessage(result, intoNew);
+        });
+    }
+
+    function handleImport(event) {
+        event.preventDefault();
+        const target = profiles.find(profile => profile.id === into);
+        const found = target ? packWarnings(pack, target) : [];
+        if (found.length > 0) {
+            setWarnings(found);
+            return;
+        }
+        importNow();
+    }
+
+    return (
+        <Card variant='outlined'>
+            <CardContent>
+                <Stack component='form' spacing={2} onSubmit={handleImport}>
+                    <div>
+                        <Typography variant='h6' component='h2'>
+                            {pack.name}
+                            {pack.version && ` ${pack.version}`}
+                        </Typography>
+                        <Typography variant='body2' sx={{ color: 'text.secondary' }}>
+                            {describeTarget(pack)}
+                        </Typography>
+                        {pack.summary && <Typography sx={{ mt: 1 }}>{pack.summary}</Typography>}
+                    </div>
+                    <PackPicker items={pack.items} selected={selected} onChange={setSelected} disabled={busy} />
+                    <Stack direction='row' spacing={1}>
+                        <TextField
+                            id='importInto'
+                            select
+                            label='Import into'
+                            value={into}
+                            onChange={event => setInto(event.target.value)}
+                            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+                            sx={{ minWidth: 240 }}
+                        >
+                            <option value={activeProfile.id}>{activeProfile.name} (current)</option>
+                            {others.map(profile => (
+                                <option key={profile.id} value={profile.id}>
+                                    {profile.name}
+                                </option>
+                            ))}
+                            <option value={NEW_PROFILE}>New profile</option>
+                        </TextField>
+                        {intoNew && (
+                            <TextField
+                                id='newProfileName'
+                                label='Profile name'
+                                fullWidth
+                                value={newName}
+                                onChange={event => setNewName(event.target.value)}
+                                slotProps={{ htmlInput: { required: true } }}
+                            />
+                        )}
+                    </Stack>
+                    {!intoNew && (
+                        <Typography variant='body2' sx={{ color: 'text.secondary' }}>
+                            The folders the pack writes into are backed up first. A mod from the pack replaces any other
+                            version of the same mod already there.
+                        </Typography>
+                    )}
+                    <Stack direction='row' spacing={1} sx={{ justifyContent: 'flex-end' }}>
+                        <Button onClick={onCancel} disabled={busy}>
+                            Cancel
+                        </Button>
+                        <Button type='submit' variant='contained' disabled={busy || selected.size === 0}>
+                            Import
+                        </Button>
+                    </Stack>
+                </Stack>
+            </CardContent>
+            <Dialog open={Boolean(warnings)} onClose={() => setWarnings(null)}>
+                <DialogTitle>Import anyway?</DialogTitle>
+                <DialogContent>
+                    <Stack spacing={1}>
+                        {warnings?.map(warning => (
+                            <Typography key={warning}>{warning}</Typography>
+                        ))}
+                    </Stack>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setWarnings(null)}>Cancel</Button>
+                    <Button color='warning' onClick={importNow}>
+                        Import anyway
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </Card>
+    );
+}
+
+export default PackImporter;
