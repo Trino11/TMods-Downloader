@@ -11,6 +11,7 @@ import Profiles from './components/pages/profiles/Profiles';
 import ModrinthPage from './components/pages/modrinth/ModrinthPage';
 import PacksPage from './components/pages/packs/PacksPage';
 import FirstRunSetup from './components/setup/FirstRunSetup';
+import UpdateDialog from './components/utils/UpdateDialog';
 import categories from './categories';
 import { getManifestUrl } from './services/settings';
 import { applyDocumentLanguage, useTranslation } from './i18n';
@@ -44,6 +45,7 @@ function App() {
         <ThemeProvider theme={theme}>
             <CssBaseline enableColorScheme />
             <Screens />
+            <UpdateDialog />
         </ThemeProvider>
     );
 }

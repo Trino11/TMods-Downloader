@@ -8,17 +8,21 @@ const AdmZip = require('adm-zip');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const {
+    APP_USER_MODEL_ID,
     DEV_SERVER_URL,
     MIN_WINDOW_SIZE,
     externalLinkHandler,
     canAutoUpdate,
+    createUpdateActions,
     initialWindowState,
     isAppUrl,
     loadWindowState,
     registerLogHandlers,
+    registerUpdateHandlers,
     saveWindowState,
     startAutoUpdates,
     tmodsUserAgent,
+    UPDATE_CHANNELS,
     useDevServer,
 } = require('./mainProcess');
 const { createBridge, createHttp, defaultMinecraftDir } = require('./bridge');
@@ -28,7 +32,14 @@ const isDev = useDevServer(app.isPackaged, process.argv);
 const indexFile = path.join(__dirname, 'index.html');
 const appUrl = isDev ? DEV_SERVER_URL : pathToFileURL(indexFile).href;
 
+// Same identity as the installer's shortcuts, so pins and notifications belong to them.
+if (process.platform === 'win32') {
+    app.setAppUserModelId(APP_USER_MODEL_ID);
+}
+
 let mainWindow = null;
+// The newer version found when the app opened ({ version }), for the page's popup.
+let availableUpdate = null;
 
 function createWindow() {
     const stateFile = path.join(app.getPath('userData'), 'window-state.json');
@@ -113,6 +124,8 @@ function listenToPage() {
         userAgent,
     });
     registerGitHubHandlers(ipcMain, publisher, fromApp);
+
+    registerUpdateHandlers(ipcMain, { pending: () => availableUpdate, ...createUpdateActions(autoUpdater) }, fromApp);
 }
 
 // The window only ever shows the app: no navigating away, no new windows (web links
@@ -137,7 +150,12 @@ app.whenReady().then(() => {
     // There are no releases to update to from a development checkout.
     if (app.isPackaged && canAutoUpdate(process.platform)) {
         log.transports.file.level = 'info';
-        startAutoUpdates(autoUpdater, log);
+        startAutoUpdates(autoUpdater, log, update => {
+            availableUpdate = update;
+            if (mainWindow) {
+                mainWindow.webContents.send(UPDATE_CHANNELS.available, update);
+            }
+        });
     }
 });
 
