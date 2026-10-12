@@ -5,6 +5,7 @@ const nav = {
     packs: 'Packs',
     settings: 'Ajustes',
     profile: 'Perfil',
+    manifest: 'Manifiesto: {name}',
     versionPicker: {
         gameVersion: 'Versión del juego',
         search: 'Buscar versiones',

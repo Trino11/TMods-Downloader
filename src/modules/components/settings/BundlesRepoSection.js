@@ -6,7 +6,7 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Downloadspinner from '../utils/Downloadspinner';
-import { bundlesRepo } from '../../services/bundlePublish';
+import { bundlesRepo, manifestRepo } from '../../services/bundlePublish';
 import { github } from '../../services/node';
 import { setBundlesRepo } from '../../services/settings';
 import { t, useTranslation } from '../../i18n';
@@ -48,7 +48,9 @@ function BundlesRepoSection() {
                 setToken('');
                 setHasToken(true);
             }
-            setBundlesRepo(trimmed);
+            // The repository of the current profile's manifest isn't saved, so publishing
+            // keeps following the manifest when the profile or its manifest changes.
+            setBundlesRepo(trimmed === manifestRepo() ? '' : trimmed);
             setRepo(trimmed);
             const status = await github.status(trimmed);
             if (!status.hasToken) {

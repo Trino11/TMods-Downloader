@@ -4,11 +4,11 @@ import CardContent from '@mui/material/CardContent';
 import Typography from '@mui/material/Typography';
 import ViewInArIcon from '@mui/icons-material/ViewInAr';
 import Stack from '@mui/material/Stack';
-import ManifestUrlForm from '../settings/ManifestUrlForm';
+import ManifestForm from '../settings/ManifestForm';
 import LanguageSection from '../settings/LanguageSection';
 import { useTranslation } from '../../i18n';
 
-// Shown instead of the app until a manifest URL has been saved.
+// Shown instead of the app until a manifest has been saved.
 function FirstRunSetup({ onDone }) {
     const { t } = useTranslation();
     return (
@@ -24,7 +24,7 @@ function FirstRunSetup({ onDone }) {
                     </Typography>
                     <Stack spacing={3}>
                         <LanguageSection />
-                        <ManifestUrlForm onSaved={onDone} />
+                        <ManifestForm onSaved={onDone} />
                     </Stack>
                 </CardContent>
             </Card>

@@ -10,6 +10,8 @@ import { t } from '../i18n';
 
 const PROFILES_KEY = 'tmods.profiles';
 const ACTIVE_KEY = 'tmods.activeProfile';
+// The default profile is built in rather than stored, so its manifest pick lives apart.
+const DEFAULT_MANIFEST_KEY = 'tmods.defaultProfileManifest';
 
 export const DEFAULT_PROFILE_ID = 'default';
 // Name of the profile TMods makes for itself when the player has none.
@@ -36,6 +38,10 @@ const defaultProfile = {
     },
     // Played through whatever launcher profile the player already uses.
     gameVersion: '',
+    // The saved manifest it follows (services/manifests.js); '' means the first one.
+    get manifestId() {
+        return localStorage.getItem(DEFAULT_MANIFEST_KEY) || '';
+    },
 };
 
 function readStored() {
@@ -98,12 +104,15 @@ function cleanName(name) {
     return trimmed;
 }
 
-export function createProfile({ name, gameVersion }) {
+// `manifestId` is the saved manifest the profile follows (services/manifests.js); left
+// out, it follows the first one.
+export function createProfile({ name, gameVersion, manifestId }) {
     const stored = readStored();
     const profile = {
         id: newProfileId(cleanName(name), new Set(stored.map(p => p.id))),
         name: cleanName(name),
         gameVersion: gameVersion || LATEST_RELEASE,
+        ...(manifestId ? { manifestId } : {}),
     };
     fs.mkdirSync(profileGameDir(profile), { recursive: true });
     writeStored([...stored, profile]);
@@ -111,7 +120,7 @@ export function createProfile({ name, gameVersion }) {
     return profile;
 }
 
-export function updateProfile(id, { name, gameVersion }) {
+export function updateProfile(id, { name, gameVersion, manifestId }) {
     if (id === DEFAULT_PROFILE_ID) {
         throw new Error(t('services.profiles.defaultNotEditable'));
     }
@@ -122,9 +131,27 @@ export function updateProfile(id, { name, gameVersion }) {
     }
     profile.name = cleanName(name);
     profile.gameVersion = gameVersion || LATEST_RELEASE;
+    if (manifestId !== undefined) {
+        profile.manifestId = manifestId;
+    }
     writeStored(stored);
     syncLauncherProfiles();
     return profile;
+}
+
+// Picks the saved manifest a profile follows, the default profile included.
+export function setProfileManifest(id, manifestId) {
+    if (id === DEFAULT_PROFILE_ID) {
+        localStorage.setItem(DEFAULT_MANIFEST_KEY, manifestId);
+        return;
+    }
+    const stored = readStored();
+    const profile = stored.find(p => p.id === id);
+    if (!profile) {
+        throw new Error(t('services.profiles.profileGone'));
+    }
+    profile.manifestId = manifestId;
+    writeStored(stored);
 }
 
 // Removes the profile from TMods and the launcher. Its game folder stays on disk so

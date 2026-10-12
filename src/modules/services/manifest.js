@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { t } from '../i18n';
-import { getManifestUrl } from './settings';
+import { activeManifestUrl, profileManifest } from './manifests';
 
 // Waits between tries of the manifest download. Gateway errors (502, 503, 504) and
 // dropped connections are usually brief hiccups on the host's side, GitHub release links
@@ -61,13 +61,19 @@ export async function validateManifestUrl(url) {
     }
 }
 
-// The channel's whole manifest.
+// The manifest the current profile follows, downloaded (with retries). Other features
+// that read the manifest, such as the servers list, start from this.
 export function fetchCurrentManifest() {
-    return fetchManifest(getManifestUrl());
+    return fetchManifest(activeManifestUrl());
+}
+
+// The manifest `profile` follows, downloaded (with retries).
+export function fetchProfileManifest(profile) {
+    return fetchManifest(profileManifest(profile)?.url || '');
 }
 
 export async function fetchVersions(categoryId) {
-    const manifest = await fetchManifest(getManifestUrl());
+    const manifest = await fetchCurrentManifest();
     return versionsNewestFirst(manifest, categoryId);
 }
 
@@ -93,7 +99,7 @@ export function latestVersion(manifest, categoryId) {
 // The latest version of each category, keyed by category id (null when it has none),
 // from a single fetch of the manifest.
 export async function fetchLatestVersions(categoryIds) {
-    const manifest = await fetchManifest(getManifestUrl());
+    const manifest = await fetchCurrentManifest();
     return Object.fromEntries(categoryIds.map(id => [id, latestVersion(manifest, id)]));
 }
 
@@ -105,7 +111,7 @@ export async function fetchLatestVersions(categoryIds) {
 // `latest`, and `changes` the changelog entries to show: what updating brings, or just
 // the latest version's when the profile is up to date or has no pack yet.
 export async function fetchPackUpdates(installedId = null) {
-    const manifest = await fetchManifest(getManifestUrl());
+    const manifest = await fetchCurrentManifest();
     const packs = versionsNewestFirst(manifest, 'packs');
     const latest = packs[0] || null;
     const outdated = Boolean(installedId && latest && latest.id !== installedId);
@@ -143,7 +149,7 @@ export function changelogEntries(versions) {
 // newer than the installed one, from a single fetch of the manifest.
 // `installed` maps category ids to installed version ids.
 export async function fetchChannelUpdates(installed) {
-    const manifest = await fetchManifest(getManifestUrl());
+    const manifest = await fetchCurrentManifest();
     return Object.fromEntries(
         Object.entries(installed).map(([id, installedId]) => {
             const latest = latestVersion(manifest, id);

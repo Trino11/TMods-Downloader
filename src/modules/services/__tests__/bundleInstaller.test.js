@@ -259,6 +259,24 @@ describe('readInstalledVersion', () => {
         expect(readInstalledVersion(category('configs'))).toBe('2.0');
         expect(readInstalledVersion(category('mods'))).toBe('');
     });
+
+    it("doesn't count a version installed from another manifest", async () => {
+        const a = { id: 'manifest-1', name: 'A', url: 'https://a.example.com/m.json' };
+        const b = { id: 'manifest-2', name: 'B', url: 'https://b.example.com/m.json' };
+        localStorage.setItem('tmods.manifests', JSON.stringify([a, b]));
+        serveZip({ 'config/a.toml': 'a' });
+        await installBundle(category('configs'), version);
+
+        expect(readInstalledVersion(category('configs'))).toBe('2.0');
+        expect(readInstalledVersion(category('configs'), minecraftDir, b.url)).toBe('');
+        localStorage.setItem('tmods.defaultProfileManifest', b.id);
+        expect(readInstalledVersion(category('configs'))).toBe('');
+    });
+
+    it('counts installs made before the manifest was recorded as the current manifest', () => {
+        write('.tmods_loader/mods/downloaded.txt', '1.0');
+        expect(readInstalledVersion(category('mods'), minecraftDir, 'https://b.example.com/m.json')).toBe('1.0');
+    });
 });
 
 describe('restoreBackup', () => {
@@ -292,6 +310,25 @@ describe('restoreBackup', () => {
         expect(read('mods/two.jar')).toBe('two');
         expect(exists('mods/one.jar')).toBe(false);
         expect(readInstalledVersion(category('mods'))).toBe('2.0');
+    });
+
+    it('restores which manifest the backed-up version came from', async () => {
+        const urls = ['https://a.example.com/m.json', 'https://b.example.com/m.json'];
+        localStorage.setItem(
+            'tmods.manifests',
+            JSON.stringify(urls.map((url, n) => ({ id: `manifest-${n + 1}`, name: url, url }))),
+        );
+        serveZip({ 'mods/one.jar': 'one' });
+        await installBundle(category('mods'), version);
+        localStorage.setItem('tmods.defaultProfileManifest', 'manifest-2');
+        serveZip({ 'mods/two.jar': 'two' });
+        await installBundle(category('mods'), { ...version, id: '3.0' });
+
+        const [backup] = listBackups(category('mods'));
+        expect(backup).toMatchObject({ version: '2.0', manifest: urls[0] });
+        restoreBackup(category('mods'), backup.id);
+        expect(readInstalledVersion(category('mods'), minecraftDir, urls[0])).toBe('2.0');
+        expect(readInstalledVersion(category('mods'), minecraftDir, urls[1])).toBe('');
     });
 
     it('replaces config entirely, dropping files added since the backup', async () => {

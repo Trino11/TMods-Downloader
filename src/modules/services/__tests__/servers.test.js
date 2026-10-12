@@ -259,5 +259,32 @@ describe('server lists in game folders', () => {
         expect(listed()).toEqual(['TMods Lobby=lobby.example.com:enabled', 'Mine=mine.example.com:prompt']);
         expect(listed(profiles.profileGameDir(profile))).toEqual(['TMods Lobby=lobby.example.com:enabled']);
         expect(await servers.syncManifestServers()).toEqual([]);
+        expect(axios.get).toHaveBeenCalledTimes(2);
+    });
+
+    it('gives each profile the servers of the manifest it follows, downloading each once', async () => {
+        localStorage.setItem(
+            'tmods.manifests',
+            JSON.stringify([
+                { id: 'manifest-1', name: 'A', url: 'https://a.example.com/m.json' },
+                { id: 'manifest-2', name: 'B', url: 'https://b.example.com/m.json' },
+            ]),
+        );
+        const first = profiles.createProfile({ name: 'One', gameVersion: '1.21.1', manifestId: 'manifest-2' });
+        const second = profiles.createProfile({ name: 'Two', gameVersion: '1.21.1', manifestId: 'manifest-2' });
+        writeGame([own]);
+        axios.get.mockImplementation(url =>
+            Promise.resolve({ data: { versions: {}, servers: url.includes('b.example') ? [survival] : [lobby] } }),
+        );
+
+        await servers.syncManifestServers();
+
+        expect(listed()).toEqual(['TMods Lobby=lobby.example.com:enabled', 'Mine=mine.example.com:prompt']);
+        expect(listed(profiles.profileGameDir(first))).toEqual(['Survival=survival.example.com:prompt']);
+        expect(listed(profiles.profileGameDir(second))).toEqual(['Survival=survival.example.com:prompt']);
+        expect(axios.get.mock.calls.map(([url]) => url).sort()).toEqual([
+            'https://a.example.com/m.json',
+            'https://b.example.com/m.json',
+        ]);
     });
 });

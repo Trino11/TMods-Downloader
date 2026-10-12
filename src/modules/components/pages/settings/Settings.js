@@ -1,13 +1,13 @@
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Page from '../../utils/Page';
-import ManifestUrlForm from '../../settings/ManifestUrlForm';
+import ManifestsSection from '../../settings/ManifestsSection';
 import LogsSection from '../../settings/LogsSection';
 import BundlesRepoSection from '../../settings/BundlesRepoSection';
 import LanguageSection from '../../settings/LanguageSection';
 import { useTranslation } from '../../../i18n';
 
-function Settings({ onManifestUrlChange }) {
+function Settings({ onManifestsChange }) {
     const { t } = useTranslation();
     return (
         <Page title={t('settings.title')} description={t('settings.description')}>
@@ -18,7 +18,7 @@ function Settings({ onManifestUrlChange }) {
             </Card>
             <Card variant='outlined'>
                 <CardContent>
-                    <ManifestUrlForm onSaved={onManifestUrlChange} />
+                    <ManifestsSection onChange={onManifestsChange} />
                 </CardContent>
             </Card>
             <Card variant='outlined'>

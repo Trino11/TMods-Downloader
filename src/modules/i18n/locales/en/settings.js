@@ -1,7 +1,7 @@
 const settings = {
     title: 'Settings',
     description:
-        'The manifest lists the mods, configs and packs you can download. Changing it is checked before saving.',
+        'A manifest lists the mods, configs and packs you can download. You can follow several, and each profile picks one.',
     language: {
         title: 'Language',
         label: 'Language',
@@ -9,10 +9,23 @@ const settings = {
     },
     firstRun: {
         title: 'Welcome to TMods Loader',
-        description: 'Enter the URL of your manifest to get started. You can change it later in Settings.',
+        description: 'Enter the URL of your manifest to get started. You can add more later in Settings.',
     },
     manifest: {
+        title: 'Manifests',
+        description:
+            'Each profile follows one of these, picked on the Profiles page. Profiles that never picked follow the first one. A URL is checked before it is saved.',
         label: 'Manifest URL',
+        name: 'Name',
+        namePlaceholder: 'Optional, for example "Survival server"',
+        add: 'Add',
+        addTitle: 'Add a manifest',
+        edit: 'Edit',
+        remove: 'Remove',
+        confirmRemove: 'Remove the manifest "{name}"? Profiles that follow it will follow the first manifest instead.',
+        added: 'Added {name}.',
+        saved: 'Saved {name}.',
+        removed: 'Removed {name}.',
     },
     bundlesRepo: {
         title: 'Your bundles repository',

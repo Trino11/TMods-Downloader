@@ -7,7 +7,8 @@ import categories from '../categories';
 import { filterMrpack } from './mrpack';
 import { RESOURCE_PACK, readServers, readServersData } from './servers';
 import { github } from './node';
-import { getBundlesRepo, getManifestUrl } from './settings';
+import { getBundlesRepo } from './settings';
+import { activeManifestUrl } from './manifests';
 import { t } from '../i18n';
 
 const MANIFEST_ON_GITHUB = /^https:\/\/github\.com\/([A-Za-z0-9-]+\/[A-Za-z0-9._-]+)\/releases\//;
@@ -72,9 +73,15 @@ export function categoryHasFiles(id, kinds) {
 export const MAX_PACK_BYTES = 100 * 1024 * 1024;
 export const LARGE_PACK_BYTES = 25 * 1024 * 1024;
 
-// The saved bundles repository, or the one the manifest URL is published from.
+// The repository the current profile's manifest is published from, or '' when it isn't
+// a GitHub release link.
+export function manifestRepo() {
+    return activeManifestUrl().match(MANIFEST_ON_GITHUB)?.[1] || '';
+}
+
+// The saved bundles repository, or the one the current profile's manifest is published from.
 export function bundlesRepo() {
-    return getBundlesRepo() || getManifestUrl().match(MANIFEST_ON_GITHUB)?.[1] || '';
+    return getBundlesRepo() || manifestRepo();
 }
 
 // The version to suggest after `existing` (folder names): the newest one with its last

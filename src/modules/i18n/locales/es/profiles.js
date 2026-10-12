@@ -21,6 +21,8 @@ const profiles = {
     edit: 'Editar',
     delete: 'Borrar',
     launcherProfiles: 'Tus perfiles habituales del launcher',
+    manifest: 'Manifiesto',
+    manifestChanged: '{name} ahora sigue {manifest}.',
     servers: {
         title: 'Servidores de {profile}',
         description:

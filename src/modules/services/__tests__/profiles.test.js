@@ -148,6 +148,21 @@ describe('updateProfile', () => {
     });
 });
 
+describe('setProfileManifest', () => {
+    it('saves the manifest a profile follows and keeps it when the profile is edited', () => {
+        const profile = profiles.createProfile({ name: 'Pack', gameVersion: '1.21', manifestId: 'manifest-1' });
+        profiles.setProfileManifest(profile.id, 'manifest-2');
+        profiles.updateProfile(profile.id, { name: 'Renamed', gameVersion: '1.21' });
+        expect(profiles.listProfiles().find(item => item.id === profile.id).manifestId).toBe('manifest-2');
+    });
+
+    it('saves the default profile pick apart, since that profile is built in', () => {
+        expect(profiles.getActiveProfile().manifestId).toBe('');
+        profiles.setProfileManifest('default', 'manifest-2');
+        expect(profiles.getActiveProfile().manifestId).toBe('manifest-2');
+    });
+});
+
 describe('deleteProfile', () => {
     it('removes it from the app and launcher but keeps its files', () => {
         const profile = profiles.createProfile({ name: 'Gone' });

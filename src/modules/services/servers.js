@@ -6,8 +6,9 @@
 // player changes the list there, so a change made while the game runs can be undone by
 // the game. Callers tell the player to close it first.
 import { parseServers, RESOURCE_PACK, serializeServers } from './serversDat';
-import { fetchCurrentManifest } from './manifest';
+import { fetchProfileManifest } from './manifest';
 import { listProfiles, profileGameDir } from './profiles';
+import { profileManifest } from './manifests';
 import { fs, path } from './node';
 import { t } from '../i18n';
 
@@ -205,19 +206,17 @@ export function applyManifestServers(gameDir, wanted) {
     return writeServers(gameDir, [...added, ...kept]);
 }
 
-// The manifest `profile` follows. The one place servers look a manifest up, so per-profile
-// manifests only change this function.
+// The manifest `profile` follows. The one place servers look a manifest up.
 export function manifestFor(profile) {
-    // Every profile follows the one manifest URL for now.
-    void profile;
-    return fetchCurrentManifest();
+    return fetchProfileManifest(profile);
 }
 
 // Brings one profile's list in line with the servers of the manifest it follows.
-// Returns whether the list changed.
-export async function syncProfileServers(profile) {
+// Returns whether the list changed. `manifest` is that manifest when the caller already
+// has it.
+export async function syncProfileServers(profile, manifest) {
     const gameDir = profileGameDir(profile);
-    const wanted = manifestServers(await manifestFor(profile));
+    const wanted = manifestServers(manifest || (await manifestFor(profile)));
     // Nothing to do in a folder that was never played, or never had channel servers.
     if (!fs.existsSync(gameDir) || (wanted.length === 0 && readManaged(gameDir).length === 0)) {
         return false;
@@ -228,11 +227,17 @@ export async function syncProfileServers(profile) {
 // Puts the manifest's servers in every profile's list. Returns the names of the
 // profiles whose list changed. A profile whose manifest or list fails is skipped (and
 // logged), so one broken file doesn't stop the others.
+// Each manifest is downloaded once, however many profiles follow it.
 export async function syncManifestServers() {
     const changed = [];
+    const manifests = new Map();
     for (const profile of listProfiles()) {
         try {
-            if (await syncProfileServers(profile)) {
+            const url = profileManifest(profile)?.url || '';
+            if (!manifests.has(url)) {
+                manifests.set(url, manifestFor(profile));
+            }
+            if (await syncProfileServers(profile, await manifests.get(url))) {
                 changed.push(profile.name);
             }
         } catch (error) {

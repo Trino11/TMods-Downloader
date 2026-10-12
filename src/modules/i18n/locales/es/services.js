@@ -11,6 +11,11 @@ const services = {
         loadFailed: 'No se pudo cargar el manifiesto: {reason}',
         notManifest: 'La URL cargó, pero no es un manifiesto de TMods (no tiene el campo "versions").',
     },
+    manifests: {
+        urlRequired: 'Escribe la URL del manifiesto.',
+        gone: 'Ese manifiesto ya no está guardado.',
+        lastOne: 'Añade otro manifiesto antes de quitar este. TMods necesita al menos uno.',
+    },
     modCompat: {
         versionRange: '{from} a {to}',
         or: ' o ',

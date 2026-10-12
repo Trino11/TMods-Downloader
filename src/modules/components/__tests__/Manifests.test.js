@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import App from '../../App';
 import Settings from '../pages/settings/Settings';
 import { validateManifestUrl } from '../../services/manifest';
-import { getManifestUrl, setManifestUrl } from '../../services/settings';
+import { addManifest, listManifests } from '../../services/manifests';
 import { ensureTModsProfile } from '../../services/profiles';
 
 jest.mock('../../services/manifest', () => ({
@@ -47,6 +47,8 @@ function typeUrl(value) {
     fireEvent.change(urlInput(), { target: { value } });
 }
 
+const urls = () => listManifests().map(manifest => manifest.url);
+
 it('makes sure a TMods profile exists when the app starts', () => {
     ensureTModsProfile.mockClear();
     render(<App />);
@@ -54,7 +56,7 @@ it('makes sure a TMods profile exists when the app starts', () => {
 });
 
 describe('first launch', () => {
-    it('shows the setup screen when no manifest URL is saved', () => {
+    it('shows the setup screen when no manifest is saved', () => {
         render(<App />);
         expect(screen.getByRole('heading', { name: 'Welcome to TMods Loader' })).toBeInTheDocument();
         expect(urlInput()).toHaveValue('');
@@ -66,11 +68,13 @@ describe('first launch', () => {
         render(<App />);
 
         typeUrl('  https://example.com/manifest.json  ');
-        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
         expect(await screen.findByText('navbar')).toBeInTheDocument();
         expect(validateManifestUrl).toHaveBeenCalledWith('https://example.com/manifest.json');
-        expect(getManifestUrl()).toBe('https://example.com/manifest.json');
+        expect(listManifests()).toEqual([
+            { id: 'manifest-1', name: 'example.com', url: 'https://example.com/manifest.json' },
+        ]);
     });
 
     it('shows the error and saves nothing when the URL is rejected', async () => {
@@ -80,57 +84,98 @@ describe('first launch', () => {
         render(<App />);
 
         typeUrl('https://example.com/page.html');
-        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
         expect(await screen.findByText(/not a TMods manifest/)).toBeInTheDocument();
-        expect(getManifestUrl()).toBe('');
+        expect(listManifests()).toEqual([]);
         expect(screen.getByRole('heading', { name: 'Welcome to TMods Loader' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+        expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled();
     });
 
-    it('skips the setup screen once a URL is saved', () => {
-        setManifestUrl('https://example.com/manifest.json');
+    it('skips the setup screen once a manifest is saved', () => {
+        addManifest({ url: 'https://example.com/manifest.json' });
         render(<App />);
         expect(screen.queryByRole('heading', { name: 'Welcome to TMods Loader' })).not.toBeInTheDocument();
         expect(screen.getByText('navbar')).toBeInTheDocument();
+    });
+
+    it('skips the setup screen for a URL saved by an older version', () => {
+        localStorage.setItem('tmods.manifestUrl', 'https://example.com/manifest.json');
+        render(<App />);
+        expect(screen.getByText('navbar')).toBeInTheDocument();
+        expect(urls()).toEqual(['https://example.com/manifest.json']);
     });
 });
 
 describe('Settings page', () => {
     beforeEach(() => {
-        setManifestUrl('https://old.example.com/manifest.json');
+        addManifest({ name: 'Old', url: 'https://old.example.com/manifest.json' });
     });
 
-    it('shows the saved URL', () => {
+    it('lists the saved manifests', () => {
         render(<Settings />);
-        expect(urlInput()).toHaveValue('https://old.example.com/manifest.json');
+        expect(screen.getByText('Old')).toBeInTheDocument();
+        expect(screen.getByText('https://old.example.com/manifest.json')).toBeInTheDocument();
+        // The last manifest can't be removed.
+        expect(screen.getByRole('button', { name: 'Remove' })).toBeDisabled();
     });
 
-    it('saves a new valid URL and reports it', async () => {
+    it('adds another valid manifest and reports it', async () => {
         validateManifestUrl.mockResolvedValue();
         const onChange = jest.fn();
-        render(<Settings onManifestUrlChange={onChange} />);
+        render(<Settings onManifestsChange={onChange} />);
 
+        fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Server' } });
         typeUrl('https://new.example.com/manifest.json');
-        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
-        expect(await screen.findByText('Saved.')).toBeInTheDocument();
-        expect(getManifestUrl()).toBe('https://new.example.com/manifest.json');
-        expect(onChange).toHaveBeenCalledWith('https://new.example.com/manifest.json');
+        expect(await screen.findByText('Added Server.')).toBeInTheDocument();
+        expect(urls()).toEqual(['https://old.example.com/manifest.json', 'https://new.example.com/manifest.json']);
+        expect(onChange).toHaveBeenCalled();
+        expect(urlInput()).toHaveValue('');
+        expect(screen.getAllByRole('button', { name: 'Remove' })[0]).toBeEnabled();
     });
 
-    it('keeps the old URL when the new one is rejected', async () => {
+    it('saves nothing when the new URL is rejected', async () => {
         validateManifestUrl.mockRejectedValue(new Error('Could not load the manifest: Network Error'));
         const onChange = jest.fn();
-        render(<Settings onManifestUrlChange={onChange} />);
+        render(<Settings onManifestsChange={onChange} />);
 
         typeUrl('https://broken.example.com/manifest.json');
-        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
         expect(await screen.findByText('Could not load the manifest: Network Error')).toBeInTheDocument();
-        expect(getManifestUrl()).toBe('https://old.example.com/manifest.json');
+        expect(urls()).toEqual(['https://old.example.com/manifest.json']);
         expect(onChange).not.toHaveBeenCalled();
-        expect(screen.queryByText('Saved.')).not.toBeInTheDocument();
+    });
+
+    it('edits a manifest after checking its new URL', async () => {
+        validateManifestUrl.mockResolvedValue();
+        render(<Settings />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+        fireEvent.change(screen.getByDisplayValue('https://old.example.com/manifest.json'), {
+            target: { value: 'https://moved.example.com/manifest.json' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+        expect(await screen.findByText('Saved Old.')).toBeInTheDocument();
+        expect(validateManifestUrl).toHaveBeenCalledWith('https://moved.example.com/manifest.json');
+        expect(listManifests()).toEqual([
+            { id: 'manifest-1', name: 'Old', url: 'https://moved.example.com/manifest.json' },
+        ]);
+    });
+
+    it('removes a manifest once there is another one', () => {
+        addManifest({ name: 'Second', url: 'https://second.example.com/manifest.json' });
+        jest.spyOn(window, 'confirm').mockReturnValue(true);
+        render(<Settings />);
+
+        fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0]);
+
+        expect(screen.getByText('Removed Old.')).toBeInTheDocument();
+        expect(urls()).toEqual(['https://second.example.com/manifest.json']);
+        window.confirm.mockRestore();
     });
 
     it('disables the form while the URL is being checked', async () => {
@@ -141,15 +186,16 @@ describe('Settings page', () => {
             }),
         );
         render(<Settings />);
-        const save = screen.getByRole('button', { name: 'Save' });
+        typeUrl('https://new.example.com/manifest.json');
+        const add = screen.getByRole('button', { name: 'Add' });
 
-        fireEvent.click(save);
+        fireEvent.click(add);
 
         await waitFor(() => expect(urlInput()).toBeDisabled());
-        expect(save).toBeDisabled();
+        expect(add).toBeDisabled();
 
         finish();
-        expect(await screen.findByText('Saved.')).toBeInTheDocument();
+        expect(await screen.findByText(/^Added/)).toBeInTheDocument();
         expect(urlInput()).toBeEnabled();
     });
 });
