@@ -6,6 +6,9 @@ const {
     isAppUrl,
     canAutoUpdate,
     startAutoUpdates,
+    registerUpdateHandlers,
+    UPDATE_CHANNELS,
+    APP_USER_MODEL_ID,
     tmodsUserAgent,
     useDevServer,
 } = require('../../public/mainProcess');
@@ -76,19 +79,24 @@ describe('CONTENT_SECURITY_POLICY', () => {
 
 describe('startAutoUpdates', () => {
     function fakeUpdater(result) {
-        return { on: jest.fn(), checkForUpdatesAndNotify: jest.fn(() => result) };
+        const listeners = {};
+        return {
+            listeners,
+            on: jest.fn((event, listener) => (listeners[event] = listener)),
+            checkForUpdates: jest.fn(() => result),
+        };
     }
 
     it('checks right away and then on a schedule', () => {
         const updater = fakeUpdater(Promise.resolve());
         const schedule = jest.fn();
 
-        startAutoUpdates(updater, { error: jest.fn() }, schedule);
+        startAutoUpdates(updater, { error: jest.fn() }, jest.fn(), schedule);
 
-        expect(updater.checkForUpdatesAndNotify).toHaveBeenCalledTimes(1);
+        expect(updater.checkForUpdates).toHaveBeenCalledTimes(1);
         expect(schedule).toHaveBeenCalledWith(expect.any(Function), UPDATE_CHECK_INTERVAL_MS);
         schedule.mock.calls[0][0]();
-        expect(updater.checkForUpdatesAndNotify).toHaveBeenCalledTimes(2);
+        expect(updater.checkForUpdates).toHaveBeenCalledTimes(2);
     });
 
     it('logs a failed check instead of crashing', async () => {
@@ -96,7 +104,7 @@ describe('startAutoUpdates', () => {
         const updater = fakeUpdater(Promise.reject(failure));
         const log = { error: jest.fn() };
 
-        startAutoUpdates(updater, log, jest.fn());
+        startAutoUpdates(updater, log, jest.fn(), jest.fn());
         await new Promise(resolve => setTimeout(resolve, 0));
 
         expect(log.error).toHaveBeenCalledWith('Update check failed:', failure);
@@ -107,12 +115,60 @@ describe('startAutoUpdates', () => {
         const updater = fakeUpdater(Promise.resolve());
         const log = { error: jest.fn() };
 
-        startAutoUpdates(updater, log, jest.fn());
-        const [event, listener] = updater.on.mock.calls[0];
-        listener(new Error('bad signature'));
+        startAutoUpdates(updater, log, jest.fn(), jest.fn());
+        updater.listeners.error(new Error('bad signature'));
 
-        expect(event).toBe('error');
         expect(log.error).toHaveBeenCalledWith('Auto-update failed:', expect.any(Error));
+    });
+
+    it('says which version is ready once an update has downloaded', () => {
+        const updater = fakeUpdater(Promise.resolve());
+        const onReady = jest.fn();
+
+        startAutoUpdates(updater, { error: jest.fn() }, onReady, jest.fn());
+        updater.listeners['update-downloaded']({ version: '0.4.2', releaseNotes: '<p>html</p>' });
+
+        expect(onReady).toHaveBeenCalledWith({ version: '0.4.2' });
+    });
+});
+
+describe('registerUpdateHandlers', () => {
+    function setup(pending, isApp = true) {
+        const handlers = {};
+        const ipcMain = { handle: (channel, handler) => (handlers[channel] = handler) };
+        const updates = { pending: () => pending, install: jest.fn() };
+        registerUpdateHandlers(ipcMain, updates, () => isApp);
+        return { handlers, updates };
+    }
+
+    it('tells the page about an update that is ready', () => {
+        const { handlers } = setup({ version: '0.4.2' });
+        expect(handlers[UPDATE_CHANNELS.pending]({})).toEqual({ version: '0.4.2' });
+    });
+
+    it('installs the ready update when the page asks', () => {
+        const { handlers, updates } = setup({ version: '0.4.2' });
+        expect(handlers[UPDATE_CHANNELS.install]({})).toBe(true);
+        expect(updates.install).toHaveBeenCalled();
+    });
+
+    it('does nothing when no update is ready', () => {
+        const { handlers, updates } = setup(null);
+        expect(handlers[UPDATE_CHANNELS.install]({})).toBe(false);
+        expect(updates.install).not.toHaveBeenCalled();
+    });
+
+    it('ignores pages other than the app', () => {
+        const { handlers, updates } = setup({ version: '0.4.2' }, false);
+        expect(handlers[UPDATE_CHANNELS.pending]({})).toBeNull();
+        expect(handlers[UPDATE_CHANNELS.install]({})).toBe(false);
+        expect(updates.install).not.toHaveBeenCalled();
+    });
+});
+
+describe('APP_USER_MODEL_ID', () => {
+    it('matches the appId the installer gives the shortcuts', () => {
+        expect(APP_USER_MODEL_ID).toBe(require('../../package.json').build.appId);
     });
 });
 

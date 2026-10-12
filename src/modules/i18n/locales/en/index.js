@@ -7,7 +7,8 @@ import profiles from './profiles';
 import modrinth from './modrinth';
 import packs from './packs';
 import services from './services';
+import updates from './updates';
 
-const en = { common, settings, nav, bundle, home, profiles, modrinth, packs, services };
+const en = { common, settings, nav, bundle, home, profiles, modrinth, packs, services, updates };
 
 export default en;

@@ -67,16 +67,47 @@ function externalLinkHandler(openExternal) {
     };
 }
 
-// Updates download in the background; the OS notification says when one is ready,
-// and it installs on the next quit. A failed check is logged and retried next time.
-function startAutoUpdates(autoUpdater, log, schedule = setInterval) {
+// Updates download in the background. Once one is ready, `onReady({ version })` is told,
+// so the page can offer to restart; otherwise it installs on the next quit. A failed
+// check is logged and retried next time.
+function startAutoUpdates(autoUpdater, log, onReady, schedule = setInterval) {
     autoUpdater.logger = log;
     autoUpdater.on('error', error => log.error('Auto-update failed:', error));
+    autoUpdater.on('update-downloaded', info => onReady({ version: info.version }));
 
-    const check = () => autoUpdater.checkForUpdatesAndNotify().catch(error => log.error('Update check failed:', error));
+    // checkForUpdates resolves to null instead of a promise when updates are off.
+    const check = () =>
+        Promise.resolve(autoUpdater.checkForUpdates()).catch(error => log.error('Update check failed:', error));
     check();
     return schedule(check, UPDATE_CHECK_INTERVAL_MS);
 }
+
+// The page's update popup: it asks for an update that was ready before it loaded, hears
+// about new ones on UPDATE_CHANNELS.ready, and can restart the app to install one.
+const UPDATE_CHANNELS = {
+    pending: 'updates:pending',
+    ready: 'updates:ready',
+    install: 'updates:install',
+};
+
+// `updates` is { pending() → { version } or null, install() }. Only the app's own page
+// may restart the app.
+function registerUpdateHandlers(ipcMain, updates, fromApp) {
+    ipcMain.handle(UPDATE_CHANNELS.pending, event => (fromApp(event) ? updates.pending() : null));
+    ipcMain.handle(UPDATE_CHANNELS.install, event => {
+        if (!fromApp(event) || !updates.pending()) {
+            return false;
+        }
+        updates.install();
+        return true;
+    });
+}
+
+// The Windows app identity (package.json's build.appId) that the installer stamps on the
+// Start menu shortcut. The running app must use the same one: otherwise Windows takes its
+// window for a different app, so a pin made from it points at the program file itself
+// (which an update replaces, losing the pin) and its notifications don't show.
+const APP_USER_MODEL_ID = 'com.trinohost.tmod_loader';
 
 // macOS only installs updates for apps signed with a paid Apple Developer ID, and the
 // Mac builds are unsigned, so they skip update checks rather than fail on every one.
@@ -211,6 +242,9 @@ module.exports = {
     externalLinkHandler,
     canAutoUpdate,
     startAutoUpdates,
+    UPDATE_CHANNELS,
+    registerUpdateHandlers,
+    APP_USER_MODEL_ID,
     defaultWindowBounds,
     initialWindowState,
     loadWindowState,

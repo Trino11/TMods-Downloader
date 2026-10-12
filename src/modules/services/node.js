@@ -76,6 +76,14 @@ export const logs = {
     showInFolder: () => bridge.logs.showInFolder(),
 };
 
+// App updates the main process downloaded (see public/mainProcess.js). There are none
+// without the app around it (tests, a plain browser), so these then do nothing.
+export const updates = {
+    pending: async () => (bridge?.updates ? bridge.updates.pending() : null),
+    install: async () => (bridge?.updates ? bridge.updates.install() : false),
+    onReady: listener => (bridge?.updates ? bridge.updates.onReady(listener) : () => {}),
+};
+
 // Electron wraps errors from the main process as "Error invoking remote method 'x': Error: …";
 // only the last part is meant for the player.
 async function unwrapped(call) {
