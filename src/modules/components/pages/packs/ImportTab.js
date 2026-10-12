@@ -8,25 +8,28 @@ import Typography from '@mui/material/Typography';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import { ItemList, ItemRow } from '../../utils/ItemList';
 import { ChangelogButton } from '../../utils/Changelog';
+import { KeepVersionButton } from '../../utils/KeepVersion';
 import FabricInstall from '../profiles/FabricInstall';
 import PackImporter from './PackImporter';
 import { PackStatusChip, describePackStatus } from './PackStatus';
 import { fetchPackUpdates } from '../../../services/manifest';
 import { downloadPublishedPack, listPackBackups, readInstalledPack, restorePackBackup } from '../../../services/mrpack';
+import { PACKS, isPinned, setPinned } from '../../../services/pins';
 import { updateProfile } from '../../../services/profiles';
 import { formatDateTime, useTranslation } from '../../../i18n';
 
 // The packs the player's channel publishes, each ready to preview, and where the active
 // profile stands with them: which one it has and whether a newer one is out. `checks`
-// changes after every import, to look again.
-function ChannelPacks({ profile, gameDir, checks, busy, onPick }) {
+// changes after every import, to look again. The profile can keep the pack it has, so
+// newer ones aren't offered as an update.
+function ChannelPacks({ profile, gameDir, checks, busy, onPick, onKeepChange }) {
     const { t } = useTranslation();
     const [status, setStatus] = useState(null);
     const [error, setError] = useState('');
 
     useEffect(() => {
         let live = true;
-        fetchPackUpdates(readInstalledPack(gameDir))
+        fetchPackUpdates(readInstalledPack(gameDir), isPinned(gameDir, PACKS))
             .then(result => live && setStatus(result))
             .catch(fetchError => live && setError(fetchError.message));
         return () => {
@@ -72,14 +75,21 @@ function ChannelPacks({ profile, gameDir, checks, busy, onPick }) {
                                     t('packs.import.channelStatusNone', { profile: profile.name })}
                             </Typography>
                         </Stack>
-                        {status.outdated && status.changes.length > 0 && (
+                        {status.installed && (
+                            <KeepVersionButton pinned={status.pinned} disabled={busy} onChange={onKeepChange} />
+                        )}
+                        {status.newer && status.changes.length > 0 && (
                             <ChangelogButton
                                 title={t('packs.import.whatsNew', { id: status.latest.id })}
                                 entries={status.changes}
                             />
                         )}
                         {status.outdated && (
-                            <Button variant='contained' disabled={busy} onClick={() => onPick(status.latest)}>
+                            <Button
+                                variant='contained'
+                                disabled={busy}
+                                onClick={() => onPick(status.latest, status.latest.id)}
+                            >
                                 {t('packs.import.update')}
                             </Button>
                         )}
@@ -91,7 +101,7 @@ function ChannelPacks({ profile, gameDir, checks, busy, onPick }) {
                     <ItemRow
                         key={pack.id}
                         actions={
-                            <Button variant='outlined' disabled={busy} onClick={() => onPick(pack)}>
+                            <Button variant='outlined' disabled={busy} onClick={() => onPick(pack, status.latest.id)}>
                                 {t('packs.import.preview')}
                             </Button>
                         }
@@ -132,11 +142,16 @@ function ImportTab({ profile, gameDir, busy, run, onChanged }) {
         }
     }
 
-    function pickChannelPack(pack) {
+    function pickChannelPack(pack, latestId) {
         run(async () => {
-            setPending({ data: await downloadPublishedPack(pack), pack });
+            setPending({ data: await downloadPublishedPack(pack), pack, latestId });
             return '';
         });
+    }
+
+    function handleKeepChange(keep) {
+        setPinned(gameDir, PACKS, keep);
+        setChecks(count => count + 1);
     }
 
     function handleImported(result, intoNew) {
@@ -175,6 +190,7 @@ function ImportTab({ profile, gameDir, busy, run, onChanged }) {
             <PackImporter
                 data={pending.data}
                 channelPack={pending.pack}
+                channelLatest={pending.latestId}
                 activeProfile={profile}
                 busy={busy}
                 run={run}
@@ -227,6 +243,7 @@ function ImportTab({ profile, gameDir, busy, run, onChanged }) {
                     checks={checks}
                     busy={busy}
                     onPick={pickChannelPack}
+                    onKeepChange={handleKeepChange}
                 />
             </section>
             {backups.length > 0 && (

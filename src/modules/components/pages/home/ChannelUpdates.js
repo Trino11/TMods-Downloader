@@ -11,9 +11,11 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import Downloadspinner from '../../utils/Downloadspinner';
 import { ItemList, ItemRow } from '../../utils/ItemList';
 import { ChangelogButton } from '../../utils/Changelog';
+import { KeepVersionButton, KeptChip, describeKept } from '../../utils/KeepVersion';
 import categories from '../../../categories';
 import { checkChannels, installChannelUpdates } from '../../../services/channelUpdates';
 import { installBundle } from '../../../services/bundleInstaller';
+import { setPinned } from '../../../services/pins';
 import { detectTarget, gameVersionOf } from '../../../services/gameTarget';
 import { DEFAULT_PROFILE_ID } from '../../../services/profiles';
 import { checkUpdates, readModList, updateChangelog, updateMod } from '../../../services/modrinthMods';
@@ -22,6 +24,9 @@ import { t, useTranslation } from '../../../i18n';
 function StatusChip({ status }) {
     if (!status.latest) {
         return <Chip size='small' variant='outlined' label={t('home.updates.nothingPublished')} />;
+    }
+    if (status.pinned) {
+        return <KeptChip />;
     }
     if (!status.outdated) {
         return <Chip size='small' color='success' variant='outlined' label={t('home.updates.upToDate')} />;
@@ -36,6 +41,9 @@ function StatusChip({ status }) {
 }
 
 function describe(status) {
+    if (status.pinned) {
+        return describeKept(status.installed, status.latest?.id);
+    }
     if (!status.latest) {
         return status.installed
             ? t('home.updates.installed', { version: status.installed })
@@ -136,6 +144,14 @@ function ChannelUpdates({ profile, gameDir }) {
         });
     }
 
+    // Lets a kept channel be offered updates again.
+    function allowUpdates(status) {
+        run(async () => {
+            setPinned(gameDir, status.category.id, false);
+            return '';
+        });
+    }
+
     function installAll() {
         run(async () => {
             const failures = await installChannelUpdates(statuses || [], gameDir);
@@ -203,25 +219,34 @@ function ChannelUpdates({ profile, gameDir }) {
                                     key={status.category.id}
                                     leading={<status.category.icon color='action' />}
                                     actions={
-                                        status.outdated && (
-                                            <>
-                                                {status.changes?.length > 0 && (
-                                                    <ChangelogButton
+                                        status.pinned ? (
+                                            <KeepVersionButton
+                                                size='small'
+                                                pinned
+                                                disabled={disabled}
+                                                onChange={() => allowUpdates(status)}
+                                            />
+                                        ) : (
+                                            status.outdated && (
+                                                <>
+                                                    {status.changes?.length > 0 && (
+                                                        <ChangelogButton
+                                                            size='small'
+                                                            title={t('home.updates.whatsNewIn', {
+                                                                name: status.category.label,
+                                                            })}
+                                                            entries={status.changes}
+                                                        />
+                                                    )}
+                                                    <Button
                                                         size='small'
-                                                        title={t('home.updates.whatsNewIn', {
-                                                            name: status.category.label,
-                                                        })}
-                                                        entries={status.changes}
-                                                    />
-                                                )}
-                                                <Button
-                                                    size='small'
-                                                    disabled={disabled}
-                                                    onClick={() => installOne(status)}
-                                                >
-                                                    {t('home.updates.install')}
-                                                </Button>
-                                            </>
+                                                        disabled={disabled}
+                                                        onClick={() => installOne(status)}
+                                                    >
+                                                        {t('home.updates.install')}
+                                                    </Button>
+                                                </>
+                                            )
                                         )
                                     }
                                 >

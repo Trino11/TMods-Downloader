@@ -1,19 +1,22 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
+import Checkbox from '@mui/material/Checkbox';
 import CardContent from '@mui/material/CardContent';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import PackPicker from './PackPicker';
 import { LOADERS } from '../../../services/modrinth';
 import { NEW_PROFILE, importMrpack, packWarnings, readPack } from '../../../services/mrpack';
-import { listProfiles } from '../../../services/profiles';
+import { PACKS, isPinned } from '../../../services/pins';
+import { listProfiles, profileGameDir } from '../../../services/profiles';
 import { t, useTranslation } from '../../../i18n';
 
 function describeTarget(pack) {
@@ -36,8 +39,10 @@ export function importMessage(result, intoNew) {
 // profile chosen in the selector: the active one by default, or a new one. `run`
 // performs an action with the page's busy state and messages; `onImported` gets the
 // import's result and whether it made a new profile. `channelPack` is the manifest
-// version when the pack comes from the player's channel, so the profile remembers it.
-function PackImporter({ data, channelPack, activeProfile, busy, run, onImported, onCancel }) {
+// version when the pack comes from the player's channel, so the profile remembers it and
+// can keep it instead of being offered newer ones; `channelLatest` is the id of the
+// channel's newest pack, so picking an older one suggests keeping it.
+function PackImporter({ data, channelPack, channelLatest, activeProfile, busy, run, onImported, onCancel }) {
     useTranslation();
     const pack = useMemo(() => {
         try {
@@ -51,6 +56,20 @@ function PackImporter({ data, channelPack, activeProfile, busy, run, onImported,
     const [into, setInto] = useState(activeProfile.id);
     const [newName, setNewName] = useState(pack.name || '');
     const [warnings, setWarnings] = useState(null);
+    // "Keep this version" starts on when the profile already keeps its pack, or when the
+    // player picked an older pack than the newest one.
+    const keepByDefault = useCallback(
+        target => {
+            if (!channelPack) {
+                return false;
+            }
+            const older = Boolean(channelLatest && channelPack.id !== channelLatest);
+            const profile = profiles.find(item => item.id === target);
+            return older || Boolean(profile && isPinned(profileGameDir(profile), PACKS));
+        },
+        [channelLatest, channelPack, profiles],
+    );
+    const [keep, setKeep] = useState(() => keepByDefault(activeProfile.id));
 
     if (pack.error) {
         return (
@@ -71,6 +90,7 @@ function PackImporter({ data, channelPack, activeProfile, busy, run, onImported,
                 name: intoNew ? newName.trim() : undefined,
                 items: [...selected],
                 channelVersion: channelPack?.id,
+                keepVersion: channelPack ? keep : undefined,
             });
             onImported(result, intoNew);
             return importMessage(result, intoNew);
@@ -109,7 +129,10 @@ function PackImporter({ data, channelPack, activeProfile, busy, run, onImported,
                             select
                             label={t('packs.importer.into')}
                             value={into}
-                            onChange={event => setInto(event.target.value)}
+                            onChange={event => {
+                                setInto(event.target.value);
+                                setKeep(keepByDefault(event.target.value));
+                            }}
                             slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
                             sx={{ minWidth: 240 }}
                         >
@@ -138,6 +161,19 @@ function PackImporter({ data, channelPack, activeProfile, busy, run, onImported,
                         <Typography variant='body2' sx={{ color: 'text.secondary' }}>
                             {t('packs.importer.backupNote')}
                         </Typography>
+                    )}
+                    {channelPack && (
+                        <FormControlLabel
+                            control={
+                                <Checkbox
+                                    id='keepPackVersion'
+                                    checked={keep}
+                                    disabled={busy}
+                                    onChange={event => setKeep(event.target.checked)}
+                                />
+                            }
+                            label={t('packs.importer.keepVersion', { version: channelPack.id })}
+                        />
                     )}
                     <Stack direction='row' spacing={1} sx={{ justifyContent: 'flex-end' }}>
                         <Button onClick={onCancel} disabled={busy}>

@@ -182,9 +182,24 @@ describe('fetchPackUpdates', () => {
             packs: [],
             latest: null,
             installed: '1.0.0',
+            pinned: false,
+            newer: false,
             outdated: false,
             changes: [],
         });
+    });
+
+    it("doesn't offer a newer pack to a profile that keeps its version, but says one is out", async () => {
+        const result = await fetchPackUpdates('1.0.0', true);
+        expect(result.pinned).toBe(true);
+        expect(result.newer).toBe(true);
+        expect(result.outdated).toBe(false);
+        expect(result.changes.map(entry => entry.id)).toEqual(['1.2.0', '1.1.0']);
+    });
+
+    it('keeps nothing when the profile has no pack', async () => {
+        const result = await fetchPackUpdates(null, true);
+        expect(result.pinned).toBe(false);
     });
 });
 

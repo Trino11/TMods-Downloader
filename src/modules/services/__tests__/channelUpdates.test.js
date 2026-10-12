@@ -1,9 +1,11 @@
 import { checkChannels, installChannelUpdates } from '../channelUpdates';
 import { fetchChannelUpdates } from '../manifest';
 import { installBundle, readInstalledVersion } from '../bundleInstaller';
+import { isPinned } from '../pins';
 
 jest.mock('../manifest', () => ({ fetchChannelUpdates: jest.fn() }));
 jest.mock('../bundleInstaller', () => ({ installBundle: jest.fn(), readInstalledVersion: jest.fn() }));
+jest.mock('../pins', () => ({ isPinned: jest.fn() }));
 
 const mods = { id: 'mods', label: 'Mods' };
 const configs = { id: 'configs', label: 'Configs' };
@@ -11,6 +13,7 @@ const shaders = { id: 'shaderpacks', label: 'Shaderpacks' };
 const installed = { mods: '1.0', configs: '2.0', shaderpacks: '' };
 
 beforeEach(() => {
+    isPinned.mockReturnValue(false);
     readInstalledVersion.mockImplementation(category => installed[category.id]);
     fetchChannelUpdates.mockResolvedValue({
         mods: { latest: { id: '1.1' }, changes: [{ id: '1.1', label: '1.1', text: 'Adds Sodium' }] },
@@ -29,12 +32,24 @@ it('marks the channels whose latest version is not installed', async () => {
             category: mods,
             installed: '1.0',
             latest: { id: '1.1' },
+            pinned: false,
             outdated: true,
             changes: [{ id: '1.1', label: '1.1', text: 'Adds Sodium' }],
         },
-        { category: configs, installed: '2.0', latest: { id: '2.0' }, outdated: false, changes: [] },
-        { category: shaders, installed: '', latest: null, outdated: false, changes: [] },
+        { category: configs, installed: '2.0', latest: { id: '2.0' }, pinned: false, outdated: false, changes: [] },
+        { category: shaders, installed: '', latest: null, pinned: false, outdated: false, changes: [] },
     ]);
+});
+
+it("doesn't offer updates for a channel the profile keeps", async () => {
+    isPinned.mockImplementation((gameDir, id) => id === 'mods' || id === 'shaderpacks');
+
+    const [modsStatus, , shadersStatus] = await checkChannels([mods, configs, shaders], '/games/a');
+
+    expect(isPinned).toHaveBeenCalledWith('/games/a', 'mods');
+    expect(modsStatus).toMatchObject({ installed: '1.0', latest: { id: '1.1' }, pinned: true, outdated: false });
+    // Nothing installed, so there is nothing to keep.
+    expect(shadersStatus.pinned).toBe(false);
 });
 
 it('installs every outdated channel and reports the ones that failed', async () => {

@@ -3,6 +3,7 @@ import BundlePage from '../pages/bundle/BundlePage';
 import categories from '../../categories';
 import { fetchVersions } from '../../services/manifest';
 import { installBundle, listBackups, readInstalledVersion, restoreBackup } from '../../services/bundleInstaller';
+import { isPinned, setPinned } from '../../services/pins';
 
 jest.mock('../../services/manifest', () => ({
     ...jest.requireActual('../../services/manifest'),
@@ -15,6 +16,8 @@ jest.mock('../../services/bundleInstaller', () => ({
     restoreBackup: jest.fn(),
 }));
 
+jest.mock('../../services/pins', () => ({ isPinned: jest.fn(), setPinned: jest.fn() }));
+
 const mods = categories.find(c => c.id === 'mods');
 const backup = { id: 'b1', createdAt: '2026-10-11T10:00:00.000Z', version: '1.0' };
 
@@ -23,6 +26,7 @@ beforeEach(() => {
     fetchVersions.mockReturnValue(new Promise(() => {}));
     readInstalledVersion.mockReturnValue('');
     listBackups.mockReturnValue([]);
+    isPinned.mockReturnValue(false);
     window.confirm = jest.fn(() => true);
 });
 
@@ -106,4 +110,19 @@ it("shows a version's changelog as plain text", async () => {
     expect(await screen.findByText("What's new in 1.1")).toBeInTheDocument();
     expect(screen.getByText(/<img src=x onerror=alert\(1\)>/)).toBeInTheDocument();
     expect(document.querySelector('img')).toBeNull();
+});
+
+it('keeps the installed version, or lets updates through again', () => {
+    readInstalledVersion.mockReturnValue('1.0');
+    render(<BundlePage category={mods} gameDir='/games/a' />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Keep this version' }));
+    expect(setPinned).toHaveBeenCalledWith('/games/a', 'mods', true);
+    fireEvent.click(screen.getByRole('button', { name: 'Allow updates' }));
+    expect(setPinned).toHaveBeenCalledWith('/games/a', 'mods', false);
+});
+
+it('has nothing to keep when no version is installed', () => {
+    render(<BundlePage category={mods} gameDir='/games/a' />);
+    expect(screen.queryByRole('button', { name: 'Keep this version' })).not.toBeInTheDocument();
 });

@@ -22,6 +22,7 @@ import {
     serversOfProfile,
 } from '../../services/bundlePublish';
 import { listProfiles } from '../../services/profiles';
+import { isPinned, setPinned } from '../../services/pins';
 
 jest.mock('../../services/packScan', () => ({ recogniseFiles: jest.fn(), scanProfile: jest.fn() }));
 jest.mock('../../services/mrpack', () => ({
@@ -37,11 +38,21 @@ jest.mock('../../services/mrpack', () => ({
     restorePackBackup: jest.fn(),
 }));
 jest.mock('../../services/manifest', () => ({ fetchPackUpdates: jest.fn() }));
+jest.mock('../../services/pins', () => ({ PACKS: 'packs', isPinned: jest.fn(), setPinned: jest.fn() }));
 
 // What fetchPackUpdates says for these packs (newest first) and the installed id.
-function packUpdates(packs, installed = null, changes = []) {
+function packUpdates(packs, installed = null, changes = [], pinned = false) {
     const latest = packs[0] || null;
-    return { packs, latest, installed, outdated: Boolean(installed && latest && latest.id !== installed), changes };
+    const newer = Boolean(installed && latest && latest.id !== installed);
+    return {
+        packs,
+        latest,
+        installed,
+        pinned: Boolean(installed && pinned),
+        newer,
+        outdated: newer && !pinned,
+        changes,
+    };
 }
 jest.mock('../../services/bundlePublish', () => ({
     ...jest.requireActual('../../services/bundlePublish'),
@@ -51,7 +62,11 @@ jest.mock('../../services/bundlePublish', () => ({
     serversOfPack: jest.fn(),
     serversOfProfile: jest.fn(),
 }));
-jest.mock('../../services/profiles', () => ({ listProfiles: jest.fn(), updateProfile: jest.fn() }));
+jest.mock('../../services/profiles', () => ({
+    listProfiles: jest.fn(),
+    updateProfile: jest.fn(),
+    profileGameDir: profile => `/games/${profile.id}`,
+}));
 jest.mock('../../services/fabric', () => ({
     installFabric: jest.fn(),
     latestLoaderVersion: jest.fn(),
@@ -124,6 +139,7 @@ beforeEach(() => {
     packWarnings.mockReturnValue([]);
     importMrpack.mockResolvedValue({ profile, loaderNote: '', replaced: ['Sodium'], backupId: 'b1' });
     fetchPackUpdates.mockResolvedValue(packUpdates([]));
+    isPinned.mockReturnValue(false);
     readInstalledPack.mockReturnValue(null);
     listProfiles.mockReturnValue([{ id: 'default', name: 'Default' }, profile]);
     bundlesRepo.mockReturnValue('Trino11/TMods-bundles');
@@ -260,7 +276,7 @@ describe('Import', () => {
         await waitFor(() =>
             expect(importMrpack).toHaveBeenCalledWith(
                 new Uint8Array([9]),
-                expect.objectContaining({ channelVersion: '2.0.0' }),
+                expect.objectContaining({ channelVersion: '2.0.0', keepVersion: false }),
             ),
         );
         await waitFor(() => expect(fetchPackUpdates).toHaveBeenCalledTimes(2));
@@ -278,7 +294,7 @@ describe('Import', () => {
 
         expect(await screen.findByText('Up to date')).toBeInTheDocument();
         expect(screen.getByText('Installed 2.0.0')).toBeInTheDocument();
-        expect(fetchPackUpdates).toHaveBeenCalledWith('2.0.0');
+        expect(fetchPackUpdates).toHaveBeenCalledWith('2.0.0', false);
         expect(readInstalledPack).toHaveBeenCalledWith('/game');
         expect(screen.queryByRole('button', { name: 'Update' })).not.toBeInTheDocument();
     });
@@ -306,6 +322,33 @@ describe('Import', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'Update' }));
         expect(await screen.findByText('Friends Pack 1.0')).toBeInTheDocument();
         expect(downloadPublishedPack).toHaveBeenCalledWith(published[0]);
+    });
+
+    it('keeps the version the profile has, and suggests keeping an older pack picked by hand', async () => {
+        const published = [
+            { id: '2.0.0', url: 'https://x/packs-2.0.0.mrpack' },
+            { id: '1.0.0', url: 'https://x/1' },
+        ];
+        readInstalledPack.mockReturnValue('1.0.0');
+        fetchPackUpdates.mockResolvedValue(packUpdates(published, '1.0.0'));
+        downloadPublishedPack.mockResolvedValue(new Uint8Array([9]));
+        show();
+        openTab('Import');
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Keep this version' }));
+        expect(setPinned).toHaveBeenCalledWith('/game', 'packs', true);
+        await waitFor(() => expect(fetchPackUpdates).toHaveBeenCalledTimes(2));
+
+        fireEvent.click(screen.getAllByRole('button', { name: 'Preview' })[1]);
+        const keep = await screen.findByLabelText("Keep pack 1.0.0: don't offer newer packs as updates");
+        expect(keep).toBeChecked();
+        fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+        await waitFor(() =>
+            expect(importMrpack).toHaveBeenCalledWith(
+                new Uint8Array([9]),
+                expect.objectContaining({ channelVersion: '1.0.0', keepVersion: true }),
+            ),
+        );
     });
 
     it('says what is wrong with a file that is not a pack', async () => {
