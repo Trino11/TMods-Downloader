@@ -179,15 +179,68 @@ describe('publishPack', () => {
         expect(bridge.github.publish).not.toHaveBeenCalled();
     });
 
-    it('offers whole packs first, then every category the main process accepts', () => {
+    it('offers whole packs first, then every category the main process accepts, then the server list', () => {
         const { CATEGORIES } = require('../../../../public/bundlePublisher');
         expect(service.PUBLISH_CATEGORIES.map(category => category.id)).toEqual([
             'packs',
             ...CATEGORIES.filter(id => id !== 'packs'),
+            'servers',
         ]);
+        expect(service.PUBLISH_CATEGORIES.filter(category => !service.isVersioned(category.id)).map(c => c.id)).toEqual(
+            ['servers'],
+        );
+        expect(service.categoryHasFiles('servers', ['mod', 'servers'])).toBe(true);
+        expect(service.categoryHasFiles('servers', ['mod'])).toBe(false);
         expect(service.PUBLISH_CATEGORIES.filter(category => !category.kinds).map(category => category.id)).toEqual([
             'packs',
         ]);
+    });
+
+    it('publishes the server list with the versions, or on its own', async () => {
+        const servers = [
+            { name: 'Lobby', address: 'lobby.example.com', resourcePack: 'enabled', extra: [['icon', {}]] },
+            { name: 'Mine', address: 'mine.example.com', resourcePack: 'prompt', extra: [] },
+        ];
+        const channel = [
+            { name: 'Lobby', address: 'lobby.example.com', resourcePack: 'enabled' },
+            { name: 'Mine', address: 'mine.example.com' },
+        ];
+
+        await service.publishPack({
+            repo: 'a/b',
+            versions: [{ category: 'packs', version: '2' }],
+            data: pack,
+            servers,
+        });
+        expect(bridge.github.publish).toHaveBeenLastCalledWith(
+            expect.objectContaining({ servers: channel, message: 'Add packs 2, the server list from TMods' }),
+        );
+
+        await service.publishPack({ repo: 'a/b', servers });
+        expect(bridge.github.publish).toHaveBeenLastCalledWith({
+            repo: 'a/b',
+            versions: [],
+            servers: channel,
+            message: 'Update the server list from TMods',
+        });
+    });
+
+    it("reads the servers of a profile or of a pack's servers.dat", () => {
+        const { serversDat } = require('../__fixtures__/serversDat');
+        const data = serversDat([{ name: 'Lobby', ip: 'lobby.example.com' }]);
+        const gameDir = path.join(home, 'game');
+        fs.mkdirSync(gameDir);
+        fs.writeFileSync(path.join(gameDir, 'servers.dat'), data);
+
+        expect(service.serversOfProfile(gameDir).map(server => server.address)).toEqual(['lobby.example.com']);
+        const packWith = {
+            items: [
+                { kind: 'mod', files: [] },
+                { kind: 'servers', files: [{ path: 'servers.dat', data }] },
+            ],
+        };
+        expect(service.serversOfPack(packWith).map(server => server.name)).toEqual(['Lobby']);
+        expect(service.serversOfPack({ items: [] })).toEqual([]);
     });
 
     it("shows the main process's message without Electron's wrapping", async () => {

@@ -5,6 +5,7 @@
 // a zip for the other categories.
 import categories from '../categories';
 import { filterMrpack } from './mrpack';
+import { RESOURCE_PACK, readServers, readServersData } from './servers';
 import { github } from './node';
 import { getBundlesRepo, getManifestUrl } from './settings';
 import { t } from '../i18n';
@@ -15,6 +16,9 @@ const MANIFEST_ON_GITHUB = /^https:\/\/github\.com\/([A-Za-z0-9-]+\/[A-Za-z0-9._
 // the bundle pages install as zips. `kinds` are the pack kinds (packKinds.js) a category
 // takes; packs take every kind.
 export const PACKS_CATEGORY = 'packs';
+// Not a versioned category: the channel's Multiplayer server list (bundles/servers.json),
+// which every player's profiles follow. Publishing it replaces the list.
+export const SERVERS_CATEGORY = 'servers';
 const CATEGORY_KINDS = {
     mods: ['mod'],
     schematics: ['schematic'],
@@ -38,7 +42,20 @@ export const PUBLISH_CATEGORIES = [
         },
         kinds: CATEGORY_KINDS[category.id],
     })),
+    {
+        id: SERVERS_CATEGORY,
+        get label() {
+            return t('services.bundlePublish.serversCategory');
+        },
+        kinds: ['servers'],
+        unversioned: true,
+    },
 ];
+
+// Whether category `id` gets a new version folder (every category but the server list).
+export function isVersioned(id) {
+    return !publishCategory(id)?.unversioned;
+}
 
 function publishCategory(id) {
     return PUBLISH_CATEGORIES.find(category => category.id === id);
@@ -73,6 +90,27 @@ export function nextVersion(existing) {
     return `${match[1]}${number}${match[3]}`;
 }
 
+// The servers a pack's items carry (the servers.dat item of readPack), or [] when none.
+export function serversOfPack(pack) {
+    const data = pack?.items?.find(item => item.kind === 'servers')?.files.find(file => file.data)?.data;
+    return data ? readServersData(data) : [];
+}
+
+// The servers in a game folder's list.
+export function serversOfProfile(gameDir) {
+    return readServers(gameDir);
+}
+
+// Servers as servers.json lists them: what the game asks about a server's resource pack
+// is the default, so it is left out.
+function channelServers(servers) {
+    return servers.map(({ name, address, resourcePack }) => ({
+        name,
+        address,
+        ...(resourcePack && resourcePack !== RESOURCE_PACK.PROMPT ? { resourcePack } : {}),
+    }));
+}
+
 export function existingVersions(repo, category) {
     return github.versions(repo, category);
 }
@@ -80,8 +118,10 @@ export function existingVersions(repo, category) {
 // Publishes a pack (its bytes) as a new version of each of `versions` ([{ category,
 // version }]), all in one commit: packs get the whole pack, every other category a pack
 // with only the files of its kind. The optional text goes in each version's bundle.json.
+// `servers` (the server list's entries, as servers.js reads them), when given, replace
+// the channel's server list in the same commit; `versions` may then be empty.
 // Resolves to { commitUrl, actionsUrl }.
-export async function publishPack({ repo, versions, data, description = '', changelog = '' }) {
+export async function publishPack({ repo, versions = [], data, description = '', changelog = '', servers }) {
     const metadata = {};
     if (description.trim()) {
         metadata.description = description.trim();
@@ -104,9 +144,14 @@ export async function publishPack({ repo, versions, data, description = '', chan
         }
         return { category, version, files };
     });
+    const summary = versions.map(({ category, version }) => `${category} ${version}`);
+    if (servers) {
+        summary.push('the server list');
+    }
     return github.publish({
         repo,
         versions: published,
-        message: `Add ${versions.map(({ category, version }) => `${category} ${version}`).join(', ')} from TMods`,
+        ...(servers ? { servers: channelServers(servers) } : {}),
+        message: `${versions.length ? 'Add' : 'Update'} ${summary.join(', ')} from TMods`,
     });
 }

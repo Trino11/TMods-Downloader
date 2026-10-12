@@ -97,6 +97,7 @@ const services = {
         backupNotFound: 'Backup {id} not found for {category}',
     },
     bundlePublish: {
+        serversCategory: 'Server list (every player gets it)',
         packsCategory: 'Packs (whole pack)',
         nothingFor: 'The pack has nothing that goes in {category}.',
         tooLarge:

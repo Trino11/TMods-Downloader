@@ -14,7 +14,13 @@ import {
     restorePackBackup,
 } from '../../services/mrpack';
 import { fetchPackUpdates } from '../../services/manifest';
-import { bundlesRepo, existingVersions, publishPack } from '../../services/bundlePublish';
+import {
+    bundlesRepo,
+    existingVersions,
+    publishPack,
+    serversOfPack,
+    serversOfProfile,
+} from '../../services/bundlePublish';
 import { listProfiles } from '../../services/profiles';
 
 jest.mock('../../services/packScan', () => ({ recogniseFiles: jest.fn(), scanProfile: jest.fn() }));
@@ -42,6 +48,8 @@ jest.mock('../../services/bundlePublish', () => ({
     bundlesRepo: jest.fn(),
     existingVersions: jest.fn(),
     publishPack: jest.fn(),
+    serversOfPack: jest.fn(),
+    serversOfProfile: jest.fn(),
 }));
 jest.mock('../../services/profiles', () => ({ listProfiles: jest.fn(), updateProfile: jest.fn() }));
 jest.mock('../../services/fabric', () => ({
@@ -74,6 +82,7 @@ const scanned = [
     item('config/a.toml', 'config'),
     item('options.txt', 'settings', { ticked: false }),
 ];
+const serversItem = item('servers.dat', 'servers', { ticked: false });
 
 const pack = {
     name: 'Friends Pack',
@@ -120,6 +129,11 @@ beforeEach(() => {
     bundlesRepo.mockReturnValue('Trino11/TMods-bundles');
     existingVersions.mockResolvedValue(['1.0.0']);
     publishPack.mockResolvedValue({ actionsUrl: 'https://github.com/Trino11/TMods-bundles/actions' });
+    serversOfProfile.mockReturnValue([
+        { name: 'Lobby', address: 'lobby.example.com', resourcePack: 'enabled', extra: [] },
+        { name: 'Mine', address: 'mine.example.com', resourcePack: 'prompt', extra: [] },
+    ]);
+    serversOfPack.mockReturnValue([]);
     URL.createObjectURL = jest.fn(() => 'blob:pack');
     URL.revokeObjectURL = jest.fn();
 });
@@ -409,6 +423,75 @@ describe('Publish', () => {
         await waitFor(() => expect(publishPack).toHaveBeenCalled());
         expect(publishPack.mock.calls[0][0].data).toEqual(new Uint8Array(new TextEncoder().encode('pack')));
         expect(exportMrpack).not.toHaveBeenCalled();
+    });
+
+    it("publishes the profile's servers as the channel's server list, out of the pack", async () => {
+        scanProfile.mockReturnValue([...scanned, serversItem]);
+        show();
+        openTab('Publish');
+        await screen.findByDisplayValue('1.0.1');
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Include all server list' }));
+        fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Categories' }));
+        fireEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: /Server list/ }));
+        fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
+
+        expect(await screen.findByText(/with these 2 server\(s\): Lobby, Mine/)).toBeInTheDocument();
+        expect(screen.queryByLabelText(/Server list .*version/)).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+        expect(await screen.findByText(/Published Packs \(whole pack\) 1.0.1, Server list/)).toBeInTheDocument();
+        expect(serversOfProfile).toHaveBeenCalledWith('/game');
+        expect(publishPack).toHaveBeenCalledWith(
+            expect.objectContaining({
+                versions: [{ category: 'packs', version: '1.0.1' }],
+                servers: serversOfProfile.mock.results[0].value,
+            }),
+        );
+        expect(exportMrpack.mock.calls[0][2].items.map(item => item.id)).not.toContain('servers.dat');
+    });
+
+    it('publishes only the server list when that is all that is picked', async () => {
+        scanProfile.mockReturnValue([...scanned, serversItem]);
+        show();
+        openTab('Publish');
+        await screen.findByDisplayValue('1.0.1');
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Include all server list' }));
+        fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Categories' }));
+        const options = within(screen.getByRole('listbox'));
+        fireEvent.click(options.getByRole('option', { name: /Packs/ }));
+        fireEvent.click(options.getByRole('option', { name: /Server list/ }));
+        fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
+        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+        await waitFor(() => expect(publishPack).toHaveBeenCalled());
+        expect(publishPack.mock.calls[0][0]).toMatchObject({ versions: [], data: null });
+        expect(exportMrpack).not.toHaveBeenCalled();
+    });
+
+    it('says the pack would be empty when the server list is all that is picked', async () => {
+        scanProfile.mockReturnValue([serversItem]);
+        show();
+        openTab('Publish');
+        await screen.findByDisplayValue('1.0.1');
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Include all server list' }));
+        fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Categories' }));
+        fireEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: /Server list/ }));
+        fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
+
+        expect(await screen.findByText(/Nothing picked goes in Packs \(whole pack\)\./)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Publish' })).toBeDisabled();
+    });
+
+    it("won't publish the server list without the servers picked", async () => {
+        show();
+        openTab('Publish');
+        await screen.findByDisplayValue('1.0.1');
+        fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Categories' }));
+        fireEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: /Server list/ }));
+        fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
+
+        expect(await screen.findByText(/Nothing picked goes in Server list/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Publish' })).toBeDisabled();
     });
 
     it('asks before publishing a large pack', async () => {

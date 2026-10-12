@@ -46,6 +46,36 @@ function checkVersion(version) {
     return version;
 }
 
+// The channel's server list (bundles/servers.json, read by publish-bundles): every entry
+// checked the way the publisher checks it, so a publish never commits a list that would
+// stop the next release.
+const MAX_SERVERS = 200;
+const RESOURCE_PACK_CHOICES = ['prompt', 'enabled', 'disabled'];
+
+function serversFile(servers) {
+    if (!Array.isArray(servers) || servers.length > MAX_SERVERS) {
+        throw new Error(`The server list must be a list of at most ${MAX_SERVERS} servers.`);
+    }
+    const seen = new Set();
+    const list = servers.map(entry => {
+        const address = typeof entry?.address === 'string' ? entry.address.trim() : '';
+        if (!address || address.length > 255 || /\s/.test(address)) {
+            throw new Error(`Can't publish the server address "${address}".`);
+        }
+        const key = address.toLowerCase().replace(/:25565$/, '');
+        if (seen.has(key)) {
+            throw new Error(`The server list has ${address} twice.`);
+        }
+        seen.add(key);
+        const name = typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim().slice(0, 256) : address;
+        if (entry.resourcePack !== undefined && !RESOURCE_PACK_CHOICES.includes(entry.resourcePack)) {
+            throw new Error(`Unknown resource pack choice ${entry.resourcePack}.`);
+        }
+        return { name, address, ...(entry.resourcePack ? { resourcePack: entry.resourcePack } : {}) };
+    });
+    return JSON.stringify({ servers: list }, null, 2) + '\n';
+}
+
 function toBase64(data) {
     if (typeof data === 'string') {
         return Buffer.from(data, 'utf-8').toString('base64');
@@ -161,12 +191,14 @@ function createBundlePublisher({ fetch, safeStorage, fs, tokenFile, userAgent })
     // Adds bundles/<category>/<version>/<files> to the default branch in one commit, for
     // each of `versions` ([{ category, version, files }], one per category; a single
     // { category, version, files } works too). `files` are [{ name, data }]. Refuses
-    // versions that already exist, before writing anything.
-    async function publish({ repo, versions, category, version, files, message }) {
+    // versions that already exist, before writing anything. `servers`, when given,
+    // replaces bundles/servers.json in the same commit.
+    async function publish({ repo, versions, category, version, files, servers, message }) {
         const token = requireToken();
         checkRepo(repo);
-        const wanted = versions || [{ category, version, files }];
-        if (!Array.isArray(wanted) || wanted.length === 0) {
+        const wanted = versions || (category ? [{ category, version, files }] : []);
+        const serverList = servers === undefined ? null : serversFile(servers);
+        if (!Array.isArray(wanted) || (wanted.length === 0 && !serverList)) {
             throw new Error('There is nothing to publish.');
         }
         for (const entry of wanted) {
@@ -215,7 +247,17 @@ function createBundlePublisher({ fetch, safeStorage, fs, tokenFile, userAgent })
                 });
             }
         }
-        const summary = wanted.map(entry => `${entry.category} ${entry.version}`).join(', ');
+        if (serverList) {
+            const { body } = await api(token, 'POST', `/repos/${repo}/git/blobs`, {
+                content: toBase64(serverList),
+                encoding: 'base64',
+            });
+            tree.push({ path: 'bundles/servers.json', mode: '100644', type: 'blob', sha: body.sha });
+        }
+        const summary = [
+            ...wanted.map(entry => `${entry.category} ${entry.version}`),
+            ...(serverList ? ['the server list'] : []),
+        ].join(', ');
 
         // Someone may push in between; try again on top of the new head once.
         for (let attempt = 1; ; attempt++) {
@@ -227,7 +269,7 @@ function createBundlePublisher({ fetch, safeStorage, fs, tokenFile, userAgent })
                 tree,
             });
             const { body: commit } = await api(token, 'POST', `/repos/${repo}/git/commits`, {
-                message: message || `Add ${summary}`,
+                message: message || `${wanted.length ? 'Add' : 'Update'} ${summary}`,
                 tree: newTree.sha,
                 parents: [head],
             });

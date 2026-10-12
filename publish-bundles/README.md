@@ -132,7 +132,9 @@ version folder: the files you tick in the active profile, exported as a `.mrpack
 `.mrpack` file you already have, with an optional description and changelog in
 `bundle.json`. It goes into `packs` by default, or any other category you pick. It
 suggests the version after the newest one already published, and refuses to overwrite
-one that exists. The workflow below picks the commit up and publishes it.
+one that exists. Picking "Server list" there (with the profile's server list ticked)
+replaces `bundles/servers.json` with that profile's servers in the same commit. The
+workflow below picks the commit up and publishes it.
 
 ## 3. The workflow
 

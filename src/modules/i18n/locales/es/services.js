@@ -97,6 +97,7 @@ const services = {
         backupNotFound: 'No se encontró la copia de seguridad {id} de {category}',
     },
     bundlePublish: {
+        serversCategory: 'Lista de servidores (la reciben todos los jugadores)',
         packsCategory: 'Packs (pack completo)',
         nothingFor: 'El pack no tiene nada que vaya en {category}.',
         tooLarge:

@@ -110,6 +110,9 @@ const packs = {
         nothingOfKind: 'No hay nada de este tipo para publicar',
         versionOf: 'Versión de {category}',
         emptyCategories: 'Nada de lo elegido va en {categories}. Elige archivos de ese tipo o desmarca la categoría.',
+        serversInfo:
+            'Sustituye la lista de servidores de tu canal por estos {count} servidor(es): {names}. Los jugadores los reciben en todos sus perfiles, junto a los suyos.',
+        serversEmpty: 'La lista de servidores elegida está vacía. Añade alguno primero en la página de Perfiles.',
         description: 'Descripción (opcional)',
         changelog: 'Qué cambió (opcional)',
         publish: 'Publicar',
