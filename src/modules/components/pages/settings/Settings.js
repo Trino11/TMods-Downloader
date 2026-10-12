@@ -4,13 +4,18 @@ import Page from '../../utils/Page';
 import ManifestUrlForm from '../../settings/ManifestUrlForm';
 import LogsSection from '../../settings/LogsSection';
 import BundlesRepoSection from '../../settings/BundlesRepoSection';
+import LanguageSection from '../../settings/LanguageSection';
+import { useTranslation } from '../../../i18n';
 
 function Settings({ onManifestUrlChange }) {
+    const { t } = useTranslation();
     return (
-        <Page
-            title='Settings'
-            description='The manifest lists the mods, configs and packs you can download. Changing it is checked before saving.'
-        >
+        <Page title={t('settings.title')} description={t('settings.description')}>
+            <Card variant='outlined'>
+                <CardContent>
+                    <LanguageSection />
+                </CardContent>
+            </Card>
             <Card variant='outlined'>
                 <CardContent>
                     <ManifestUrlForm onSaved={onManifestUrlChange} />

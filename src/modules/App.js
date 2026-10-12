@@ -13,6 +13,7 @@ import PacksPage from './components/pages/packs/PacksPage';
 import FirstRunSetup from './components/setup/FirstRunSetup';
 import categories from './categories';
 import { getManifestUrl } from './services/settings';
+import { applyDocumentLanguage, useTranslation } from './i18n';
 import {
     ensureTModsProfile,
     getActiveProfile,
@@ -34,7 +35,11 @@ function loadProfiles() {
     return listProfiles();
 }
 
+applyDocumentLanguage();
+
 function App() {
+    // Redraws every screen when the player picks another language in Settings.
+    useTranslation();
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline enableColorScheme />
