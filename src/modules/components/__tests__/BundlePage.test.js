@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import BundlePage from '../pages/bundle/BundlePage';
 import categories from '../../categories';
 import { fetchVersions } from '../../services/manifest';
@@ -61,10 +61,38 @@ it('does nothing when the restore is cancelled', () => {
     expect(restoreBackup).not.toHaveBeenCalled();
 });
 
-it('has no backups section for categories that are never backed up', () => {
-    render(<BundlePage category={categories.find(c => c.id === 'shaderpacks')} />);
+it('asks whether a download replaces what is there, starting on replace', async () => {
+    fetchVersions.mockResolvedValue([{ id: '2.0', url: 'https://example.com/mods.zip' }]);
+    installBundle.mockResolvedValue();
+    render(<BundlePage category={mods} gameDir='/games/fabric' />);
 
-    expect(screen.queryByText('Backups')).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /download/i }));
+    expect(screen.getByText('This installs into mods/.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Replace existing content')).toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    await waitFor(() =>
+        expect(installBundle).toHaveBeenCalledWith(mods, expect.objectContaining({ id: '2.0' }), '/games/fabric', {
+            replace: true,
+        }),
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /download/i }));
+    fireEvent.click(screen.getByLabelText('Replace existing content'));
+    expect(screen.getByText(/The new files are added next to what you have/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    await waitFor(() =>
+        expect(installBundle).toHaveBeenLastCalledWith(mods, expect.anything(), '/games/fabric', { replace: false }),
+    );
+});
+
+it('installs nothing when the question is cancelled', async () => {
+    fetchVersions.mockResolvedValue([{ id: '2.0', url: 'https://example.com/mods.zip' }]);
+    render(<BundlePage category={mods} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /download/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(installBundle).not.toHaveBeenCalled();
 });
 
 it('shows an error when the version list cannot be loaded', async () => {
@@ -80,6 +108,7 @@ it('shows an error when an install fails', async () => {
     render(<BundlePage category={mods} gameDir='/games/fabric' />);
 
     fireEvent.click(await screen.findByRole('button', { name: /download/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
 
     expect(await screen.findByText('Could not install 2.0: Request failed with status code 404')).toBeInTheDocument();
 });

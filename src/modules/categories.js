@@ -11,7 +11,7 @@ import { t } from './i18n';
 // `label` and `description` are getters so they follow the chosen language.
 // `icon`: Material icon shown in the sidebar.
 // `backupFolder`: folder inside .minecraft backed up (last 5 kept, restorable from the page) before installing.
-// `clearFolder`: remove that folder after backing it up, so the bundle replaces it entirely.
+// Installing can replace that folder's contents or add to them (the player picks).
 const categories = [
     {
         id: 'mods',
@@ -23,7 +23,6 @@ const categories = [
             return t('nav.categories.mods.description');
         },
         backupFolder: 'mods',
-        clearFolder: true,
         showTarget: true,
     },
     {
@@ -36,7 +35,6 @@ const categories = [
             return t('nav.categories.schematics.description');
         },
         backupFolder: 'schematics',
-        clearFolder: true,
     },
     {
         id: 'resourcepacks',
@@ -47,6 +45,7 @@ const categories = [
         get description() {
             return t('nav.categories.resourcepacks.description');
         },
+        backupFolder: 'resourcepacks',
     },
     {
         id: 'configs',
@@ -68,6 +67,7 @@ const categories = [
         get description() {
             return t('nav.categories.shaderpacks.description');
         },
+        backupFolder: 'shaderpacks',
     },
 ];
 

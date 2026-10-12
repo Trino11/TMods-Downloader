@@ -114,29 +114,31 @@ describe('installBundle', () => {
         expect(list.map(server => server.name)).toEqual(['Bundle', 'Mine']);
     });
 
-    it('backs up config without wiping it', async () => {
-        write('config/keep.toml', 'mine');
-        write('config/shared.toml', 'old');
-        serveZip({ 'config/shared.toml': 'new' });
-
-        await installBundle(category('configs'), version);
-
-        expect(readBackup('configs', 'keep.toml')).toBe('mine');
-        expect(readBackup('configs', 'shared.toml')).toBe('old');
-        expect(read('config/keep.toml')).toBe('mine');
-        expect(read('config/shared.toml')).toBe('new');
-    });
-
-    it.each(['resourcepacks', 'shaderpacks'])('extracts %s over existing files without a backup', async id => {
-        write(`${id}/mine.zip`, 'mine');
-        serveZip({ [`${id}/pack.zip`]: 'pack' });
+    it.each(['configs', 'resourcepacks', 'shaderpacks'])('backs up and replaces %s too', async id => {
+        const folder = category(id).backupFolder;
+        write(`${folder}/mine.file`, 'mine');
+        serveZip({ [`${folder}/new.file`]: 'new' });
 
         await installBundle(category(id), version);
 
-        expect(read(`${id}/mine.zip`)).toBe('mine');
-        expect(read(`${id}/pack.zip`)).toBe('pack');
-        expect(exists(`.tmods_loader/${id}/backups`)).toBe(false);
-        expect(listBackups(category(id))).toEqual([]);
+        expect(readBackup(id, 'mine.file')).toBe('mine');
+        expect(exists(`${folder}/mine.file`)).toBe(false);
+        expect(read(`${folder}/new.file`)).toBe('new');
+    });
+
+    it.each(categories.map(c => c.id))('adds %s to what is there when told not to replace', async id => {
+        const folder = category(id).backupFolder;
+        write(`${folder}/mine.file`, 'mine');
+        write(`${folder}/shared.file`, 'old');
+        serveZip({ [`${folder}/shared.file`]: 'new', [`${folder}/pack.file`]: 'pack' });
+
+        await installBundle(category(id), version, undefined, { replace: false });
+
+        expect(read(`${folder}/mine.file`)).toBe('mine');
+        expect(read(`${folder}/shared.file`)).toBe('new');
+        expect(read(`${folder}/pack.file`)).toBe('pack');
+        expect(readBackup(id, 'mine.file')).toBe('mine');
+        expect(readBackup(id, 'shared.file')).toBe('old');
     });
 
     it('keeps earlier backups instead of overwriting them', async () => {

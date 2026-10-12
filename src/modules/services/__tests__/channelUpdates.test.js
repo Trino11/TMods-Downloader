@@ -67,6 +67,9 @@ it('installs every outdated channel and reports the ones that failed', async () 
     const failures = await installChannelUpdates(statuses, '/games/a');
 
     expect(installBundle).toHaveBeenCalledTimes(2);
-    expect(installBundle).toHaveBeenCalledWith(mods, { id: '1.1' }, '/games/a');
+    expect(installBundle).toHaveBeenCalledWith(mods, { id: '1.1' }, '/games/a', { replace: true });
     expect(failures).toEqual([{ category: configs, error: new Error('404') }]);
+
+    await installChannelUpdates(statuses, '/games/a', { replace: false });
+    expect(installBundle).toHaveBeenLastCalledWith(configs, { id: '2.1' }, '/games/a', { replace: false });
 });

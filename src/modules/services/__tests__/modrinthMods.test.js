@@ -308,16 +308,31 @@ describe('bundles and Modrinth mods together', () => {
         });
     }
 
-    it('keeps Modrinth mods, enabled or not, when a bundle replaces the mods folder', async () => {
+    async function setUp() {
         serveBasic();
         await mods.installMod(gameDir, target, 'sodium', 'Sodium');
         mods.setModEnabled(gameDir, 'fabric-api', false);
         fs.writeFileSync(path.join(gameDir, 'mods', 'hand.jar'), 'hand');
         serveBundle({ 'mods/bundle.jar': 'bundle' });
+    }
+
+    it('removes Modrinth mods too when a bundle replaces the mods folder, and forgets them', async () => {
+        await setUp();
 
         await installBundle(modsCategory, { id: '1.0', url: 'https://example.com/b.zip' }, gameDir);
 
-        expect(modFiles()).toEqual(['bundle.jar', 'fabric-api-0.100.0.jar.disabled', 'sodium-0.6.0.jar']);
+        expect(modFiles()).toEqual(['bundle.jar']);
+        expect(mods.readModList(gameDir).mods).toEqual([]);
+    });
+
+    it('keeps every mod, Modrinth or not, when a bundle is added to the mods folder', async () => {
+        await setUp();
+
+        await installBundle(modsCategory, { id: '1.0', url: 'https://example.com/b.zip' }, gameDir, {
+            replace: false,
+        });
+
+        expect(modFiles()).toEqual(['bundle.jar', 'fabric-api-0.100.0.jar.disabled', 'hand.jar', 'sodium-0.6.0.jar']);
     });
 });
 

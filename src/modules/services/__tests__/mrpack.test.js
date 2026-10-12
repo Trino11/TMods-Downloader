@@ -375,10 +375,32 @@ describe('importMrpack into an existing profile', () => {
         fs.writeFileSync(path.join(gameDir, 'config', 'sodium.json'), 'mine');
     });
 
-    it('replaces other versions of the same mods, keeps the rest and backs up first', async () => {
-        const pack = buildPack({ files: { 'overrides/config/sodium.json': 'pack' } });
+    it("replaces what's in the folders the pack fills, leaves other folders alone and can be undone", async () => {
+        fs.mkdirSync(path.join(gameDir, 'saves', 'World'), { recursive: true });
+        fs.writeFileSync(path.join(gameDir, 'saves', 'World', 'level.dat'), 'world');
+        fs.mkdirSync(path.join(gameDir, 'resourcepacks'));
+        fs.writeFileSync(path.join(gameDir, 'resourcepacks', 'mine.zip'), 'mine');
+        const pack = buildPack({
+            files: { 'overrides/config/other.json': 'pack', 'overrides/saves/Pack/level.dat': 'pack' },
+        });
 
         const result = await mrpack.importMrpack(pack, { into: profile.id });
+
+        expect(result.replaced).toEqual([]);
+        expect(profileFiles(profile, 'mods')).toEqual(['fabric-api-0.100.0.jar', 'sodium-0.6.0.jar']);
+        expect(profileFiles(profile, 'config')).toEqual(['other.json']);
+        expect(profileFiles(profile, 'saves')).toEqual(['Pack', 'World']);
+        expect(profileFiles(profile, 'resourcepacks')).toEqual(['mine.zip']);
+
+        mrpack.restorePackBackup(gameDir, result.backupId);
+        expect(profileFiles(profile, 'mods')).toEqual(['mine.jar', 'sodium-old.jar']);
+        expect(profileFiles(profile, 'config')).toEqual(['sodium.json']);
+    });
+
+    it('when told not to replace, replaces other versions of the same mods, keeps the rest and backs up first', async () => {
+        const pack = buildPack({ files: { 'overrides/config/sodium.json': 'pack' } });
+
+        const result = await mrpack.importMrpack(pack, { into: profile.id, replace: false });
 
         expect(result).toMatchObject({ profile: { id: profile.id }, replaced: ['Sodium'] });
         expect(profileFiles(profile, 'mods')).toEqual(['fabric-api-0.100.0.jar', 'mine.jar', 'sodium-0.6.0.jar']);
@@ -454,11 +476,11 @@ describe('importMrpack into an existing profile', () => {
         expect(fs.existsSync(path.join(gameDir, '.tmods_loader', 'pack-import'))).toBe(false);
     });
 
-    it('still installs, replacing only same-named files, when Modrinth lookups fail', async () => {
+    it('still adds the pack, replacing only same-named files, when Modrinth lookups fail', async () => {
         axios.post.mockRejectedValue(new Error('offline'));
         jest.spyOn(console, 'error').mockImplementation(() => {});
 
-        const { replaced } = await mrpack.importMrpack(buildPack(), { into: profile.id });
+        const { replaced } = await mrpack.importMrpack(buildPack(), { into: profile.id, replace: false });
 
         expect(replaced).toEqual([]);
         expect(profileFiles(profile, 'mods')).toEqual([

@@ -7,6 +7,7 @@ import Downloadspinner from '../../utils/Downloadspinner';
 import Page from '../../utils/Page';
 import { ItemList } from '../../utils/ItemList';
 import { KeepVersionButton } from '../../utils/KeepVersion';
+import ReplaceContentDialog from '../../utils/ReplaceContent';
 import VersionItem from './VersionItem';
 import BackupList from './BackupList';
 import { fetchVersions } from '../../../services/manifest';
@@ -22,6 +23,8 @@ function BundlePage({ category, gameDir }) {
     const [pinned, setPinnedState] = useState(() => isPinned(gameDir, category.id));
     const [backups, setBackups] = useState(() => listBackups(category, gameDir));
     const [downloading, setDownloading] = useState(false);
+    // The version waiting for the player to say whether it replaces what's there.
+    const [asking, setAsking] = useState(null);
     const [error, setError] = useState('');
 
     const refresh = useCallback(() => {
@@ -35,11 +38,12 @@ function BundlePage({ category, gameDir }) {
 
     useEffect(refresh, [refresh]);
 
-    async function handleDownload(version) {
+    async function handleDownload(version, replace) {
+        setAsking(null);
         setDownloading(true);
         setError('');
         try {
-            await installBundle(category, version, gameDir);
+            await installBundle(category, version, gameDir, { replace });
             setInstalled(version.id);
         } catch (installError) {
             setError(t('bundle.errors.install', { version: version.id, message: installError.message }));
@@ -99,11 +103,17 @@ function BundlePage({ category, gameDir }) {
                             showTarget={category.showTarget}
                             installed={installed === version.id}
                             disabled={downloading}
-                            onDownload={() => handleDownload(version)}
+                            onDownload={() => setAsking(version)}
                         />
                     ))}
                 </ItemList>
             )}
+            <ReplaceContentDialog
+                open={Boolean(asking)}
+                folders={[category.backupFolder]}
+                onConfirm={replace => handleDownload(asking, replace)}
+                onCancel={() => setAsking(null)}
+            />
             {category.backupFolder && <BackupList backups={backups} disabled={downloading} onRestore={handleRestore} />}
         </Page>
     );

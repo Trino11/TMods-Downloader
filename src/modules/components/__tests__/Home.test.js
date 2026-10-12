@@ -32,6 +32,7 @@ jest.mock('../../services/manifest', () => ({
 jest.mock('../../services/mrpack', () => ({
     NEW_PROFILE: 'new',
     downloadPublishedPack: jest.fn(),
+    foldersToReplace: () => ['mods'],
     importMrpack: jest.fn(),
     packWarnings: jest.fn(),
     readInstalledPack: jest.fn(),
@@ -56,7 +57,7 @@ jest.mock('../../services/modrinthMods', () => ({
     updateMod: jest.fn(),
 }));
 
-const mods = { id: 'mods', label: 'Mods' };
+const mods = { id: 'mods', label: 'Mods', backupFolder: 'mods' };
 // What fetchPackUpdates says when the latest pack is `latest` and the profile has `installed`.
 function packUpdates(latest, installed = null, changes = [], pinned = false) {
     const newer = Boolean(installed && latest && latest.id !== installed);
@@ -129,11 +130,13 @@ it('installs every update with one click, then checks again', async () => {
     renderHome();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Install all (2)' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Install' }));
 
     expect(await screen.findByText('Everything is up to date.')).toBeInTheDocument();
     expect(installChannelUpdates).toHaveBeenCalledWith(
         [expect.objectContaining({ installed: '1.0', outdated: true })],
         '/games/fabric',
+        { replace: true },
     );
     expect(updateMod).toHaveBeenCalledWith('/games/fabric', 'sodium', { id: 'v2' });
     await waitFor(() => expect(checkChannels).toHaveBeenCalledTimes(2));
@@ -143,9 +146,20 @@ it('installs a single channel', async () => {
     renderHome();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Install' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('This installs into mods/.')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByLabelText('Replace existing content'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Install' }));
 
     expect(await screen.findByText('Installed Mods 1.1.')).toBeInTheDocument();
-    expect(installBundle).toHaveBeenCalledWith(expect.objectContaining({ id: 'mods' }), { id: '1.1' }, '/games/fabric');
+    expect(installBundle).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'mods' }),
+        { id: '1.1' },
+        '/games/fabric',
+        {
+            replace: false,
+        },
+    );
 });
 
 it('reports the channels that failed to update', async () => {
@@ -153,6 +167,7 @@ it('reports the channels that failed to update', async () => {
     renderHome();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Install all (1)' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Install' }));
 
     expect(await screen.findByText('Some updates failed. Mods: 404')).toBeInTheDocument();
 });
@@ -368,6 +383,7 @@ it('downloads the latest pack and imports it into the active profile', async () 
     expect(downloadPublishedPack).toHaveBeenCalledWith(latestPack);
     expect(within(dialog).getByLabelText('Import into')).toHaveValue('fabric');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Import' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Install' }));
 
     expect(await screen.findByText(/Imported into Fabric\./)).toBeInTheDocument();
     expect(importMrpack).toHaveBeenCalledWith(new Uint8Array([1]), {
@@ -376,6 +392,7 @@ it('downloads the latest pack and imports it into the active profile', async () 
         items: ['mods/sodium.jar'],
         channelVersion: '1.0.0',
         keepVersion: false,
+        replace: true,
     });
     expect(onProfilesChange).toHaveBeenCalled();
     expect(fetchPackUpdates).toHaveBeenCalledTimes(2);

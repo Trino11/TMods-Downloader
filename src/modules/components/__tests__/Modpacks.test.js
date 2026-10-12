@@ -62,5 +62,6 @@ it('downloads a Modrinth modpack and offers the same import step as the Packs pa
         into: 'new',
         name: 'Friends Pack',
         items: ['mods/sodium.jar'],
+        replace: true,
     });
 });

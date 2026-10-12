@@ -12,6 +12,7 @@ import Downloadspinner from '../../utils/Downloadspinner';
 import { ItemList, ItemRow } from '../../utils/ItemList';
 import { ChangelogButton } from '../../utils/Changelog';
 import { KeepVersionButton, KeptChip, describeKept } from '../../utils/KeepVersion';
+import ReplaceContentDialog from '../../utils/ReplaceContent';
 import categories from '../../../categories';
 import { checkChannels, installChannelUpdates } from '../../../services/channelUpdates';
 import { installBundle } from '../../../services/bundleInstaller';
@@ -84,6 +85,9 @@ function ChannelUpdates({ profile, gameDir }) {
     const [checkError, setCheckError] = useState('');
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
+    // An install waiting for the player to say whether it replaces what's there:
+    // { folders, install(replace) }.
+    const [asking, setAsking] = useState(null);
 
     // Modrinth mods are checked against the loader the profile plays with, resource packs
     // and shaders against its Minecraft version. Without a version (the default profile
@@ -137,11 +141,24 @@ function ChannelUpdates({ profile, gameDir }) {
         await check();
     }
 
-    function installOne(status) {
-        run(async () => {
-            await installBundle(status.category, status.latest, gameDir);
-            return t('home.updates.installedOne', { name: status.category.label, version: status.latest.id });
+    // Asks whether the channels' installs replace what's there, then runs `install`.
+    function askThen(channels, install) {
+        setAsking({
+            folders: [...new Set(channels.map(status => status.category.backupFolder).filter(Boolean))],
+            install: replace => {
+                setAsking(null);
+                install(replace);
+            },
         });
+    }
+
+    function installOne(status) {
+        askThen([status], replace =>
+            run(async () => {
+                await installBundle(status.category, status.latest, gameDir, { replace });
+                return t('home.updates.installedOne', { name: status.category.label, version: status.latest.id });
+            }),
+        );
     }
 
     // Lets a kept channel be offered updates again.
@@ -153,10 +170,21 @@ function ChannelUpdates({ profile, gameDir }) {
     }
 
     function installAll() {
+        const outdated = (statuses || []).filter(status => status.outdated);
+        if (outdated.length === 0) {
+            installAllNow(true);
+        } else {
+            askThen(outdated, installAllNow);
+        }
+    }
+
+    function installAllNow(replace) {
         run(async () => {
-            const failures = await installChannelUpdates(statuses || [], gameDir);
+            const failures = await installChannelUpdates(statuses || [], gameDir, { replace });
+            // A channel that replaced the mods folder may have removed mods with updates.
+            const still = new Set(readModList(gameDir).mods.map(mod => mod.projectId));
             const modFailures = [];
-            for (const { mod, version } of modUpdates) {
+            for (const { mod, version } of modUpdates.filter(update => still.has(update.mod.projectId))) {
                 try {
                     await updateMod(gameDir, mod.projectId, version);
                 } catch (updateError) {
@@ -294,6 +322,12 @@ function ChannelUpdates({ profile, gameDir }) {
                     {notice && <Alert severity='success'>{notice}</Alert>}
                 </Stack>
             </CardContent>
+            <ReplaceContentDialog
+                open={Boolean(asking)}
+                folders={asking?.folders || []}
+                onConfirm={replace => asking.install(replace)}
+                onCancel={() => setAsking(null)}
+            />
         </Card>
     );
 }
