@@ -90,6 +90,13 @@ export async function fetchLatestVersions(categoryIds) {
     return Object.fromEntries(categoryIds.map(id => [id, latestVersion(manifest, id)]));
 }
 
+// The latest whole pack the channel publishes (its packs category), or null when there
+// is none. Home offers it as a one-click download.
+export async function fetchLatestPack() {
+    const manifest = await fetchManifest(getManifestUrl());
+    return latestVersion(manifest, 'packs');
+}
+
 // The text a manifest version carries in its optional `changelog` field, or ''.
 export function changelogOf(version) {
     return typeof version?.changelog === 'string' ? version.changelog.trim() : '';

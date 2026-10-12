@@ -10,6 +10,7 @@ import { Link } from 'react-router';
 import Page from '../../utils/Page';
 import FabricInstall from '../profiles/FabricInstall';
 import ChannelUpdates from './ChannelUpdates';
+import LatestPack from './LatestPack';
 import NewProfile from './NewProfile';
 import { VERSION } from '../../../config';
 import { detectTarget } from '../../../services/gameTarget';
@@ -66,6 +67,7 @@ function Home({ profile, gameDir, onSelectProfile, onProfilesChange }) {
                     Settings
                 </Button>
             </Stack>
+            <LatestPack profile={profile} onProfilesChange={onProfilesChange} />
             <ChannelUpdates key={profile.id} profile={profile} gameDir={gameDir} />
             <NewProfile onCreated={handleCreated} />
             <FabricInstall

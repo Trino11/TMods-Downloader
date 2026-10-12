@@ -2,6 +2,7 @@ import axios from 'axios';
 import {
     changelogEntries,
     fetchChannelUpdates,
+    fetchLatestPack,
     fetchLatestVersions,
     fetchVersions,
     latestVersion,
@@ -132,6 +133,24 @@ it('fetchLatestVersions reads the manifest once for every category', async () =>
 
     await expect(fetchLatestVersions(['mods', 'configs'])).resolves.toEqual({ mods: { id: '1.0' }, configs: null });
     expect(axios.get).toHaveBeenCalledTimes(1);
+});
+
+it('fetchLatestPack picks the pack the manifest names as latest', async () => {
+    axios.get.mockReset();
+    axios.get.mockResolvedValue({
+        data: { latest: { packs: '1.0.0' }, versions: { packs: [{ id: '1.1.0-beta' }, { id: '1.0.0' }] } },
+    });
+    setManifestUrl('https://example.com/manifest.json');
+
+    await expect(fetchLatestPack()).resolves.toEqual({ id: '1.0.0' });
+});
+
+it('fetchLatestPack is null when the channel has no packs', async () => {
+    axios.get.mockReset();
+    axios.get.mockResolvedValue({ data: { versions: { mods: [{ id: '1.0' }] } } });
+    setManifestUrl('https://example.com/manifest.json');
+
+    await expect(fetchLatestPack()).resolves.toBeNull();
 });
 
 describe('changelogs', () => {

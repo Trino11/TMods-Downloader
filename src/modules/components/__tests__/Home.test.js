@@ -1,13 +1,15 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import Home from '../pages/home/home';
 import { checkChannels, installChannelUpdates } from '../../services/channelUpdates';
 import { installBundle } from '../../services/bundleInstaller';
-import { createProfile, listGameVersions, updateProfile } from '../../services/profiles';
+import { createProfile, listGameVersions, listProfiles, updateProfile } from '../../services/profiles';
 import { fetchMojangVersions } from '../../services/gameVersions';
 import { installFabric, listFabricGameVersions } from '../../services/fabric';
 import { detectTarget, gameVersionOf } from '../../services/gameTarget';
 import { checkUpdates, readModList, setTargetVersion, updateChangelog, updateMod } from '../../services/modrinthMods';
+import { fetchLatestPack } from '../../services/manifest';
+import { downloadPublishedPack, importMrpack, packWarnings, readPack } from '../../services/mrpack';
 
 jest.mock('axios', () => ({ get: jest.fn() }));
 jest.mock('../../services/channelUpdates', () => ({ checkChannels: jest.fn(), installChannelUpdates: jest.fn() }));
@@ -19,6 +21,18 @@ jest.mock('../../services/profiles', () => ({
     createProfile: jest.fn(),
     updateProfile: jest.fn(),
     listGameVersions: jest.fn(),
+    listProfiles: jest.fn(),
+}));
+jest.mock('../../services/manifest', () => ({
+    ...jest.requireActual('../../services/manifest'),
+    fetchLatestPack: jest.fn(),
+}));
+jest.mock('../../services/mrpack', () => ({
+    NEW_PROFILE: 'new',
+    downloadPublishedPack: jest.fn(),
+    importMrpack: jest.fn(),
+    packWarnings: jest.fn(),
+    readPack: jest.fn(),
 }));
 jest.mock('../../services/gameVersions', () => ({
     ...jest.requireActual('../../services/gameVersions'),
@@ -59,6 +73,7 @@ beforeEach(() => {
         { category: { ...mods, icon: () => null }, installed: '1.0', latest: { id: '1.1' }, outdated: true },
     ]);
     installChannelUpdates.mockResolvedValue([]);
+    fetchLatestPack.mockResolvedValue(null);
 });
 
 function renderHome(profile = fabricProfile) {
@@ -208,4 +223,67 @@ it('shows the changelogs of channel and Modrinth updates', async () => {
     expect(await screen.findByText('Fixes a crash')).toBeInTheDocument();
     expect(screen.getByText('Sodium 0.6.1')).toBeInTheDocument();
     expect(updateChangelog).toHaveBeenCalledWith(sodium.mod, sodium.version, target, '1.20.1');
+});
+
+const latestPack = {
+    id: '1.0.0',
+    url: 'https://example.com/packs-1.0.0.mrpack',
+    target: 'Fabric 26.3',
+    description: 'Base pack',
+    changelog: 'First release',
+};
+
+it('shows the latest pack of the channel apart from the updates', async () => {
+    fetchLatestPack.mockResolvedValue(latestPack);
+    renderHome();
+
+    expect(await screen.findByText('Pack 1.0.0')).toBeInTheDocument();
+    expect(screen.getByText('Fabric 26.3 · Base pack')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: "What's new" }));
+    expect(await screen.findByText('First release')).toBeInTheDocument();
+});
+
+it('says so when the channel has no packs', async () => {
+    renderHome();
+
+    expect(await screen.findByText(/Your channel has no packs yet/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
+});
+
+it('downloads the latest pack and imports it into the active profile', async () => {
+    fetchLatestPack.mockResolvedValue(latestPack);
+    downloadPublishedPack.mockResolvedValue(new Uint8Array([1]));
+    readPack.mockReturnValue({
+        name: 'TMods',
+        version: '1.0.0',
+        gameVersion: '26.3',
+        loader: null,
+        items: [{ id: 'mods/sodium.jar', kind: 'mod', name: 'sodium.jar', size: 1, files: [], link: true }],
+    });
+    packWarnings.mockReturnValue([]);
+    listProfiles.mockReturnValue([fabricProfile]);
+    importMrpack.mockResolvedValue({ profile: fabricProfile, replaced: [] });
+    renderHome();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Download' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(downloadPublishedPack).toHaveBeenCalledWith(latestPack);
+    expect(within(dialog).getByLabelText('Import into')).toHaveValue('fabric');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Import' }));
+
+    expect(await screen.findByText(/Imported into Fabric\./)).toBeInTheDocument();
+    expect(importMrpack).toHaveBeenCalledWith(new Uint8Array([1]), {
+        into: 'fabric',
+        name: undefined,
+        items: ['mods/sodium.jar'],
+    });
+    expect(onProfilesChange).toHaveBeenCalled();
+});
+
+it('shows why the latest pack could not be loaded', async () => {
+    fetchLatestPack.mockRejectedValue(new Error('Network Error'));
+    renderHome();
+
+    expect(await screen.findByText("Could not load your channel's packs: Network Error")).toBeInTheDocument();
 });
