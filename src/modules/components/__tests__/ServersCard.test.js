@@ -1,18 +1,15 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import ServersCard from '../pages/profiles/ServersCard';
-import { applyManifestServers, manifestServers, readManaged, readServers, writeServers } from '../../services/servers';
-import { fetchCurrentManifest } from '../../services/manifest';
+import { readManaged, readServers, syncProfileServers, writeServers } from '../../services/servers';
 
 jest.mock('../../services/servers', () => ({
     RESOURCE_PACK: { PROMPT: 'prompt', ENABLED: 'enabled', DISABLED: 'disabled' },
-    applyManifestServers: jest.fn(),
     isManaged: (managed, server) => managed.includes(server.address),
-    manifestServers: jest.fn(),
     readManaged: jest.fn(),
     readServers: jest.fn(),
+    syncProfileServers: jest.fn(),
     writeServers: jest.fn(),
 }));
-jest.mock('../../services/manifest', () => ({ fetchCurrentManifest: jest.fn() }));
 
 const profile = { id: 'survival', name: 'Survival' };
 let list;
@@ -28,9 +25,7 @@ beforeEach(() => {
         list = next;
         return true;
     });
-    fetchCurrentManifest.mockResolvedValue({ servers: [] });
-    manifestServers.mockReturnValue([]);
-    applyManifestServers.mockReturnValue(false);
+    syncProfileServers.mockResolvedValue(false);
     window.confirm = jest.fn(() => true);
 });
 
@@ -40,7 +35,7 @@ function rows() {
 
 async function renderCard() {
     render(<ServersCard profile={profile} gameDir='/games/survival' />);
-    await waitFor(() => expect(applyManifestServers).toHaveBeenCalledWith('/games/survival', []));
+    await waitFor(() => expect(syncProfileServers).toHaveBeenCalledWith(profile));
 }
 
 it("lists the profile's servers and marks the channel's", async () => {
@@ -111,14 +106,14 @@ it("says so when the list can't be read", async () => {
     render(<ServersCard profile={profile} gameDir='/games/survival' />);
 
     expect(screen.getByText('Could not read the server list (servers.dat): broken')).toBeInTheDocument();
-    expect(fetchCurrentManifest).not.toHaveBeenCalled();
+    expect(syncProfileServers).not.toHaveBeenCalled();
 });
 
 it("shows the channel's servers once they are in, whoever put them there", async () => {
     // The app's sync on start may add them after the card read the list.
-    fetchCurrentManifest.mockImplementation(async () => {
+    syncProfileServers.mockImplementation(async () => {
         list = [{ name: 'New', address: 'new.example.com', resourcePack: 'prompt', extra: [] }, ...list];
-        return { servers: [] };
+        return false;
     });
     await renderCard();
 

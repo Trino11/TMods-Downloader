@@ -14,14 +14,12 @@ import Typography from '@mui/material/Typography';
 import { ItemList, ItemRow } from '../../utils/ItemList';
 import {
     RESOURCE_PACK,
-    applyManifestServers,
     isManaged,
-    manifestServers,
     readManaged,
     readServers,
+    syncProfileServers,
     writeServers,
 } from '../../../services/servers';
-import { fetchCurrentManifest } from '../../../services/manifest';
 import { useTranslation } from '../../../i18n';
 
 const emptyForm = { index: null, name: '', address: '', resourcePack: RESOURCE_PACK.PROMPT };
@@ -55,10 +53,9 @@ function ServersCard({ profile, gameDir }) {
         }
         let cancelled = false;
         // Brings in the channel's servers, in case they changed since the app opened.
-        fetchCurrentManifest()
-            .then(manifest => {
+        syncProfileServers(profile)
+            .then(() => {
                 if (!cancelled) {
-                    applyManifestServers(gameDir, manifestServers(manifest));
                     // Reloads even when nothing changed here: the app's own sync on
                     // start may have changed the list since the card read it.
                     reload();

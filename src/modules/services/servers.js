@@ -205,20 +205,34 @@ export function applyManifestServers(gameDir, wanted) {
     return writeServers(gameDir, [...added, ...kept]);
 }
 
+// The manifest `profile` follows. The one place servers look a manifest up, so per-profile
+// manifests only change this function.
+export function manifestFor(profile) {
+    // Every profile follows the one manifest URL for now.
+    void profile;
+    return fetchCurrentManifest();
+}
+
+// Brings one profile's list in line with the servers of the manifest it follows.
+// Returns whether the list changed.
+export async function syncProfileServers(profile) {
+    const gameDir = profileGameDir(profile);
+    const wanted = manifestServers(await manifestFor(profile));
+    // Nothing to do in a folder that was never played, or never had channel servers.
+    if (!fs.existsSync(gameDir) || (wanted.length === 0 && readManaged(gameDir).length === 0)) {
+        return false;
+    }
+    return applyManifestServers(gameDir, wanted);
+}
+
 // Puts the manifest's servers in every profile's list. Returns the names of the
-// profiles whose list changed. A profile whose list can't be read or written is
-// skipped (and logged), so one broken file doesn't stop the others.
+// profiles whose list changed. A profile whose manifest or list fails is skipped (and
+// logged), so one broken file doesn't stop the others.
 export async function syncManifestServers() {
-    const wanted = manifestServers(await fetchCurrentManifest());
     const changed = [];
     for (const profile of listProfiles()) {
-        const gameDir = profileGameDir(profile);
-        // Only folders that exist: the default one may never have been played.
-        if (!fs.existsSync(gameDir) || (wanted.length === 0 && readManaged(gameDir).length === 0)) {
-            continue;
-        }
         try {
-            if (applyManifestServers(gameDir, wanted)) {
+            if (await syncProfileServers(profile)) {
                 changed.push(profile.name);
             }
         } catch (error) {
