@@ -268,12 +268,56 @@ describe('Publish', () => {
         });
         expect(publishPack).toHaveBeenCalledWith({
             repo: 'Trino11/TMods-bundles',
-            category: 'packs',
-            version: '1.0.1',
+            versions: [{ category: 'packs', version: '1.0.1' }],
             data: new Uint8Array([1, 2]),
             description: '',
             changelog: 'Added Sodium',
         });
+    });
+
+    it('publishes several picked categories at once, each with its own version', async () => {
+        existingVersions.mockImplementation(async (repo, category) => (category === 'mods' ? ['2.3.0'] : ['1.0.0']));
+        show();
+        openTab('Publish');
+        await screen.findByDisplayValue('1.0.1');
+
+        fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Categories' }));
+        const options = within(screen.getByRole('listbox'));
+        expect(options.getByRole('option', { name: /Shaderpacks/ })).toHaveTextContent(
+            'Nothing of this kind to publish',
+        );
+        fireEvent.click(options.getByRole('option', { name: /Mods/ }));
+        fireEvent.click(options.getByRole('option', { name: /Configs/ }));
+        expect(await screen.findByDisplayValue('2.3.1')).toBeInTheDocument();
+        fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
+        fireEvent.change(screen.getByLabelText('Configs version'), { target: { value: '5' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+        expect(
+            await screen.findByText(/Published Packs \(whole pack\) 1.0.1, Mods 2.3.1, Configs 5/),
+        ).toBeInTheDocument();
+        expect(publishPack).toHaveBeenCalledWith(
+            expect.objectContaining({
+                versions: [
+                    { category: 'packs', version: '1.0.1' },
+                    { category: 'mods', version: '2.3.1' },
+                    { category: 'configs', version: '5' },
+                ],
+            }),
+        );
+        expect(exportMrpack).toHaveBeenCalledTimes(1);
+    });
+
+    it("won't publish into a category none of the picked files go in", async () => {
+        show();
+        openTab('Publish');
+        await screen.findByDisplayValue('1.0.1');
+        fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Categories' }));
+        fireEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: /Shaderpacks/ }));
+        fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
+
+        expect(await screen.findByText(/Nothing picked goes in Shaderpacks/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Publish' })).toBeDisabled();
     });
 
     it('publishes a .mrpack file as it is', async () => {

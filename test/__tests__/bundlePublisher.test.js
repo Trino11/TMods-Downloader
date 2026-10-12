@@ -185,6 +185,51 @@ describe('publishing a version', () => {
         expect(body(`PATCH /repos/${REPO}/git/refs/heads/main`)).toEqual([{ sha: 'commit2', force: false }]);
     });
 
+    it('commits several categories in one commit', async () => {
+        const { publisher, calls } = await ready(
+            publishRoutes({ [`GET /repos/${REPO}/contents/bundles/packs/2.0.0?ref=main`]: 404 }),
+        );
+
+        await publisher.publish({
+            repo: REPO,
+            versions: [
+                { category: 'packs', version: '2.0.0', files: [{ name: 'pack.mrpack', data: 'whole' }] },
+                { category: 'mods', version: '1.1.0', files: [{ name: 'pack.mrpack', data: 'mods' }] },
+            ],
+        });
+
+        const body = key => calls.filter(call => call.key === key).map(call => call.body);
+        expect(body(`POST /repos/${REPO}/git/trees`)).toEqual([
+            {
+                base_tree: 'tree1',
+                tree: [
+                    { path: 'bundles/packs/2.0.0/pack.mrpack', mode: '100644', type: 'blob', sha: 'blob1' },
+                    { path: 'bundles/mods/1.1.0/pack.mrpack', mode: '100644', type: 'blob', sha: 'blob2' },
+                ],
+            },
+        ]);
+        expect(body(`POST /repos/${REPO}/git/commits`)).toEqual([
+            { message: 'Add packs 2.0.0, mods 1.1.0', tree: 'tree2', parents: ['head1'] },
+        ]);
+    });
+
+    it('writes nothing when one of several versions already exists', async () => {
+        const { publisher, calls } = await ready(
+            publishRoutes({ [`GET /repos/${REPO}/contents/bundles/packs/2.0.0?ref=main`]: [] }),
+        );
+        const files = [{ name: 'pack.mrpack', data: 'x' }];
+        await expect(
+            publisher.publish({
+                repo: REPO,
+                versions: [
+                    { category: 'mods', version: '1.1.0', files },
+                    { category: 'packs', version: '2.0.0', files },
+                ],
+            }),
+        ).rejects.toThrow('packs 2.0.0 is already in someone/bundles');
+        expect(calls.some(call => call.key.startsWith('POST'))).toBe(false);
+    });
+
     it('refuses a version that is already in the repository', async () => {
         const { publisher, calls } = await ready(
             publishRoutes({ [`GET /repos/${REPO}/contents/bundles/mods/1.1.0?ref=main`]: [] }),
@@ -219,6 +264,9 @@ describe('publishing a version', () => {
         [{ version: '../1' }, /A version may only use/],
         [{ version: '1/2' }, /A version may only use/],
         [{ files: [] }, /nothing to publish/],
+        [{ versions: [] }, /nothing to publish/],
+        [{ versions: [request, request] }, /one new version at a time/],
+        [{ versions: [{ ...request, category: 'saves' }] }, /Unknown category saves/],
         [{ files: [{ name: 'mods/a.jar', data: 'a' }] }, /Can't publish a file called mods\/a.jar/],
         [{ files: [{ name: '.github', data: 'a' }] }, /Can't publish a file called .github/],
     ])('refuses a bad request (%#)', async (change, message) => {

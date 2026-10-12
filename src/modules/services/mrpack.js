@@ -23,7 +23,7 @@ import {
     trackedPath,
     writeFileSafely,
 } from './modrinthMods';
-import { PACK_KINDS, groupItems, isEnabled } from './packKinds';
+import { PACK_KINDS, groupItems, isEnabled, itemOf } from './packKinds';
 import { bytesToText, crypto, fs, path, zip as zips } from './node';
 import { t } from '../i18n';
 
@@ -519,4 +519,26 @@ export function exportMrpack(gameDir, target, { name, version = '1.0.0', items }
         }
     }
     return { data: zips.create(entries), links: links.length, copies: copies.length };
+}
+
+// The part of a pack (its bytes) holding only files of the given kinds (packKinds.js
+// ids): its links and overrides of those kinds, with the rest of its index as it was.
+// Returns the new pack's bytes, or null when the pack has nothing of those kinds.
+export function filterMrpack(data, kinds) {
+    const entries = zips.read(data);
+    const index = readIndex(entries);
+    const wanted = relative => kinds.includes(itemOf(String(relative).replace(/\\/g, '/')).kind);
+    const files = (index.files || []).filter(file => wanted(file.path));
+    const overrides = entries.filter(
+        entry =>
+            !entry.isDirectory &&
+            OVERRIDE_FOLDERS.some(prefix => entry.name.startsWith(prefix) && wanted(entry.name.slice(prefix.length))),
+    );
+    if (files.length === 0 && overrides.length === 0) {
+        return null;
+    }
+    return zips.create([
+        { name: INDEX_FILE, data: JSON.stringify({ ...index, files }, null, 2) },
+        ...overrides.map(entry => ({ name: entry.name, data: entry.data })),
+    ]);
 }
