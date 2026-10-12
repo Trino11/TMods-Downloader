@@ -101,6 +101,12 @@ const services = {
         tooLarge:
             'The pack is {size} MB, and GitHub takes files up to 100 MB. Leave out large files that are copied rather than linked from Modrinth.',
     },
+    servers: {
+        unreadable: 'Could not read the server list (servers.dat): {reason}',
+        addressRequired: 'Every server needs an address.',
+        badAddress: 'The address "{address}" has spaces in it.',
+        defaultName: 'Minecraft Server',
+    },
     profiles: {
         defaultName: 'Default (.minecraft)',
         nameRequired: 'Give the profile a name.',

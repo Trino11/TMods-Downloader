@@ -46,6 +46,20 @@ folder in one of these ways, or mix them:
 Every field in `bundle.json` is optional. `bundles/` has a Modrinth example and a plain
 files one; replace them with your own.
 
+## Multiplayer servers
+
+List servers in `bundles/servers.json` and TMods adds them to the top of every profile's
+Multiplayer list, keeping players' own servers:
+
+```json
+{
+  "servers": [{ "name": "TMods Lobby", "address": "play.example.com", "resourcePack": "enabled" }]
+}
+```
+
+`resourcePack` is `prompt` (the default), `enabled` or `disabled`. Rename or remove a
+server here and players' lists follow.
+
 ## Rules
 
 - Versions are listed newest first (`1.10.0` before `1.9.0`) and the highest is the latest.

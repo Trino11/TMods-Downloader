@@ -32,6 +32,8 @@ bundles/
 .github/workflows/publish.yml
 ```
 
+- `servers.json` (optional) lists Multiplayer servers; see
+  [Multiplayer servers](#multiplayer-servers).
 - Each folder under `bundles/` is a category: `mods`, `schematics`, `resourcepacks`,
   `configs`, `shaderpacks` or `packs`. Any other name stops the publish, to catch typos.
   `packs` works differently from the rest; see [Whole packs](#whole-packs).
@@ -95,6 +97,29 @@ new one). Before publishing, the action still downloads every file the pack link
 and checks its checksum, so a broken link stops the publish instead of reaching players.
 
 Apps from before the Packs page ignore the `packs` category.
+
+### Multiplayer servers
+
+`bundles/servers.json` lists servers for players' Multiplayer screen:
+
+```json
+{
+  "servers": [
+    { "name": "TMods Lobby", "address": "play.example.com", "resourcePack": "enabled" },
+    { "name": "Survival", "address": "survival.example.com:25570" }
+  ]
+}
+```
+
+- `address` is what players would type in Add Server. `name` defaults to the address.
+- `resourcePack` is what the game does with the server's resource pack: `prompt` (the
+  default, it asks), `enabled` or `disabled`.
+
+TMods adds these servers to the top of every profile's list when it opens, and keeps
+them in line with this file: a renamed server is renamed, and one you remove here is
+removed from players' lists. Servers players added themselves are never touched, and a
+server a player deleted stays deleted. A mistake in the file stops the publish. Apps
+from before this feature ignore it.
 
 ### Or publish from TMods
 
