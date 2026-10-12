@@ -20,14 +20,14 @@ function asIpc(value) {
 }
 
 // Files may be touched anywhere under `home`; the launcher folder is the one under
-// AppData, as on Windows. `AdmZip` is the jsdom-safe one from modrinthFake.
-function installBridge(home, { AdmZip = require('adm-zip') } = {}) {
+// AppData, as on Windows.
+function installBridge(home) {
     const minecraftDir = path.join(home, 'AppData', 'Roaming', '.minecraft');
     const bridge = createBridge({
         fs,
         path,
         crypto,
-        AdmZip,
+        AdmZip: require('adm-zip'),
         platform: process.platform,
         minecraftDir,
         roots: [home],

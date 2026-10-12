@@ -1,6 +1,5 @@
 import axios from 'axios';
 import categories from '../../categories';
-import { realmSafeAdmZip } from '../__fixtures__/modrinthFake';
 import { installBridge, removeBridge } from '../__fixtures__/bridge';
 
 jest.mock('axios', () => ({ get: jest.fn() }));
@@ -25,8 +24,7 @@ beforeEach(() => {
     minecraftDir = path.join(home, 'AppData', 'Roaming', '.minecraft');
     fs.mkdirSync(minecraftDir, { recursive: true });
 
-    const SafeAdmZip = realmSafeAdmZip(fs.mkdtempSync(path.join(home, 'zips-')));
-    installBridge(home, { AdmZip: SafeAdmZip });
+    installBridge(home);
     jest.isolateModules(() => {
         ({
             installBundle,

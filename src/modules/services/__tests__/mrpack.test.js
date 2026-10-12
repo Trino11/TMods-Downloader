@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { makeVersion, realmSafeAdmZip, required, serveModrinth } from '../__fixtures__/modrinthFake';
+import { makeVersion, required, serveModrinth } from '../__fixtures__/modrinthFake';
 import { installBridge, removeBridge } from '../__fixtures__/bridge';
 
 jest.mock('axios', () => ({ get: jest.fn(), post: jest.fn() }));
@@ -15,16 +15,14 @@ let profiles;
 let mods;
 let detectTarget;
 let gameVersionOf;
-let AdmZip;
+const AdmZip = require('adm-zip');
 
 beforeEach(() => {
     home = fs.mkdtempSync(path.join(os.tmpdir(), 'tmods-mrpack-'));
     minecraftDir = path.join(home, 'AppData', 'Roaming', '.minecraft');
     fs.mkdirSync(minecraftDir, { recursive: true });
     localStorage.clear();
-    const zipTemp = fs.mkdtempSync(path.join(home, 'zips-'));
-    AdmZip = realmSafeAdmZip(zipTemp);
-    installBridge(home, { AdmZip: AdmZip });
+    installBridge(home);
     jest.isolateModules(() => {
         mrpack = require('../mrpack');
         profiles = require('../profiles');
