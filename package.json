@@ -1,6 +1,6 @@
 {
   "name": "tmods-downloader",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "main": "./build/electron.js",
   "author": "Trino",
   "description": "A minecraft mods manager",
