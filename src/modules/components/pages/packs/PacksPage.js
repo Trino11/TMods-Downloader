@@ -11,12 +11,9 @@ import ImportTab from './ImportTab';
 import PublishTab from './PublishTab';
 import { profileTarget } from '../../../services/mrpack';
 import { recogniseFiles, scanProfile } from '../../../services/packScan';
+import { useTranslation } from '../../../i18n';
 
-const TABS = [
-    { id: 'export', label: 'Export' },
-    { id: 'import', label: 'Import' },
-    { id: 'publish', label: 'Publish' },
-];
+const TABS = ['export', 'import', 'publish'];
 
 function ticked(items) {
     return new Set(items.filter(item => item.ticked).map(item => item.id));
@@ -25,6 +22,7 @@ function ticked(items) {
 // Export, import and publish whole packs (.mrpack) for the active profile: every kind of
 // file at once, picked from one list. App remounts the page when the profile changes.
 function PacksPage({ profile, gameDir, onProfilesChange }) {
+    const { t } = useTranslation();
     const [tab, setTab] = useState('export');
     const [items, setItems] = useState(() => scanProfile(gameDir));
     const [selected, setSelected] = useState(() => ticked(items));
@@ -88,14 +86,11 @@ function PacksPage({ profile, gameDir, onProfilesChange }) {
     const shared = { profile, gameDir, target: exportTarget, items, selected, onSelect: setSelected, busy, run };
 
     return (
-        <Page
-            title='Packs'
-            description={`Export, import and publish whole packs for ${profile.name}: mods, resource packs, shaders, configs and more, all at once.`}
-        >
+        <Page title={t('packs.title')} description={t('packs.description', { profile: profile.name })}>
             <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
                 <Tabs value={tab} onChange={(event, id) => setTab(id)}>
-                    {TABS.map(({ id, label }) => (
-                        <Tab key={id} value={id} label={label} />
+                    {TABS.map(id => (
+                        <Tab key={id} value={id} label={t(`packs.tabs.${id}`)} />
                     ))}
                 </Tabs>
             </Box>
@@ -104,7 +99,7 @@ function PacksPage({ profile, gameDir, onProfilesChange }) {
             {notice && <Alert severity='success'>{notice}</Alert>}
             {recognising && tab !== 'import' && (
                 <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                    Looking up files you added by hand on Modrinth...
+                    {t('packs.recognising')}
                 </Typography>
             )}
 

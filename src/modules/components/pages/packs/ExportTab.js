@@ -6,6 +6,7 @@ import IosShareIcon from '@mui/icons-material/IosShare';
 import PackPicker from './PackPicker';
 import { exportMrpack } from '../../../services/mrpack';
 import { formatSize } from '../../../services/packKinds';
+import { useTranslation } from '../../../i18n';
 
 // Saves bytes through the browser's download, which Electron turns into a save dialog.
 function saveFile(data, fileName) {
@@ -20,6 +21,7 @@ function saveFile(data, fileName) {
 // Saves the picked files of the profile as a .mrpack file. `items` and `selected` are
 // shared with the Publish tab.
 function ExportTab({ profile, gameDir, target, items, selected, onSelect, busy, run }) {
+    const { t } = useTranslation();
     const [name, setName] = useState(profile.name);
     const [version, setVersion] = useState('1.0.0');
 
@@ -30,7 +32,12 @@ function ExportTab({ profile, gameDir, target, items, selected, onSelect, busy, 
             const result = exportMrpack(gameDir, target, { name: name.trim(), version: version.trim(), items: picked });
             const fileName = `${name.trim().replace(/[^\w.-]+/g, '_') || 'modpack'}.mrpack`;
             saveFile(result.data, fileName);
-            return `Saved ${fileName} (${formatSize(result.data.length)}): ${result.links} linked from Modrinth, ${result.copies} copied.`;
+            return t('packs.export.saved', {
+                file: fileName,
+                size: formatSize(result.data.length),
+                links: result.links,
+                copies: result.copies,
+            });
         });
     }
 
@@ -39,7 +46,7 @@ function ExportTab({ profile, gameDir, target, items, selected, onSelect, busy, 
             <Stack direction='row' spacing={1}>
                 <TextField
                     id='exportName'
-                    label='Pack name'
+                    label={t('packs.export.name')}
                     fullWidth
                     value={name}
                     onChange={event => setName(event.target.value)}
@@ -47,7 +54,7 @@ function ExportTab({ profile, gameDir, target, items, selected, onSelect, busy, 
                 />
                 <TextField
                     id='exportVersion'
-                    label='Version'
+                    label={t('packs.export.version')}
                     value={version}
                     onChange={event => setVersion(event.target.value)}
                     slotProps={{ htmlInput: { required: true } }}
@@ -62,7 +69,7 @@ function ExportTab({ profile, gameDir, target, items, selected, onSelect, busy, 
                     startIcon={<IosShareIcon />}
                     disabled={busy || selected.size === 0}
                 >
-                    Save .mrpack
+                    {t('packs.export.save')}
                 </Button>
             </Stack>
         </Stack>

@@ -6,9 +6,11 @@ import Typography from '@mui/material/Typography';
 import DescriptionIcon from '@mui/icons-material/Description';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import { getLogPath, openLogFile, showLogInFolder } from '../../services/logs';
+import { useTranslation } from '../../i18n';
 
 // Shows where the app's log is and opens it, so a bug report can include it.
 function LogsSection() {
+    const { t } = useTranslation();
     const [logPath, setLogPath] = useState('');
     const [error, setError] = useState('');
 
@@ -35,25 +37,25 @@ function LogsSection() {
         <Stack spacing={2}>
             <div>
                 <Typography variant='h6' component='h2'>
-                    Logs
+                    {t('settings.logs.title')}
                 </Typography>
                 <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                    Attach the log file when you report a bug.
+                    {t('settings.logs.description')}
                 </Typography>
             </div>
             <Typography
                 variant='body2'
-                aria-label='Log file location'
+                aria-label={t('settings.logs.location')}
                 sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}
             >
-                {logPath || 'Finding the log file…'}
+                {logPath || t('settings.logs.finding')}
             </Typography>
             <Stack direction='row' spacing={1} sx={{ flexWrap: 'wrap' }}>
                 <Button variant='contained' startIcon={<DescriptionIcon />} onClick={() => run(openLogFile)}>
-                    Open log
+                    {t('settings.logs.open')}
                 </Button>
                 <Button variant='outlined' startIcon={<FolderOpenIcon />} onClick={() => run(showLogInFolder)}>
-                    Open log folder
+                    {t('settings.logs.openFolder')}
                 </Button>
             </Stack>
             {error && <Alert severity='error'>{error}</Alert>}

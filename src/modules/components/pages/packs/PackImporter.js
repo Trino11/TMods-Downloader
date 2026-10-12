@@ -14,6 +14,7 @@ import PackPicker from './PackPicker';
 import { LOADERS } from '../../../services/modrinth';
 import { NEW_PROFILE, importMrpack, packWarnings, readPack } from '../../../services/mrpack';
 import { listProfiles } from '../../../services/profiles';
+import { t, useTranslation } from '../../../i18n';
 
 function describeTarget(pack) {
     const loader = pack.loader ? ` · ${LOADERS[pack.loader.loader]} ${pack.loader.loaderVersion}` : '';
@@ -23,15 +24,12 @@ function describeTarget(pack) {
 // What an import did, in words.
 export function importMessage(result, intoNew) {
     if (intoNew) {
-        return [
-            `Created the profile "${result.profile.name}". Switch to it with the profile picker.`,
-            result.loaderNote,
-        ]
+        return [t('packs.importer.created', { profile: result.profile.name }), result.loaderNote]
             .filter(Boolean)
             .join(' ');
     }
-    const replaced = result.replaced.length ? ` Replaced other versions of ${result.replaced.join(', ')}.` : '';
-    return `Imported into ${result.profile.name}.${replaced} A backup was made first; you can undo the import on the Packs page.`;
+    const replaced = result.replaced.length ? t('packs.importer.replaced', { mods: result.replaced.join(', ') }) : '';
+    return t('packs.importer.imported', { profile: result.profile.name, replaced });
 }
 
 // Shows what a pack (its bytes, `data`) holds and installs the picked items into the
@@ -39,6 +37,7 @@ export function importMessage(result, intoNew) {
 // performs an action with the page's busy state and messages; `onImported` gets the
 // import's result and whether it made a new profile.
 function PackImporter({ data, activeProfile, busy, run, onImported, onCancel }) {
+    useTranslation();
     const pack = useMemo(() => {
         try {
             return readPack(data);
@@ -54,7 +53,7 @@ function PackImporter({ data, activeProfile, busy, run, onImported, onCancel }) 
 
     if (pack.error) {
         return (
-            <Alert severity='error' action={<Button onClick={onCancel}>Close</Button>}>
+            <Alert severity='error' action={<Button onClick={onCancel}>{t('common.close')}</Button>}>
                 {pack.error}
             </Alert>
         );
@@ -106,24 +105,26 @@ function PackImporter({ data, activeProfile, busy, run, onImported, onCancel }) 
                         <TextField
                             id='importInto'
                             select
-                            label='Import into'
+                            label={t('packs.importer.into')}
                             value={into}
                             onChange={event => setInto(event.target.value)}
                             slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
                             sx={{ minWidth: 240 }}
                         >
-                            <option value={activeProfile.id}>{activeProfile.name} (current)</option>
+                            <option value={activeProfile.id}>
+                                {t('packs.importer.current', { profile: activeProfile.name })}
+                            </option>
                             {others.map(profile => (
                                 <option key={profile.id} value={profile.id}>
                                     {profile.name}
                                 </option>
                             ))}
-                            <option value={NEW_PROFILE}>New profile</option>
+                            <option value={NEW_PROFILE}>{t('packs.importer.newProfile')}</option>
                         </TextField>
                         {intoNew && (
                             <TextField
                                 id='newProfileName'
-                                label='Profile name'
+                                label={t('packs.importer.profileName')}
                                 fullWidth
                                 value={newName}
                                 onChange={event => setNewName(event.target.value)}
@@ -133,22 +134,21 @@ function PackImporter({ data, activeProfile, busy, run, onImported, onCancel }) 
                     </Stack>
                     {!intoNew && (
                         <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                            The folders the pack writes into are backed up first. A mod from the pack replaces any other
-                            version of the same mod already there.
+                            {t('packs.importer.backupNote')}
                         </Typography>
                     )}
                     <Stack direction='row' spacing={1} sx={{ justifyContent: 'flex-end' }}>
                         <Button onClick={onCancel} disabled={busy}>
-                            Cancel
+                            {t('common.cancel')}
                         </Button>
                         <Button type='submit' variant='contained' disabled={busy || selected.size === 0}>
-                            Import
+                            {t('packs.importer.import')}
                         </Button>
                     </Stack>
                 </Stack>
             </CardContent>
             <Dialog open={Boolean(warnings)} onClose={() => setWarnings(null)}>
-                <DialogTitle>Import anyway?</DialogTitle>
+                <DialogTitle>{t('packs.importer.anywayTitle')}</DialogTitle>
                 <DialogContent>
                     <Stack spacing={1}>
                         {warnings?.map(warning => (
@@ -157,9 +157,9 @@ function PackImporter({ data, activeProfile, busy, run, onImported, onCancel }) 
                     </Stack>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setWarnings(null)}>Cancel</Button>
+                    <Button onClick={() => setWarnings(null)}>{t('common.cancel')}</Button>
                     <Button color='warning' onClick={importNow}>
-                        Import anyway
+                        {t('packs.importer.anyway')}
                     </Button>
                 </DialogActions>
             </Dialog>

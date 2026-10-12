@@ -8,6 +8,7 @@ import { ItemList, ItemRow } from '../../utils/ItemList';
 import { ChangelogButton } from '../../utils/Changelog';
 import { KINDS } from '../../../services/modrinth';
 import { updateChangelog } from '../../../services/modrinthMods';
+import { useTranslation } from '../../../i18n';
 
 // A mod's compatibility problems, each with its one-click fix when there is one.
 function Problems({ problems, busy, onFix }) {
@@ -31,20 +32,18 @@ function Problems({ problems, busy, onFix }) {
 }
 
 function CompatSummary({ compat }) {
+    const { t } = useTranslation();
     if (compat.status === 'error') {
-        return <Alert severity='warning'>Could not check compatibility: {compat.error}</Alert>;
+        return <Alert severity='warning'>{t('modrinth.compat.error', { error: compat.error })}</Alert>;
     }
     if (compat.status !== 'done') {
         return null;
     }
     const count = compat.problems.length;
     return count === 0 ? (
-        <Alert severity='success'>No compatibility problems found.</Alert>
+        <Alert severity='success'>{t('modrinth.compat.none')}</Alert>
     ) : (
-        <Alert severity='warning'>
-            {count === 1 ? '1 compatibility problem' : `${count} compatibility problems`} found. They are listed under
-            each mod below.
-        </Alert>
+        <Alert severity='warning'>{t('modrinth.compat.found', { count })}</Alert>
     );
 }
 
@@ -64,11 +63,11 @@ function KindSection({
     problemsFor,
     onFix,
 }) {
-    const { label, noun } = KINDS[kind];
+    const { t } = useTranslation();
     return (
         <Stack component='section' spacing={2}>
             <Typography variant='h6' component='h2'>
-                {label}
+                {t(`modrinth.kinds.${kind}.label`)}
             </Typography>
             {mods.length > 0 && (
                 <ItemList>
@@ -82,7 +81,7 @@ function KindSection({
                                         {update && (
                                             <ChangelogButton
                                                 key={update.id}
-                                                title={`What's new in ${mod.title}`}
+                                                title={t('modrinth.installed.whatsNew', { title: mod.title })}
                                                 load={() => updateChangelog(mod, update, target, gameVersion)}
                                             />
                                         )}
@@ -93,14 +92,16 @@ function KindSection({
                                                 disabled={busy}
                                                 onClick={() => onUpdate(mod, update)}
                                             >
-                                                Update
+                                                {t('modrinth.installed.update')}
                                             </Button>
                                         )}
                                         <Button variant='outlined' disabled={busy} onClick={() => onToggle(mod)}>
-                                            {mod.enabled ? 'Disable' : 'Enable'}
+                                            {mod.enabled
+                                                ? t('modrinth.installed.disable')
+                                                : t('modrinth.installed.enable')}
                                         </Button>
                                         <Button color='error' disabled={busy} onClick={() => onRemove(mod)}>
-                                            Remove
+                                            {t('modrinth.installed.remove')}
                                         </Button>
                                     </>
                                 }
@@ -119,13 +120,13 @@ function KindSection({
                                     <Chip size='small' variant='outlined' label={mod.versionNumber} />
                                     {mod.asDependency && (
                                         <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                                            (needed by another mod)
+                                            {t('modrinth.installed.asDependency')}
                                         </Typography>
                                     )}
                                 </Stack>
                                 {update && (
                                     <Typography variant='body2' sx={{ color: 'success.main' }}>
-                                        Update available: {update.version_number}
+                                        {t('modrinth.installed.updateAvailable', { version: update.version_number })}
                                     </Typography>
                                 )}
                                 <Problems problems={problemsFor(mod.projectId)} busy={busy} onFix={onFix} />
@@ -137,18 +138,17 @@ function KindSection({
             {unmanaged.length > 0 && (
                 <Stack spacing={2}>
                     <Typography variant='subtitle1' component='h3'>
-                        Added by hand
+                        {t('modrinth.installed.byHand')}
                     </Typography>
                     <Alert
                         severity='info'
                         action={
                             <Button color='inherit' disabled={busy} onClick={() => onAdopt(kind)}>
-                                Recognise
+                                {t('modrinth.installed.recognise')}
                             </Button>
                         }
                     >
-                        TMods leaves these alone. If they come from Modrinth, it can recognise them so you can update
-                        them here.
+                        {t('modrinth.installed.byHandHelp')}
                     </Alert>
                     <ItemList>
                         {unmanaged.map(name => (
@@ -163,9 +163,7 @@ function KindSection({
                 </Stack>
             )}
             {mods.length === 0 && unmanaged.length === 0 && (
-                <Typography sx={{ color: 'text.secondary' }}>
-                    No {noun}s from Modrinth in this profile yet. Find some under {label}.
-                </Typography>
+                <Typography sx={{ color: 'text.secondary' }}>{t(`modrinth.kinds.${kind}.empty`)}</Typography>
             )}
         </Stack>
     );
@@ -192,6 +190,7 @@ function InstalledMods({
     onCheckCompat,
     onFix,
 }) {
+    const { t } = useTranslation();
     const updateFor = new Map(updates.map(update => [update.mod.projectId, update.version]));
     // Compatibility is checked for mods only; packs and shaders need no loader.
     const problemsFor = key => compat.problems.filter(p => (p.mod.tracked ? p.mod.projectId : p.mod.fileName) === key);
@@ -205,18 +204,20 @@ function InstalledMods({
                     disabled={busy || !canCheckUpdates || mods.length === 0}
                     onClick={onCheckUpdates}
                 >
-                    Check for updates
+                    {t('modrinth.installed.checkUpdates')}
                 </Button>
                 <Button
                     variant='outlined'
                     disabled={busy || !canCheckCompat || compat.status === 'checking'}
                     onClick={onCheckCompat}
                 >
-                    {compat.status === 'checking' ? 'Checking compatibility…' : 'Check compatibility'}
+                    {compat.status === 'checking'
+                        ? t('modrinth.installed.checkingCompat')
+                        : t('modrinth.installed.checkCompat')}
                 </Button>
                 {updates.length > 0 && (
                     <Button variant='contained' color='success' disabled={busy} onClick={onUpdateAll}>
-                        Update all ({updates.length})
+                        {t('modrinth.installed.updateAll', { count: updates.length })}
                     </Button>
                 )}
             </Stack>

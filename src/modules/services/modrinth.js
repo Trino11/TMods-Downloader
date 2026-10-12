@@ -2,6 +2,7 @@
 // needs no account or key. Modrinth asks apps to identify themselves; the main
 // process adds a TMods User-Agent to these requests, since a page can't set it.
 import axios from 'axios';
+import { t } from '../i18n';
 
 export const API_URL = 'https://api.modrinth.com/v2';
 
@@ -21,23 +22,27 @@ export const LOADERS = {
 // doesn't depend on the profile (resource packs are always "minecraft"; mods follow the
 // profile's loader and shaders the shader loader the player picks).
 // The `files` pattern matches the files of that kind in its folder, disabled ones too.
+// `label` and `noun` are read in the current language each time (services.modrinth.kinds).
+function named(kind, entry) {
+    return Object.defineProperties(entry, {
+        label: { enumerable: true, get: () => t(`services.modrinth.kinds.${kind}.label`) },
+        noun: { enumerable: true, get: () => t(`services.modrinth.kinds.${kind}.noun`) },
+    });
+}
+
 export const KINDS = {
-    mod: { projectType: 'mod', folder: 'mods', files: /\.jar(\.disabled)?$/, label: 'Mods', noun: 'mod' },
-    resourcepack: {
+    mod: named('mod', { projectType: 'mod', folder: 'mods', files: /\.jar(\.disabled)?$/ }),
+    resourcepack: named('resourcepack', {
         projectType: 'resourcepack',
         folder: 'resourcepacks',
         files: /\.zip(\.disabled)?$/,
-        label: 'Resource packs',
-        noun: 'resource pack',
         loader: 'minecraft',
-    },
-    shader: {
+    }),
+    shader: named('shader', {
         projectType: 'shader',
         folder: 'shaderpacks',
         files: /\.zip(\.disabled)?$/,
-        label: 'Shaders',
-        noun: 'shader',
-    },
+    }),
 };
 
 // The shader loaders whose packs go in shaderpacks/: Iris (also what Oculus loads on

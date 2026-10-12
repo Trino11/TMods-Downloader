@@ -11,9 +11,11 @@ import PackImporter from './PackImporter';
 import { fetchPacks } from '../../../services/manifest';
 import { downloadPublishedPack, listPackBackups, restorePackBackup } from '../../../services/mrpack';
 import { updateProfile } from '../../../services/profiles';
+import { formatDateTime, useTranslation } from '../../../i18n';
 
 // The packs the player's channel publishes, each ready to preview.
 function ChannelPacks({ busy, onPick }) {
+    const { t } = useTranslation();
     const [packs, setPacks] = useState(null);
     const [error, setError] = useState('');
 
@@ -30,21 +32,21 @@ function ChannelPacks({ busy, onPick }) {
     if (error) {
         return (
             <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                Could not load your channel's packs: {error}
+                {t('packs.import.channelError', { error })}
             </Typography>
         );
     }
     if (!packs) {
         return (
             <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                Loading your channel's packs...
+                {t('packs.import.channelLoading')}
             </Typography>
         );
     }
     if (packs.length === 0) {
         return (
             <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                Your channel has no packs yet. Publish one from the Publish tab.
+                {t('packs.import.channelEmpty')}
             </Typography>
         );
     }
@@ -55,7 +57,7 @@ function ChannelPacks({ busy, onPick }) {
                     key={pack.id}
                     actions={
                         <Button variant='outlined' disabled={busy} onClick={() => onPick(pack)}>
-                            Preview
+                            {t('packs.import.preview')}
                         </Button>
                     }
                 >
@@ -72,6 +74,7 @@ function ChannelPacks({ busy, onPick }) {
 // Previews a pack from a file, the channel or Modrinth and installs it into a profile;
 // lists the backups earlier imports into the active profile made, to undo them.
 function ImportTab({ profile, gameDir, busy, run, onChanged }) {
+    const { t } = useTranslation();
     const [pending, setPending] = useState(null);
     const [fabricFor, setFabricFor] = useState(null);
     const [backups, setBackups] = useState(() => listPackBackups(gameDir));
@@ -102,14 +105,17 @@ function ImportTab({ profile, gameDir, busy, run, onChanged }) {
     }
 
     function handleRestore(backup) {
-        if (!window.confirm(`Undo the import of ${backup.pack || 'this pack'}?`)) {
+        if (!window.confirm(t('packs.import.confirmUndo', { pack: backup.pack || t('packs.import.thisPack') }))) {
             return;
         }
         run(async () => {
             restorePackBackup(gameDir, backup.id);
             setBackups(listPackBackups(gameDir));
             onChanged();
-            return `Put ${profile.name} back the way it was before importing ${backup.pack || 'the pack'}.`;
+            return t('packs.import.restored', {
+                profile: profile.name,
+                pack: backup.pack || t('packs.import.thePack'),
+            });
         });
     }
 
@@ -137,8 +143,8 @@ function ImportTab({ profile, gameDir, busy, run, onChanged }) {
         <Stack spacing={3}>
             {fabricFor && (
                 <FabricInstall
-                    title={`Install Fabric for ${fabricFor.profile.name}`}
-                    description='The pack needs Fabric. This installs it and switches the new profile to it.'
+                    title={t('packs.import.fabricTitle', { profile: fabricFor.profile.name })}
+                    description={t('packs.import.fabricDescription')}
                     preferredVersion={fabricFor.gameVersion}
                     onInstalled={handleFabricInstalled}
                 />
@@ -147,13 +153,13 @@ function ImportTab({ profile, gameDir, busy, run, onChanged }) {
                 <CardContent>
                     <Stack spacing={1.5} sx={{ alignItems: 'flex-start' }}>
                         <Typography variant='subtitle1' component='h2'>
-                            Import a .mrpack file
+                            {t('packs.import.fileTitle')}
                         </Typography>
                         <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                            You'll see what's inside and pick the profile it goes into before anything changes.
+                            {t('packs.import.fileHelp')}
                         </Typography>
                         <Button component='label' variant='outlined' startIcon={<FileUploadIcon />} disabled={busy}>
-                            Choose file
+                            {t('packs.import.chooseFile')}
                             <input
                                 id='importPack'
                                 type='file'
@@ -168,14 +174,14 @@ function ImportTab({ profile, gameDir, busy, run, onChanged }) {
             </Card>
             <section>
                 <Typography variant='h6' component='h2' gutterBottom>
-                    From your channel
+                    {t('packs.import.fromChannel')}
                 </Typography>
                 <ChannelPacks busy={busy} onPick={pickChannelPack} />
             </section>
             {backups.length > 0 && (
                 <section>
                     <Typography variant='h6' component='h2' gutterBottom>
-                        Undo an import into {profile.name}
+                        {t('packs.import.undoTitle', { profile: profile.name })}
                     </Typography>
                     <ItemList>
                         {backups.map(backup => (
@@ -183,13 +189,13 @@ function ImportTab({ profile, gameDir, busy, run, onChanged }) {
                                 key={backup.id}
                                 actions={
                                     <Button variant='outlined' disabled={busy} onClick={() => handleRestore(backup)}>
-                                        Undo
+                                        {t('packs.import.undo')}
                                     </Button>
                                 }
                             >
-                                <Typography>{backup.pack || 'A pack'}</Typography>
+                                <Typography>{backup.pack || t('packs.import.aPack')}</Typography>
                                 <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                                    Imported {new Date(backup.createdAt).toLocaleString()}
+                                    {t('packs.import.importedAt', { date: formatDateTime(backup.createdAt) })}
                                 </Typography>
                             </ItemRow>
                         ))}

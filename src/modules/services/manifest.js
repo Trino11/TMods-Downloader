@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { t } from '../i18n';
 import { getManifestUrl } from './settings';
 
 // Waits between tries of the manifest download. Gateway errors (502, 503, 504) and
@@ -29,10 +30,10 @@ async function fetchManifest(url) {
 function describeLoadError(error) {
     const status = error?.response?.status;
     if (status === 404) {
-        return 'Nothing was found at that address (404). Check the link, and that the bundles repository has published a release.';
+        return t('services.manifest.notFound');
     }
     if (status >= 500) {
-        return `The server did not answer properly (status ${status}). This is usually temporary, so try again in a minute.`;
+        return t('services.manifest.serverError', { status });
     }
     return error.message;
 }
@@ -43,20 +44,20 @@ export async function validateManifestUrl(url) {
     try {
         parsed = new URL(url);
     } catch {
-        throw new Error('That is not a valid URL.');
+        throw new Error(t('services.manifest.invalidUrl'));
     }
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        throw new Error('The URL must start with http:// or https://.');
+        throw new Error(t('services.manifest.badProtocol'));
     }
 
     let manifest;
     try {
         manifest = await fetchManifest(url);
     } catch (error) {
-        throw new Error(`Could not load the manifest: ${describeLoadError(error)}`, { cause: error });
+        throw new Error(t('services.manifest.loadFailed', { reason: describeLoadError(error) }), { cause: error });
     }
     if (!manifest || typeof manifest !== 'object' || !manifest.versions || typeof manifest.versions !== 'object') {
-        throw new Error('The URL loaded, but it is not a TMods manifest (no "versions" field).');
+        throw new Error(t('services.manifest.notManifest'));
     }
 }
 

@@ -6,10 +6,12 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import SearchIcon from '@mui/icons-material/Search';
 import { filterVersionOptions, versionLabel } from '../../services/gameVersions';
+import { useTranslation } from '../../i18n';
 
 // Game version dropdown with a search box and a toggle for snapshots and the old
 // alpha/beta versions. The picked version stays in the list whatever the filter.
 function VersionPicker({ options, value, onChange }) {
+    const { t } = useTranslation();
     const [query, setQuery] = useState('');
     const [showAll, setShowAll] = useState(false);
 
@@ -23,7 +25,7 @@ function VersionPicker({ options, value, onChange }) {
         <Stack spacing={1} sx={{ width: 300, flexShrink: 0 }}>
             <TextField
                 id='profileVersion'
-                label='Game version'
+                label={t('nav.versionPicker.gameVersion')}
                 select
                 fullWidth
                 value={value}
@@ -38,12 +40,12 @@ function VersionPicker({ options, value, onChange }) {
             </TextField>
             <TextField
                 type='search'
-                placeholder='Search versions'
+                placeholder={t('nav.versionPicker.search')}
                 fullWidth
                 value={query}
                 onChange={event => setQuery(event.target.value)}
                 slotProps={{
-                    htmlInput: { 'aria-label': 'Search versions' },
+                    htmlInput: { 'aria-label': t('nav.versionPicker.search') },
                     input: {
                         startAdornment: (
                             <InputAdornment position='start'>
@@ -62,7 +64,7 @@ function VersionPicker({ options, value, onChange }) {
                         onChange={event => setShowAll(event.target.checked)}
                     />
                 }
-                label='Snapshots and old versions'
+                label={t('nav.versionPicker.showAll')}
                 slotProps={{ typography: { variant: 'body2' } }}
             />
         </Stack>

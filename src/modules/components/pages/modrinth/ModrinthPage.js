@@ -33,14 +33,9 @@ import {
     setTargetVersion,
     updateMod,
 } from '../../../services/modrinthMods';
+import { t, useTranslation } from '../../../i18n';
 
-const TABS = [
-    { id: 'mod', label: 'Mods' },
-    { id: 'resourcepack', label: 'Resource packs' },
-    { id: 'shader', label: 'Shaders' },
-    { id: 'installed', label: 'Installed' },
-    { id: 'modpacks', label: 'Modpacks' },
-];
+const TABS = ['mod', 'resourcepack', 'shader', 'installed', 'modpacks'];
 
 const KIND_IDS = Object.keys(KINDS);
 
@@ -51,48 +46,41 @@ function listAllUnmanaged(gameDir) {
 const COMPAT_UNCHECKED = { status: 'idle', problems: [], error: '' };
 
 function describeTarget(target) {
-    return `${LOADERS[target.loader]} ${target.loaderVersion} · Minecraft ${target.gameVersion}`;
+    return t('modrinth.target.describe', {
+        loader: LOADERS[target.loader],
+        loaderVersion: target.loaderVersion,
+        gameVersion: target.gameVersion,
+    });
 }
 
 // Which version the folder plays with. Resource packs and shaders only need the
 // Minecraft version; mods also need a loader. The default profile can be played with
 // any launcher version, so the player picks one here; other profiles set it in Profiles.
 function TargetBar({ profile, versionId, target, gameVersion, onPick }) {
+    const { t } = useTranslation();
     const [choice, setChoice] = useState('');
     if (target) {
+        // The target is shown in bold wherever the language puts it in the sentence.
+        const [before, after] = t('modrinth.target.picked').split('{target}');
         return (
             <Alert severity='success' icon={false}>
-                Content is picked for <strong>{describeTarget(target)}</strong>.
+                {before}
+                <strong>{describeTarget(target)}</strong>
+                {after}
             </Alert>
         );
     }
     if (versionId && gameVersion) {
-        return (
-            <Alert severity='info'>
-                This profile plays Minecraft {gameVersion}, which has no mod loader, so only resource packs and shaders
-                are offered. For mods, install Fabric, Forge, NeoForge or Quilt with its installer, then pick that
-                version for the profile in Profiles.
-            </Alert>
-        );
+        return <Alert severity='info'>{t('modrinth.target.noLoader', { gameVersion })}</Alert>;
     }
     if (profile.id !== DEFAULT_PROFILE_ID) {
-        return (
-            <Alert severity='warning'>
-                TMods doesn't know which Minecraft version {versionId} is yet. Open Profiles once so it can load the
-                version list, or pick a specific version for this profile.
-            </Alert>
-        );
+        return <Alert severity='warning'>{t('modrinth.target.unknownVersion', { versionId })}</Alert>;
     }
     const installed = listGameVersions().filter(id => id !== LATEST_RELEASE && id !== LATEST_SNAPSHOT);
     // Mod loader versions first, since they unlock everything.
     const versions = [...installed.filter(id => detectTarget(id)), ...installed.filter(id => !detectTarget(id))];
     if (versions.length === 0) {
-        return (
-            <Alert severity='warning'>
-                No Minecraft version is installed yet. Play once with the Minecraft Launcher, or install Fabric, Forge,
-                NeoForge or Quilt for mods, then come back here.
-            </Alert>
-        );
+        return <Alert severity='warning'>{t('modrinth.target.noVersions')}</Alert>;
     }
     return (
         <Card variant='outlined'>
@@ -100,14 +88,14 @@ function TargetBar({ profile, versionId, target, gameVersion, onPick }) {
                 <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
                     <TextField
                         id='loaderVersion'
-                        label='Which installed version do you play this folder with?'
+                        label={t('modrinth.target.question')}
                         select
                         fullWidth
                         value={choice}
                         onChange={event => setChoice(event.target.value)}
                         slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
                     >
-                        <option value=''>Pick a version</option>
+                        <option value=''>{t('modrinth.target.pick')}</option>
                         {versions.map(id => (
                             <option key={id} value={id}>
                                 {id}
@@ -115,7 +103,7 @@ function TargetBar({ profile, versionId, target, gameVersion, onPick }) {
                         ))}
                     </TextField>
                     <Button variant='contained' disabled={!choice} onClick={() => onPick(choice)}>
-                        Use
+                        {t('modrinth.target.use')}
                     </Button>
                 </Stack>
             </CardContent>
@@ -125,11 +113,12 @@ function TargetBar({ profile, versionId, target, gameVersion, onPick }) {
 
 // Shader packs are written for one shader mod; the player says which they use.
 function ShaderLoaderPicker({ value, onChange, hasLoader }) {
+    const { t } = useTranslation();
     return (
         <Stack spacing={1}>
             <TextField
                 id='shaderLoader'
-                label='Shader mod'
+                label={t('modrinth.shaders.loader')}
                 select
                 value={value}
                 onChange={event => onChange(event.target.value)}
@@ -143,9 +132,7 @@ function ShaderLoaderPicker({ value, onChange, hasLoader }) {
                 ))}
             </TextField>
             <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                {hasLoader
-                    ? 'Shaders only work with a shader mod installed: Iris on Fabric, Quilt or NeoForge (find it under Mods), Oculus on Forge, or OptiFine.'
-                    : 'Shaders only work with a shader mod: OptiFine, or Iris on a mod loader such as Fabric.'}
+                {hasLoader ? t('modrinth.shaders.helpWithLoader') : t('modrinth.shaders.helpNoLoader')}
             </Typography>
         </Stack>
     );
@@ -153,9 +140,10 @@ function ShaderLoaderPicker({ value, onChange, hasLoader }) {
 
 // Asks before installing a mod that may not work with this profile.
 function InstallWarning({ pending, onCancel, onConfirm }) {
+    const { t } = useTranslation();
     return (
         <Dialog open={Boolean(pending)} onClose={onCancel}>
-            <DialogTitle>Install {pending?.hit.title} anyway?</DialogTitle>
+            <DialogTitle>{t('modrinth.install.warningTitle', { title: pending?.hit.title })}</DialogTitle>
             <DialogContent>
                 <Stack spacing={1}>
                     {pending?.warnings.map(warning => (
@@ -164,9 +152,9 @@ function InstallWarning({ pending, onCancel, onConfirm }) {
                 </Stack>
             </DialogContent>
             <DialogActions>
-                <Button onClick={onCancel}>Cancel</Button>
+                <Button onClick={onCancel}>{t('common.cancel')}</Button>
                 <Button color='warning' onClick={onConfirm}>
-                    Install anyway
+                    {t('modrinth.install.anyway')}
                 </Button>
             </DialogActions>
         </Dialog>
@@ -177,6 +165,7 @@ function InstallWarning({ pending, onCancel, onConfirm }) {
 // profile. App remounts the page
 // when the profile changes.
 function ModrinthPage({ profile, gameDir, onProfilesChange }) {
+    const { t } = useTranslation();
     const [tab, setTab] = useState('mod');
     const [list, setList] = useState(() => readModList(gameDir));
     const [unmanaged, setUnmanaged] = useState(() => listAllUnmanaged(gameDir));
@@ -291,15 +280,17 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
         const kindTarget = options.kind ? installTargets[options.kind] : target;
         const titles = await installMod(gameDir, kindTarget, hit.project_id, hit.title, options);
         return titles.length > 1
-            ? `Installed ${titles[0]} with ${titles.slice(1).join(', ')}.`
-            : `Installed ${titles[0]}.`;
+            ? t('modrinth.install.doneWith', { title: titles[0], dependencies: titles.slice(1).join(', ') })
+            : t('modrinth.install.done', { title: titles[0] });
     }
 
     function handleCheckUpdates() {
         run(async () => {
             const found = await checkUpdates(gameDir, target, gameVersion);
             setUpdates(found);
-            return found.length ? `${found.length} update(s) available.` : 'Everything is up to date.';
+            return found.length
+                ? t('modrinth.updates.available', { count: found.length })
+                : t('modrinth.updates.upToDate');
         });
     }
 
@@ -310,34 +301,29 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
             }
             const done = new Set(selected.map(update => update.mod.projectId));
             setUpdates(current => current.filter(update => !done.has(update.mod.projectId)));
-            return `Updated ${selected.map(update => update.mod.title).join(', ')}.`;
+            return t('modrinth.updates.updated', { titles: selected.map(update => update.mod.title).join(', ') });
         });
     }
 
     function handleRemove(mod) {
-        if (!window.confirm(`Remove ${mod.title}?`)) {
+        if (!window.confirm(t('modrinth.remove.confirm', { title: mod.title }))) {
             return;
         }
-        run(async () => `Removed ${removeMod(gameDir, mod.projectId).join(', ')}.`);
+        run(async () => t('modrinth.remove.done', { titles: removeMod(gameDir, mod.projectId).join(', ') }));
     }
 
     function handleAdopt(kind) {
         run(async () => {
             const count = await adoptUnmanaged(gameDir, kind);
-            return count
-                ? `Recognised ${count} ${KINDS[kind].noun}(s) from Modrinth.`
-                : 'None of them were found on Modrinth.';
+            return count ? t(`modrinth.kinds.${kind}.adopted`, { count }) : t('modrinth.adoptNone');
         });
     }
 
     function searchTab(kind) {
-        const { noun, label } = KINDS[kind];
         if (!searchFilters[kind]) {
             return (
                 <Typography sx={{ color: 'text.secondary' }}>
-                    {kind === 'mod'
-                        ? 'Set up a mod loader above to search for mods.'
-                        : `Pick the Minecraft version above to search for ${label.toLowerCase()}.`}
+                    {kind === 'mod' ? t('modrinth.install.needsLoader') : t(`modrinth.kinds.${kind}.pickVersion`)}
                 </Typography>
             );
         }
@@ -349,20 +335,23 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
                 <ProjectSearch
                     key={kind}
                     filters={searchFilters[kind]}
-                    placeholder={`Search ${label.toLowerCase()}`}
+                    placeholder={t(`modrinth.kinds.${kind}.search`)}
                     action={hit =>
                         installedIds.has(hit.project_id) ? (
                             <Button variant='outlined' disabled>
-                                Installed
+                                {t('modrinth.install.installed')}
                             </Button>
                         ) : (
                             <Button
                                 variant='contained'
                                 disabled={busy}
-                                aria-label={`Install ${hit.title} (${noun})`}
+                                aria-label={t('modrinth.install.ariaLabel', {
+                                    title: hit.title,
+                                    noun: t(`modrinth.kinds.${kind}.noun`),
+                                })}
                                 onClick={() => install(hit, kind)}
                             >
-                                Install
+                                {t('modrinth.install.button')}
                             </Button>
                         )
                     }
@@ -377,7 +366,7 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
     }
 
     return (
-        <Page title='Modrinth'>
+        <Page title={t('modrinth.title')}>
             <TargetBar
                 profile={profile}
                 versionId={versionId}
@@ -395,11 +384,15 @@ function ModrinthPage({ profile, gameDir, onProfilesChange }) {
                         }
                     }}
                 >
-                    {TABS.map(({ id, label }) => (
+                    {TABS.map(id => (
                         <Tab
                             key={id}
                             value={id}
-                            label={id === 'installed' ? `${label} (${list.mods.length})` : label}
+                            label={
+                                id === 'installed'
+                                    ? t('modrinth.tabs.installedCount', { count: list.mods.length })
+                                    : t(`modrinth.tabs.${id}`)
+                            }
                         />
                     ))}
                 </Tabs>

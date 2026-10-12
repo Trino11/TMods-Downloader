@@ -3,22 +3,29 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Typography from '@mui/material/Typography';
 import ViewInArIcon from '@mui/icons-material/ViewInAr';
+import Stack from '@mui/material/Stack';
 import ManifestUrlForm from '../settings/ManifestUrlForm';
+import LanguageSection from '../settings/LanguageSection';
+import { useTranslation } from '../../i18n';
 
 // Shown instead of the app until a manifest URL has been saved.
 function FirstRunSetup({ onDone }) {
+    const { t } = useTranslation();
     return (
         <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
             <Card variant='outlined' sx={{ width: '100%', maxWidth: 640 }}>
                 <CardContent sx={{ p: 4 }}>
                     <ViewInArIcon color='primary' sx={{ fontSize: 48, mb: 1 }} />
                     <Typography variant='h4' component='h1' gutterBottom>
-                        Welcome to TMods Loader
+                        {t('settings.firstRun.title')}
                     </Typography>
                     <Typography sx={{ color: 'text.secondary', mb: 3 }}>
-                        Enter the URL of your manifest to get started. You can change it later in Settings.
+                        {t('settings.firstRun.description')}
                     </Typography>
-                    <ManifestUrlForm onSaved={onDone} />
+                    <Stack spacing={3}>
+                        <LanguageSection />
+                        <ManifestUrlForm onSaved={onDone} />
+                    </Stack>
                 </CardContent>
             </Card>
         </Box>

@@ -6,6 +6,7 @@
 // source of truth: the launcher entries are rewritten from it whenever they drift.
 import { minecraftDir } from './paths';
 import { fs, path } from './node';
+import { t } from '../i18n';
 
 const PROFILES_KEY = 'tmods.profiles';
 const ACTIVE_KEY = 'tmods.activeProfile';
@@ -29,7 +30,10 @@ function profilesRoot() {
 
 const defaultProfile = {
     id: DEFAULT_PROFILE_ID,
-    name: 'Default (.minecraft)',
+    // A getter, so the name follows the language picked after this module loaded.
+    get name() {
+        return t('services.profiles.defaultName');
+    },
     // Played through whatever launcher profile the player already uses.
     gameVersion: '',
 };
@@ -89,7 +93,7 @@ function newProfileId(name, taken) {
 function cleanName(name) {
     const trimmed = (name || '').trim();
     if (!trimmed) {
-        throw new Error('Give the profile a name.');
+        throw new Error(t('services.profiles.nameRequired'));
     }
     return trimmed;
 }
@@ -109,12 +113,12 @@ export function createProfile({ name, gameVersion }) {
 
 export function updateProfile(id, { name, gameVersion }) {
     if (id === DEFAULT_PROFILE_ID) {
-        throw new Error('The default profile cannot be changed.');
+        throw new Error(t('services.profiles.defaultNotEditable'));
     }
     const stored = readStored();
     const profile = stored.find(p => p.id === id);
     if (!profile) {
-        throw new Error('That profile no longer exists.');
+        throw new Error(t('services.profiles.profileGone'));
     }
     profile.name = cleanName(name);
     profile.gameVersion = gameVersion || LATEST_RELEASE;
@@ -127,7 +131,7 @@ export function updateProfile(id, { name, gameVersion }) {
 // worlds and settings aren't lost; the caller tells the user where it is.
 export function deleteProfile(id) {
     if (id === DEFAULT_PROFILE_ID) {
-        throw new Error('The default profile cannot be deleted.');
+        throw new Error(t('services.profiles.defaultNotDeletable'));
     }
     writeStored(readStored().filter(p => p.id !== id));
     if (localStorage.getItem(ACTIVE_KEY) === id) {
@@ -210,7 +214,12 @@ export function syncLauncherProfiles() {
             data = JSON.parse(fs.readFileSync(file, 'utf-8'));
         } catch (error) {
             // Never overwrite a file we can't read, the player's own profiles are in it.
-            throw new Error(`Could not read ${path.basename(file)}: ${error.message}`, { cause: error });
+            throw new Error(
+                t('services.profiles.unreadableLauncherFile', { file: path.basename(file), reason: error.message }),
+                {
+                    cause: error,
+                },
+            );
         }
         const profiles = data.profiles || {};
         let dirty = !data.profiles;

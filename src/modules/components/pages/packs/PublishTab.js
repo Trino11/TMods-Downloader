@@ -25,6 +25,7 @@ import {
 } from '../../../services/bundlePublish';
 import { exportMrpack, readPack } from '../../../services/mrpack';
 import { formatSize } from '../../../services/packKinds';
+import { useTranslation } from '../../../i18n';
 
 const FROM_PROFILE = 'profile';
 const FROM_FILE = 'file';
@@ -33,6 +34,7 @@ const FROM_FILE = 'file';
 // the files picked in this profile, exported as a .mrpack, or a .mrpack file as it is.
 // `items` and `selected` are shared with the Export tab.
 function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy, run }) {
+    const { t } = useTranslation();
     const repo = bundlesRepo();
     const [source, setSource] = useState(FROM_PROFILE);
     const [file, setFile] = useState(null);
@@ -82,14 +84,14 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
             <Card variant='outlined'>
                 <CardContent>
                     <Typography variant='subtitle1' component='h2'>
-                        Publish to your bundles repository
+                        {t('packs.publish.setupTitle')}
                     </Typography>
                     <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                        Set up your bundles repository in{' '}
+                        {t('packs.publish.setupBefore')}{' '}
                         <Link component={RouterLink} to='/settings'>
-                            Settings
+                            {t('packs.publish.setupLink')}
                         </Link>{' '}
-                        to publish packs for your players.
+                        {t('packs.publish.setupAfter')}
                     </Typography>
                 </CardContent>
             </Card>
@@ -120,9 +122,7 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
             const data = packData();
             if (
                 data.length > LARGE_PACK_BYTES &&
-                !window.confirm(
-                    `The pack is ${formatSize(data.length)}. Every published version stays in your repository for good. Publish it anyway?`,
-                )
+                !window.confirm(t('packs.publish.confirmLarge', { size: formatSize(data.length) }))
             ) {
                 return '';
             }
@@ -147,20 +147,20 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
     return (
         <Stack component='form' spacing={2} onSubmit={handleSubmit}>
             <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                Adds a new version to {repo}. GitHub then builds the release your players download. Files from Modrinth
-                go in as links; everything else is copied into the pack and published publicly, so only include files
-                you're allowed to share.
+                {t('packs.publish.intro', { repo })}
             </Typography>
             <ToggleButtonGroup
                 exclusive
                 size='small'
                 value={source}
                 onChange={(event, value) => value && setSource(value)}
-                aria-label='What to publish'
+                aria-label={t('packs.publish.source')}
                 sx={{ '& .MuiToggleButton-root': { textTransform: 'none' } }}
             >
-                <ToggleButton value={FROM_PROFILE}>Files from {profile.name}</ToggleButton>
-                <ToggleButton value={FROM_FILE}>A .mrpack file</ToggleButton>
+                <ToggleButton value={FROM_PROFILE}>
+                    {t('packs.publish.fromProfile', { profile: profile.name })}
+                </ToggleButton>
+                <ToggleButton value={FROM_FILE}>{t('packs.publish.fromFile')}</ToggleButton>
             </ToggleButtonGroup>
 
             {source === FROM_PROFILE && (
@@ -169,14 +169,19 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
             {source === FROM_FILE && (
                 <Stack spacing={1} sx={{ alignItems: 'flex-start' }}>
                     <Button component='label' variant='outlined' startIcon={<FileUploadIcon />} disabled={busy}>
-                        {file ? 'Choose another file' : 'Choose file'}
+                        {file ? t('packs.publish.chooseAnother') : t('packs.publish.chooseFile')}
                         <input id='publishPackFile' type='file' accept='.mrpack' hidden onChange={handleFile} />
                     </Button>
                     {filePack?.error && <Alert severity='error'>{filePack.error}</Alert>}
                     {filePack && !filePack.error && (
                         <Typography variant='body2'>
-                            {file.name}: {filePack.name}, Minecraft {filePack.gameVersion}, {filePack.items.length}{' '}
-                            item(s), {formatSize(file.data.length)}.
+                            {t('packs.publish.fileInfo', {
+                                file: file.name,
+                                name: filePack.name,
+                                gameVersion: filePack.gameVersion,
+                                count: filePack.items.length,
+                                size: formatSize(file.data.length),
+                            })}
                         </Typography>
                     )}
                 </Stack>
@@ -186,7 +191,7 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
                 <TextField
                     id='publishCategory'
                     select
-                    label='Category'
+                    label={t('packs.publish.category')}
                     value={category}
                     onChange={event => {
                         setCategory(event.target.value);
@@ -202,7 +207,7 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
                 </TextField>
                 <TextField
                     id='publishVersion'
-                    label='Version'
+                    label={t('packs.publish.version')}
                     fullWidth
                     value={version}
                     onChange={event => {
@@ -214,14 +219,14 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
             </Stack>
             <TextField
                 id='publishDescription'
-                label='Description (optional)'
+                label={t('packs.publish.description')}
                 fullWidth
                 value={description}
                 onChange={event => setDescription(event.target.value)}
             />
             <TextField
                 id='publishChangelog'
-                label='What changed (optional)'
+                label={t('packs.publish.changelog')}
                 fullWidth
                 multiline
                 minRows={2}
@@ -235,15 +240,15 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
                     startIcon={<CloudUploadIcon />}
                     disabled={busy || !ready || !version.trim()}
                 >
-                    Publish
+                    {t('packs.publish.publish')}
                 </Button>
             </Stack>
             {lookupError && <Alert severity='warning'>{lookupError}</Alert>}
             {published && (
                 <Alert severity='success'>
-                    Published {published.label}. GitHub is building the release;{' '}
+                    {t('packs.publish.publishedBefore', { label: published.label })}{' '}
                     <Link href={published.actionsUrl} target='_blank' rel='noreferrer'>
-                        follow it on GitHub
+                        {t('packs.publish.follow')}
                     </Link>
                     .
                 </Alert>

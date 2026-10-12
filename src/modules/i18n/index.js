@@ -37,7 +37,8 @@ export function systemLanguage() {
 
 // Empty when the player never picked one, which means "follow the system".
 export function getLanguageSetting() {
-    const saved = localStorage.getItem(LANGUAGE_KEY) || '';
+    // Plain Node (the live service checks) has no localStorage.
+    const saved = typeof localStorage === 'undefined' ? '' : localStorage.getItem(LANGUAGE_KEY) || '';
     return isSupported(saved) ? saved : '';
 }
 
@@ -49,7 +50,9 @@ const listeners = new Set();
 
 // Pass '' to go back to following the system language.
 export function setLanguage(code) {
-    if (code && isSupported(code)) {
+    if (typeof localStorage === 'undefined') {
+        // Nowhere to keep it (plain Node).
+    } else if (code && isSupported(code)) {
         localStorage.setItem(LANGUAGE_KEY, code);
     } else {
         localStorage.removeItem(LANGUAGE_KEY);

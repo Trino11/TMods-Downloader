@@ -5,6 +5,7 @@
 // (Fabric, Forge, NeoForge...) are always offered too.
 import axios from 'axios';
 import { LATEST_RELEASE, LATEST_SNAPSHOT, listGameVersions } from './profiles';
+import { t } from '../i18n';
 
 export const VERSION_MANIFEST_URL = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json';
 
@@ -23,7 +24,7 @@ export function readCachedVersions() {
 export async function fetchMojangVersions() {
     const { data } = await axios.get(VERSION_MANIFEST_URL);
     if (!Array.isArray(data?.versions)) {
-        throw new Error('The Minecraft version list has an unexpected format.');
+        throw new Error(t('services.gameVersions.badFormat'));
     }
     const versions = data.versions
         .filter(version => version && typeof version.id === 'string')
@@ -64,19 +65,19 @@ export function filterVersionOptions(options, { query = '', showAll = false, kee
     });
 }
 
-const TYPE_LABELS = {
-    snapshot: 'snapshot',
-    old_beta: 'beta',
-    old_alpha: 'alpha',
-};
+// The version types that get a note in the picker, under services.gameVersions.types.
+const NOTED_TYPES = ['snapshot', 'old_beta', 'old_alpha'];
 
 export function versionLabel(option) {
     if (option.id === LATEST_RELEASE) {
-        return 'Latest release';
+        return t('services.gameVersions.latestRelease');
     }
     if (option.id === LATEST_SNAPSHOT) {
-        return 'Latest snapshot';
+        return t('services.gameVersions.latestSnapshot');
     }
-    const notes = [TYPE_LABELS[option.type], option.installed && 'installed'].filter(Boolean);
+    const notes = [
+        NOTED_TYPES.includes(option.type) && t(`services.gameVersions.types.${option.type}`),
+        option.installed && t('services.gameVersions.installed'),
+    ].filter(Boolean);
     return notes.length ? `${option.id} (${notes.join(', ')})` : option.id;
 }

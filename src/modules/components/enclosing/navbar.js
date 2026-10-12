@@ -15,6 +15,7 @@ import ViewInArIcon from '@mui/icons-material/ViewInAr';
 import { NavLink } from 'react-router';
 import categories from '../../categories';
 import ProfileSelector from '../profiles/ProfileSelector';
+import { useTranslation } from '../../i18n';
 
 const WIDTH = 280;
 
@@ -39,6 +40,7 @@ function NavItem({ to, icon: Icon, label }) {
 }
 
 function Navbar({ profiles, activeProfileId, onSelectProfile }) {
+    const { t } = useTranslation();
     return (
         <Drawer
             variant='permanent'
@@ -68,17 +70,17 @@ function Navbar({ profiles, activeProfileId, onSelectProfile }) {
             <ProfileSelector profiles={profiles} activeId={activeProfileId} onSelect={onSelectProfile} />
             <Divider sx={{ my: 2 }} />
             <List component='nav' disablePadding sx={{ flexGrow: 1, overflowY: 'auto' }}>
-                <NavItem to='/home' icon={HomeIcon} label='Home' />
-                <NavItem to='/profiles' icon={BadgeIcon} label='Profiles' />
-                <NavItem to='/modrinth' icon={TravelExploreIcon} label='Modrinth' />
-                <NavItem to='/packs' icon={Inventory2Icon} label='Packs' />
+                <NavItem to='/home' icon={HomeIcon} label={t('nav.home')} />
+                <NavItem to='/profiles' icon={BadgeIcon} label={t('nav.profiles')} />
+                <NavItem to='/modrinth' icon={TravelExploreIcon} label={t('nav.modrinth')} />
+                <NavItem to='/packs' icon={Inventory2Icon} label={t('nav.packs')} />
                 {categories.map(category => (
                     <NavItem key={category.id} to={`/${category.id}`} icon={category.icon} label={category.label} />
                 ))}
             </List>
             <Divider sx={{ my: 2 }} />
             <List disablePadding>
-                <NavItem to='/settings' icon={SettingsIcon} label='Settings' />
+                <NavItem to='/settings' icon={SettingsIcon} label={t('nav.settings')} />
             </List>
         </Drawer>
     );

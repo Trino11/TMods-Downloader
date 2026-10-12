@@ -6,9 +6,11 @@ import TextField from '@mui/material/TextField';
 import Downloadspinner from '../utils/Downloadspinner';
 import { validateManifestUrl } from '../../services/manifest';
 import { getManifestUrl, setManifestUrl } from '../../services/settings';
+import { useTranslation } from '../../i18n';
 
 // Asks for a manifest URL and only saves it once it loads a valid manifest.
 function ManifestUrlForm({ onSaved }) {
+    const { t } = useTranslation();
     const [url, setUrl] = useState(getManifestUrl);
     const [checking, setChecking] = useState(false);
     const [error, setError] = useState('');
@@ -38,7 +40,7 @@ function ManifestUrlForm({ onSaved }) {
             <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
                 <TextField
                     id='manifestUrl'
-                    label='Manifest URL'
+                    label={t('settings.manifest.label')}
                     type='url'
                     fullWidth
                     placeholder='https://example.com/manifest.json'
@@ -51,11 +53,11 @@ function ManifestUrlForm({ onSaved }) {
                     slotProps={{ htmlInput: { required: true }, inputLabel: { shrink: true } }}
                 />
                 <Button type='submit' variant='contained' disabled={checking} sx={{ minWidth: 96, height: 40 }}>
-                    {checking ? <Downloadspinner /> : 'Save'}
+                    {checking ? <Downloadspinner /> : t('common.save')}
                 </Button>
             </Stack>
             {error && <Alert severity='error'>{error}</Alert>}
-            {saved && <Alert severity='success'>Saved.</Alert>}
+            {saved && <Alert severity='success'>{t('common.saved')}</Alert>}
         </Stack>
     );
 }

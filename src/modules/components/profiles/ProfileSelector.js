@@ -1,11 +1,13 @@
 import TextField from '@mui/material/TextField';
+import { useTranslation } from '../../i18n';
 
 // Sidebar dropdown that picks which profile the content pages install into.
 function ProfileSelector({ profiles, activeId, onSelect }) {
+    const { t } = useTranslation();
     return (
         <TextField
             id='activeProfile'
-            label='Profile'
+            label={t('nav.profile')}
             select
             fullWidth
             value={activeId}

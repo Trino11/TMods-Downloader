@@ -16,6 +16,7 @@ import {
     versionsFromHashes,
 } from './modrinth';
 import { crypto, fs, path } from './node';
+import { t } from '../i18n';
 
 const DISABLED_SUFFIX = '.disabled';
 
@@ -132,7 +133,7 @@ export function listUnmanaged(gameDir, kind = 'mod') {
 
 function checkFileName(name) {
     if (!name || name !== path.basename(name) || name.startsWith('.')) {
-        throw new Error(`Refusing to save a file named "${name}".`);
+        throw new Error(t('services.modrinthMods.refuseFileName', { name }));
     }
 }
 
@@ -145,14 +146,14 @@ export async function downloadVerified(urls, hashes) {
             const { data } = await axios.get(url, { responseType: 'arraybuffer' });
             const buffer = new Uint8Array(data);
             if (sha1(buffer) !== hashes.sha1 || (hashes.sha512 && sha512(buffer) !== hashes.sha512)) {
-                throw new Error(`The file from ${url} doesn't match its checksum.`);
+                throw new Error(t('services.modrinthMods.checksumMismatch', { url }));
             }
             return buffer;
         } catch (error) {
             lastError = error;
         }
     }
-    throw lastError || new Error('The file has no download link.');
+    throw lastError || new Error(t('services.modrinthMods.noDownloadLink'));
 }
 
 // Writes through a temporary file, so a crash never leaves a half-written jar behind.
@@ -219,8 +220,12 @@ async function planInstall(rootVersion, target, installedIds, allowIncompatible)
                 depVersion = pickVersion(await getProjectVersions(dep.project_id, target));
             }
             if (!depVersion) {
-                const name = dep.project_id ? await projectTitle(dep.project_id) : dep.file_name || 'a mod';
-                throw new Error(`It needs ${name}, which has no version for ${targetLabel(target)}.`);
+                const name = dep.project_id
+                    ? await projectTitle(dep.project_id)
+                    : dep.file_name || t('services.modrinthMods.aMod');
+                throw new Error(
+                    t('services.modrinthMods.dependencyUnavailable', { name, target: targetLabel(target) }),
+                );
             }
             if (installedIds.has(depVersion.project_id) || plan.has(depVersion.project_id)) {
                 continue;
@@ -239,7 +244,7 @@ async function planInstall(rootVersion, target, installedIds, allowIncompatible)
             dep => dep.dependency_type === 'incompatible' && all.has(dep.project_id),
         );
         if (clash) {
-            throw new Error(`It doesn't work together with ${await projectTitle(clash.project_id)}.`);
+            throw new Error(t('services.modrinthMods.incompatible', { name: await projectTitle(clash.project_id) }));
         }
     }
     return [...plan.values()];
@@ -258,15 +263,15 @@ export async function installMod(
     title,
     { kind = 'mod', asDependency = false, allowIncompatible = false } = {},
 ) {
-    const noun = KINDS[kind].noun;
+    const name = title || t(`services.modrinthMods.thisKind.${kind}`);
     const list = readModList(gameDir);
     const installedIds = new Set(list.mods.map(mod => mod.projectId));
     if (installedIds.has(projectId)) {
-        throw new Error(`${title || `This ${noun}`} is already installed.`);
+        throw new Error(t('services.modrinthMods.alreadyInstalled', { name }));
     }
     const version = pickVersion(await getProjectVersions(projectId, target));
     if (!version) {
-        throw new Error(`${title || `This ${noun}`} has no version for ${targetLabel(target)}.`);
+        throw new Error(t('services.modrinthMods.noVersion', { name, target: targetLabel(target) }));
     }
 
     const plan = kind === 'mod' ? await planInstall(version, target, installedIds, allowIncompatible) : [version];
@@ -358,7 +363,7 @@ export async function updateMod(gameDir, projectId, version) {
     const list = readModList(gameDir);
     const index = list.mods.findIndex(mod => mod.projectId === projectId);
     if (index === -1) {
-        throw new Error("That isn't installed anymore.");
+        throw new Error(t('services.modrinthMods.notInstalledAnymore'));
     }
     const old = list.mods[index];
     const extra = old.kind === 'mod' ? {} : { kind: old.kind, loader: old.loader };

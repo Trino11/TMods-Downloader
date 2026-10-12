@@ -6,6 +6,7 @@
 import categories from '../categories';
 import { github } from './node';
 import { getBundlesRepo, getManifestUrl } from './settings';
+import { t } from '../i18n';
 
 const MANIFEST_ON_GITHUB = /^https:\/\/github\.com\/([A-Za-z0-9-]+\/[A-Za-z0-9._-]+)\/releases\//;
 
@@ -13,7 +14,13 @@ const MANIFEST_ON_GITHUB = /^https:\/\/github\.com\/([A-Za-z0-9-]+\/[A-Za-z0-9._
 // the bundle pages install as zips.
 export const PACKS_CATEGORY = 'packs';
 export const PUBLISH_CATEGORIES = [
-    { id: PACKS_CATEGORY, label: 'Packs (whole pack)' },
+    {
+        id: PACKS_CATEGORY,
+        // A getter, so the label follows the language picked after this module loaded.
+        get label() {
+            return t('services.bundlePublish.packsCategory');
+        },
+    },
     ...categories.map(category => ({ id: category.id, label: category.label })),
 ];
 
@@ -55,10 +62,7 @@ export async function publishPack({
     changelog = '',
 }) {
     if (data.length > MAX_PACK_BYTES) {
-        throw new Error(
-            `The pack is ${Math.ceil(data.length / (1024 * 1024))} MB, and GitHub takes files up to 100 MB. ` +
-                'Leave out large files that are copied rather than linked from Modrinth.',
-        );
+        throw new Error(t('services.bundlePublish.tooLarge', { size: Math.ceil(data.length / (1024 * 1024)) }));
     }
     const metadata = {};
     if (description.trim()) {
