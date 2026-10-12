@@ -109,6 +109,9 @@ const packs = {
         nothingOfKind: 'Nothing of this kind to publish',
         versionOf: '{category} version',
         emptyCategories: 'Nothing picked goes in {categories}. Pick files of that kind or untick the category.',
+        serversInfo:
+            "Replaces your channel's server list with these {count} server(s): {names}. Players get them in every profile, next to their own.",
+        serversEmpty: 'The picked server list has no servers. Add some on the Profiles page first.',
         description: 'Description (optional)',
         changelog: 'What changed (optional)',
         publish: 'Publish',

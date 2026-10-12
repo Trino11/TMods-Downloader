@@ -20,11 +20,15 @@ import {
     LARGE_PACK_BYTES,
     PACKS_CATEGORY,
     PUBLISH_CATEGORIES,
+    SERVERS_CATEGORY,
     bundlesRepo,
     categoryHasFiles,
     existingVersions,
+    isVersioned,
     nextVersion,
     publishPack,
+    serversOfPack,
+    serversOfProfile,
 } from '../../../services/bundlePublish';
 import { exportMrpack, readPack } from '../../../services/mrpack';
 import { formatSize } from '../../../services/packKinds';
@@ -37,7 +41,8 @@ const labelOf = id => PUBLISH_CATEGORIES.find(category => category.id === id)?.l
 
 // Publishes a new version of each picked category to the player's bundles repository
 // (set up in Settings), in one commit: the files picked in this profile, exported as a
-// .mrpack, or a .mrpack file as it is.
+// .mrpack, or a .mrpack file as it is. Picking the server list category publishes the
+// picked servers.dat as the channel's server list instead, in the same commit.
 // `items` and `selected` are shared with the Export tab.
 function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy, run }) {
     const { t } = useTranslation();
@@ -61,7 +66,7 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
             return undefined;
         }
         let active = true;
-        for (const category of picked.filter(id => !touched[id])) {
+        for (const category of picked.filter(id => isVersioned(id) && !touched[id])) {
             existingVersions(repo, category)
                 .then(existing => {
                     if (!active) {
@@ -87,6 +92,22 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
             return { error: error.message };
         }
     }, [file]);
+
+    // The servers to publish as the channel's list, or an error reading them.
+    const servers = useMemo(() => {
+        if (!picked.includes(SERVERS_CATEGORY)) {
+            return null;
+        }
+        try {
+            if (source === FROM_FILE) {
+                return { list: filePack && !filePack.error ? serversOfPack(filePack) : [] };
+            }
+            const ticked = items.some(item => item.kind === 'servers' && selected.has(item.id));
+            return { list: ticked ? serversOfProfile(gameDir) : [] };
+        } catch (error) {
+            return { error: error.message };
+        }
+    }, [picked, source, filePack, items, selected, gameDir]);
 
     if (!repo) {
         return (
@@ -116,17 +137,23 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
     }
 
     const versionOf = category => (versions[category] || '').trim();
+    const versioned = picked.filter(isVersioned);
+    const withServers = picked.includes(SERVERS_CATEGORY);
+    // When the servers go out as the channel's list, they stay out of the pack, so players
+    // don't get them twice.
+    const packItems = items.filter(
+        item => selected.has(item.id) && !(withServers && source === FROM_PROFILE && item.kind === 'servers'),
+    );
 
     // The pack to publish, as bytes: the whole of it, each category takes its own part.
     function packData() {
         if (source === FROM_FILE) {
             return file.data;
         }
-        const included = items.filter(item => selected.has(item.id));
         return exportMrpack(gameDir, target, {
             name: profile.name,
-            version: versionOf(picked.includes(PACKS_CATEGORY) ? PACKS_CATEGORY : picked[0]),
-            items: included,
+            version: versionOf(versioned.includes(PACKS_CATEGORY) ? PACKS_CATEGORY : versioned[0]),
+            items: packItems,
         }).data;
     }
 
@@ -134,19 +161,28 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
         event.preventDefault();
         setPublished(null);
         run(async () => {
-            const data = packData();
+            const data = versioned.length > 0 ? packData() : null;
             if (
+                data &&
                 data.length > LARGE_PACK_BYTES &&
                 !window.confirm(t('packs.publish.confirmLarge', { size: formatSize(data.length) }))
             ) {
                 return '';
             }
-            const targets = picked.map(category => ({ category, version: versionOf(category) }));
-            const result = await publishPack({ repo, versions: targets, data, description, changelog });
-            setPublished({
-                ...result,
-                label: targets.map(({ category, version }) => `${labelOf(category)} ${version}`).join(', '),
+            const targets = versioned.map(category => ({ category, version: versionOf(category) }));
+            const result = await publishPack({
+                repo,
+                versions: targets,
+                data,
+                description,
+                changelog,
+                ...(withServers ? { servers: servers.list } : {}),
             });
+            const labels = targets.map(({ category, version }) => `${labelOf(category)} ${version}`);
+            if (withServers) {
+                labels.push(labelOf(SERVERS_CATEGORY));
+            }
+            setPublished({ ...result, label: labels.join(', ') });
             setTouched({});
             setChangelog('');
             return '';
@@ -163,12 +199,18 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
                 : items.filter(item => selected.has(item.id)).map(item => item.kind),
         ),
     ];
-    const empty = picked.filter(category => !categoryHasFiles(category, kinds));
+    const serversReady = !withServers || Boolean(servers?.list?.length);
+    // What goes in the pack: the server list stays out of it when published on its own.
+    const packKinds = source === FROM_FILE ? kinds : [...new Set(packItems.map(item => item.kind))];
+    const empty = picked.filter(
+        category => !categoryHasFiles(category, category === SERVERS_CATEGORY ? kinds : packKinds),
+    );
     const ready =
         (source === FROM_FILE ? Boolean(filePack && !filePack.error) : items.some(item => selected.has(item.id))) &&
         picked.length > 0 &&
         empty.length === 0 &&
-        picked.every(category => versionOf(category));
+        serversReady &&
+        versioned.every(category => versionOf(category));
 
     return (
         <Stack component='form' spacing={2} onSubmit={handleSubmit}>
@@ -241,7 +283,7 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
                     </MenuItem>
                 ))}
             </TextField>
-            {picked.map(category => (
+            {versioned.map(category => (
                 <TextField
                     key={category}
                     id={`publishVersion-${category}`}
@@ -256,6 +298,18 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
                     slotProps={{ htmlInput: { required: true }, inputLabel: { shrink: true } }}
                 />
             ))}
+            {withServers && servers?.error && <Alert severity='error'>{servers.error}</Alert>}
+            {withServers && servers?.list?.length > 0 && (
+                <Alert severity='info'>
+                    {t('packs.publish.serversInfo', {
+                        count: servers.list.length,
+                        names: servers.list.map(server => server.name).join(', '),
+                    })}
+                </Alert>
+            )}
+            {withServers && servers?.list?.length === 0 && !empty.includes(SERVERS_CATEGORY) && (
+                <Alert severity='warning'>{t('packs.publish.serversEmpty')}</Alert>
+            )}
             {empty.length > 0 && (
                 <Alert severity='warning'>
                     {t('packs.publish.emptyCategories', { categories: empty.map(labelOf).join(', ') })}

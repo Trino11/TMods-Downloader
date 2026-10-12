@@ -25,6 +25,8 @@ jest.mock('../../services/profiles', () => ({
 }));
 
 jest.mock('axios', () => ({ get: jest.fn() }));
+// Its own tests cover the server list (ServersCard.test.js).
+jest.mock('../pages/profiles/ServersCard', () => () => null);
 jest.mock('../../services/gameVersions', () => ({
     ...jest.requireActual('../../services/gameVersions'),
     fetchMojangVersions: jest.fn(),

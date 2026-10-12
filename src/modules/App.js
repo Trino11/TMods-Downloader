@@ -14,6 +14,7 @@ import FirstRunSetup from './components/setup/FirstRunSetup';
 import UpdateDialog from './components/utils/UpdateDialog';
 import categories from './categories';
 import { listManifests, profileManifest } from './services/manifests';
+import { syncManifestServers } from './services/servers';
 import { applyDocumentLanguage, useTranslation } from './i18n';
 import {
     ensureTModsProfile,
@@ -63,6 +64,15 @@ function Screens() {
             console.error('Could not sync profiles to the Minecraft Launcher:', error);
         }
     }, []);
+
+    // Put the servers each profile's manifest lists in its Multiplayer list, on start and
+    // whenever the manifests or the one a profile follows change.
+    const followed = manifests.length > 0 ? profiles.map(profile => profileManifest(profile)?.url).join('\n') : '';
+    useEffect(() => {
+        if (followed) {
+            syncManifestServers().catch(error => console.error("Could not add the channel's servers:", error));
+        }
+    }, [followed]);
 
     function reloadProfiles() {
         setProfiles(loadProfiles());

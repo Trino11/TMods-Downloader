@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { t } from '../i18n';
-import { activeManifestUrl } from './manifests';
+import { activeManifestUrl, profileManifest } from './manifests';
 
 // Waits between tries of the manifest download. Gateway errors (502, 503, 504) and
 // dropped connections are usually brief hiccups on the host's side, GitHub release links
@@ -65,6 +65,11 @@ export async function validateManifestUrl(url) {
 // that read the manifest, such as the servers list, start from this.
 export function fetchCurrentManifest() {
     return fetchManifest(activeManifestUrl());
+}
+
+// The manifest `profile` follows, downloaded (with retries).
+export function fetchProfileManifest(profile) {
+    return fetchManifest(profileManifest(profile)?.url || '');
 }
 
 export async function fetchVersions(categoryId) {

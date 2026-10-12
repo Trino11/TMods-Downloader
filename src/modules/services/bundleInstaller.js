@@ -3,6 +3,7 @@ import { managedFileNames } from './modrinthMods';
 import { crypto, fs, path, zip } from './node';
 import { defaultGameDir } from './paths';
 import { activeManifestUrl } from './manifests';
+import { mergeStagedServers } from './servers';
 import { t } from '../i18n';
 
 // Every function below works on a game folder passed in as `gameDir`, so the same
@@ -167,6 +168,8 @@ export async function installBundle(category, version, gameDir = defaultGameDir)
                 clearFolder(category, gameDir);
             }
         }
+        // A bundle's servers join the player's list instead of replacing it.
+        mergeStagedServers(staging, gameDir);
         fs.cpSync(staging, gameDir, { recursive: true });
     } finally {
         fs.rmSync(staging, { recursive: true, force: true });

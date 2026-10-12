@@ -26,6 +26,7 @@ import {
 } from './modrinthMods';
 import { PACK_KINDS, groupItems, isEnabled, itemOf } from './packKinds';
 import { activeManifest, activeManifestUrl } from './manifests';
+import { mergeStagedServers } from './servers';
 import { bytesToText, crypto, fs, path, zip as zips } from './node';
 import { t } from '../i18n';
 
@@ -449,6 +450,8 @@ async function importIntoProfile(pack, files, profile) {
         await writeFiles(staged, files);
         backupId = backUp(gameDir, files, pack.name);
         replaced = await dropOtherVersions(gameDir, files, staged);
+        // The pack's servers join the player's list instead of replacing it.
+        mergeStagedServers(staged, gameDir);
         if (files.length > 0) {
             fs.cpSync(staged, gameDir);
         }

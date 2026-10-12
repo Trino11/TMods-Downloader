@@ -28,6 +28,7 @@ import {
 } from '../../../services/profiles';
 import { profileManifest } from '../../../services/manifests';
 import FabricInstall from './FabricInstall';
+import ServersCard from './ServersCard';
 import { useTranslation } from '../../../i18n';
 
 const emptyForm = { id: null, name: '', gameVersion: LATEST_RELEASE, manifestId: '' };
@@ -67,6 +68,7 @@ function Profiles({ profiles, manifests = [], activeId, onSelect, onChange }) {
     const [form, setForm] = useState(emptyForm);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
+    const activeProfile = profiles.find(profile => profile.id === activeId);
 
     useEffect(() => {
         let cancelled = false;
@@ -195,6 +197,10 @@ function Profiles({ profiles, manifests = [], activeId, onSelect, onChange }) {
             </Card>
 
             <FabricInstall onInstalled={handleFabricInstalled} />
+
+            {activeProfile && (
+                <ServersCard key={activeProfile.id} profile={activeProfile} gameDir={profileGameDir(activeProfile)} />
+            )}
 
             <ItemList>
                 {profiles.map(profile => (

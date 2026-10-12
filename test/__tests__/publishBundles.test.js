@@ -417,6 +417,64 @@ describe('bundles built from references', () => {
     });
 });
 
+describe('servers.json', () => {
+    function source(servers) {
+        return writeTree(path.join(temp, 'bundles'), {
+            'configs/1.0.0/config/a.txt': 'a',
+            ...(servers === undefined ? {} : { 'servers.json': JSON.stringify(servers) }),
+        });
+    }
+
+    it('puts the servers in the manifest the way the app reads them', async () => {
+        const { manifest } = await buildBundles({ source: FIXTURE, downloadBase: BASE });
+
+        expect(manifest.servers).toEqual([
+            { name: 'TMods Lobby', address: 'lobby.example.com', resourcePack: 'enabled' },
+            { name: 'survival.example.com:25570', address: 'survival.example.com:25570' },
+        ]);
+        const { manifestServers } = require('../../src/modules/services/servers');
+        expect(manifestServers(manifest)).toEqual([
+            { name: 'TMods Lobby', address: 'lobby.example.com', resourcePack: 'enabled' },
+            { name: 'survival.example.com:25570', address: 'survival.example.com:25570', resourcePack: 'prompt' },
+        ]);
+    });
+
+    it('leaves the manifest without servers when there is no file', async () => {
+        const { manifest } = await buildBundles({ source: source(), downloadBase: BASE });
+        expect(manifest).not.toHaveProperty('servers');
+    });
+
+    it('accepts a repository with only servers, or an empty list', async () => {
+        const dir = writeTree(path.join(temp, 'only'), {
+            'servers.json': JSON.stringify({ servers: [{ name: 'A', address: 'a.example.com' }] }),
+        });
+        expect((await buildBundles({ source: dir, downloadBase: BASE })).manifest).toEqual({
+            versions: {},
+            servers: [{ name: 'A', address: 'a.example.com' }],
+        });
+        expect((await buildBundles({ source: source({ servers: [] }), downloadBase: BASE })).manifest.servers).toEqual(
+            [],
+        );
+    });
+
+    it.each([
+        [{ list: [] }, 'needs a "servers" list'],
+        [{ servers: ['a.example.com'] }, 'server 1 must be an object'],
+        [{ servers: [{ name: 'A' }] }, 'server 1 needs an "address"'],
+        [{ servers: [{ address: 'a b' }] }, 'without spaces'],
+        [{ servers: [{ address: 'a.example.com' }, { address: 'A.example.com:25565' }] }, 'server 2 repeats'],
+        [{ servers: [{ address: 'a.example.com', resourcePack: 'yes' }] }, '"resourcePack" must be prompt'],
+        [{ servers: [{ address: 'a.example.com', ip: 'x' }] }, 'unknown field(s) ip'],
+    ])('stops the publish on a mistake: %j', async (servers, message) => {
+        await expect(buildBundles({ source: source(servers), downloadBase: BASE })).rejects.toThrow(message);
+    });
+
+    it('stops on a servers.json that is not JSON', async () => {
+        const dir = writeTree(path.join(temp, 'bad'), { 'configs/1.0.0/a.txt': 'a', 'servers.json': '{' });
+        await expect(buildBundles({ source: dir, downloadBase: BASE })).rejects.toThrow('not valid JSON');
+    });
+});
+
 describe('the build-bundles command', () => {
     it('writes the release assets and the stable manifest URL', async () => {
         const out = path.join(temp, 'out');
@@ -443,6 +501,9 @@ describe('the build-bundles command', () => {
             result.manifest,
         );
         expect(fs.readFileSync(path.join(out, 'notes.md'), 'utf-8')).toContain('| mods | 1.10.0 |');
+        expect(fs.readFileSync(path.join(out, 'notes.md'), 'utf-8')).toContain(
+            'Servers: TMods Lobby (lobby.example.com)',
+        );
         expect(log).toHaveBeenCalledWith(
             'Manifest: https://github.com/someone/bundles/releases/latest/download/manifest.json',
         );

@@ -102,10 +102,17 @@ const services = {
         backupNotFound: 'Backup {id} not found for {category}',
     },
     bundlePublish: {
+        serversCategory: 'Server list (every player gets it)',
         packsCategory: 'Packs (whole pack)',
         nothingFor: 'The pack has nothing that goes in {category}.',
         tooLarge:
             'The pack is {size} MB, and GitHub takes files up to 100 MB. Leave out large files that are copied rather than linked from Modrinth.',
+    },
+    servers: {
+        unreadable: 'Could not read the server list (servers.dat): {reason}',
+        addressRequired: 'Every server needs an address.',
+        badAddress: 'The address "{address}" has spaces in it.',
+        defaultName: 'Minecraft Server',
     },
     profiles: {
         defaultName: 'Default (.minecraft)',
