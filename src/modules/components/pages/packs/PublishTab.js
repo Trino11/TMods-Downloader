@@ -3,8 +3,10 @@ import { Link as RouterLink } from 'react-router';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
+import Checkbox from '@mui/material/Checkbox';
 import CardContent from '@mui/material/CardContent';
 import Link from '@mui/material/Link';
+import ListItemText from '@mui/material/ListItemText';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
@@ -19,6 +21,7 @@ import {
     PACKS_CATEGORY,
     PUBLISH_CATEGORIES,
     bundlesRepo,
+    categoryHasFiles,
     existingVersions,
     nextVersion,
     publishPack,
@@ -30,43 +33,49 @@ import { useTranslation } from '../../../i18n';
 const FROM_PROFILE = 'profile';
 const FROM_FILE = 'file';
 
-// Publishes a new version to the player's bundles repository (set up in Settings):
-// the files picked in this profile, exported as a .mrpack, or a .mrpack file as it is.
+const labelOf = id => PUBLISH_CATEGORIES.find(category => category.id === id)?.label || id;
+
+// Publishes a new version of each picked category to the player's bundles repository
+// (set up in Settings), in one commit: the files picked in this profile, exported as a
+// .mrpack, or a .mrpack file as it is.
 // `items` and `selected` are shared with the Export tab.
 function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy, run }) {
     const { t } = useTranslation();
     const repo = bundlesRepo();
     const [source, setSource] = useState(FROM_PROFILE);
     const [file, setFile] = useState(null);
-    const [category, setCategory] = useState(PACKS_CATEGORY);
-    const [version, setVersion] = useState('');
-    const [versionTouched, setVersionTouched] = useState(false);
+    // The categories to publish into, in PUBLISH_CATEGORIES order, and a version for each:
+    // the suggested one until the player types their own (`touched`).
+    const [picked, setPicked] = useState([PACKS_CATEGORY]);
+    const [versions, setVersions] = useState({});
+    const [touched, setTouched] = useState({});
     const [description, setDescription] = useState('');
     const [changelog, setChangelog] = useState('');
     const [lookupError, setLookupError] = useState('');
     const [published, setPublished] = useState(null);
 
-    // Suggests the version after the newest one already published in this category.
+    // Suggests, for each picked category, the version after the newest one already
+    // published there.
     useEffect(() => {
         if (!repo) {
             return undefined;
         }
         let active = true;
-        existingVersions(repo, category)
-            .then(existing => {
-                if (!active) {
-                    return;
-                }
-                setLookupError('');
-                if (!versionTouched) {
-                    setVersion(nextVersion(existing));
-                }
-            })
-            .catch(error => active && setLookupError(error.message));
+        for (const category of picked.filter(id => !touched[id])) {
+            existingVersions(repo, category)
+                .then(existing => {
+                    if (!active) {
+                        return;
+                    }
+                    setLookupError('');
+                    setVersions(current => ({ ...current, [category]: nextVersion(existing) }));
+                })
+                .catch(error => active && setLookupError(error.message));
+        }
         return () => {
             active = false;
         };
-    }, [repo, category, versionTouched, published]);
+    }, [repo, picked, touched, published]);
 
     const filePack = useMemo(() => {
         if (!file) {
@@ -106,13 +115,19 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
         }
     }
 
-    // The pack to publish, as bytes.
+    const versionOf = category => (versions[category] || '').trim();
+
+    // The pack to publish, as bytes: the whole of it, each category takes its own part.
     function packData() {
         if (source === FROM_FILE) {
             return file.data;
         }
-        const picked = items.filter(item => selected.has(item.id));
-        return exportMrpack(gameDir, target, { name: profile.name, version: version.trim(), items: picked }).data;
+        const included = items.filter(item => selected.has(item.id));
+        return exportMrpack(gameDir, target, {
+            name: profile.name,
+            version: versionOf(picked.includes(PACKS_CATEGORY) ? PACKS_CATEGORY : picked[0]),
+            items: included,
+        }).data;
     }
 
     function handleSubmit(event) {
@@ -126,23 +141,34 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
             ) {
                 return '';
             }
-            const result = await publishPack({
-                repo,
-                category,
-                version: version.trim(),
-                data,
-                description,
-                changelog,
+            const targets = picked.map(category => ({ category, version: versionOf(category) }));
+            const result = await publishPack({ repo, versions: targets, data, description, changelog });
+            setPublished({
+                ...result,
+                label: targets.map(({ category, version }) => `${labelOf(category)} ${version}`).join(', '),
             });
-            setPublished({ ...result, label: `${category} ${version.trim()}` });
-            setVersionTouched(false);
+            setTouched({});
             setChangelog('');
             return '';
         });
     }
 
+    // The kinds of file going out, so categories with nothing to take can be told apart.
+    const kinds = [
+        ...new Set(
+            source === FROM_FILE
+                ? filePack && !filePack.error
+                    ? filePack.items.map(item => item.kind)
+                    : []
+                : items.filter(item => selected.has(item.id)).map(item => item.kind),
+        ),
+    ];
+    const empty = picked.filter(category => !categoryHasFiles(category, kinds));
     const ready =
-        source === FROM_FILE ? Boolean(filePack && !filePack.error) : items.some(item => selected.has(item.id));
+        (source === FROM_FILE ? Boolean(filePack && !filePack.error) : items.some(item => selected.has(item.id))) &&
+        picked.length > 0 &&
+        empty.length === 0 &&
+        picked.every(category => versionOf(category));
 
     return (
         <Stack component='form' spacing={2} onSubmit={handleSubmit}>
@@ -187,36 +213,54 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
                 </Stack>
             )}
 
-            <Stack direction='row' spacing={1}>
+            <TextField
+                id='publishCategories'
+                select
+                label={t('packs.publish.categories')}
+                helperText={t('packs.publish.categoriesHelp')}
+                value={picked}
+                onChange={event => {
+                    // Kept in PUBLISH_CATEGORIES order, so the versions below are too.
+                    const chosen = event.target.value;
+                    setPicked(PUBLISH_CATEGORIES.map(item => item.id).filter(id => chosen.includes(id)));
+                }}
+                slotProps={{
+                    select: {
+                        multiple: true,
+                        renderValue: value => value.map(labelOf).join(', '),
+                    },
+                }}
+            >
+                {PUBLISH_CATEGORIES.map(item => (
+                    <MenuItem key={item.id} value={item.id}>
+                        <Checkbox size='small' checked={picked.includes(item.id)} sx={{ p: 0, mr: 1 }} />
+                        <ListItemText
+                            primary={item.label}
+                            secondary={categoryHasFiles(item.id, kinds) ? null : t('packs.publish.nothingOfKind')}
+                        />
+                    </MenuItem>
+                ))}
+            </TextField>
+            {picked.map(category => (
                 <TextField
-                    id='publishCategory'
-                    select
-                    label={t('packs.publish.category')}
-                    value={category}
-                    onChange={event => {
-                        setCategory(event.target.value);
-                        setVersionTouched(false);
-                    }}
-                    sx={{ minWidth: 240 }}
-                >
-                    {PUBLISH_CATEGORIES.map(item => (
-                        <MenuItem key={item.id} value={item.id}>
-                            {item.label}
-                        </MenuItem>
-                    ))}
-                </TextField>
-                <TextField
-                    id='publishVersion'
-                    label={t('packs.publish.version')}
+                    key={category}
+                    id={`publishVersion-${category}`}
+                    label={t('packs.publish.versionOf', { category: labelOf(category) })}
                     fullWidth
-                    value={version}
+                    value={versions[category] || ''}
                     onChange={event => {
-                        setVersion(event.target.value);
-                        setVersionTouched(true);
+                        const value = event.target.value;
+                        setVersions(current => ({ ...current, [category]: value }));
+                        setTouched(current => ({ ...current, [category]: true }));
                     }}
                     slotProps={{ htmlInput: { required: true }, inputLabel: { shrink: true } }}
                 />
-            </Stack>
+            ))}
+            {empty.length > 0 && (
+                <Alert severity='warning'>
+                    {t('packs.publish.emptyCategories', { categories: empty.map(labelOf).join(', ') })}
+                </Alert>
+            )}
             <TextField
                 id='publishDescription'
                 label={t('packs.publish.description')}
@@ -234,12 +278,7 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
                 onChange={event => setChangelog(event.target.value)}
             />
             <Stack direction='row' sx={{ justifyContent: 'flex-end' }}>
-                <Button
-                    type='submit'
-                    variant='contained'
-                    startIcon={<CloudUploadIcon />}
-                    disabled={busy || !ready || !version.trim()}
-                >
+                <Button type='submit' variant='contained' startIcon={<CloudUploadIcon />} disabled={busy || !ready}>
                     {t('packs.publish.publish')}
                 </Button>
             </Stack>
