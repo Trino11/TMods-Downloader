@@ -5,12 +5,19 @@ import {
     fetchLatestVersions,
     fetchVersions,
     latestVersion,
+    RETRY_DELAYS_MS,
     validateManifestUrl,
     versionsSince,
 } from '../manifest';
 import { setManifestUrl } from '../settings';
 
 jest.mock('axios', () => ({ get: jest.fn() }));
+
+// No waiting between retries in tests.
+RETRY_DELAYS_MS.fill(0);
+
+const httpError = status =>
+    Object.assign(new Error(`Request failed with status code ${status}`), { response: { status } });
 
 const manifest = {
     versions: {
@@ -42,11 +49,33 @@ describe('validateManifestUrl', () => {
         },
     );
 
-    it('reports a failed download', async () => {
+    it('reports a failed download after trying again', async () => {
         axios.get.mockRejectedValue(new Error('Network Error'));
         await expect(validateManifestUrl('https://example.com/manifest.json')).rejects.toThrow(
             'Could not load the manifest: Network Error',
         );
+        expect(axios.get).toHaveBeenCalledTimes(3);
+    });
+
+    it('tries again when the server has a hiccup', async () => {
+        axios.get.mockRejectedValueOnce(httpError(504)).mockResolvedValueOnce({ data: manifest });
+        await expect(validateManifestUrl('https://example.com/manifest.json')).resolves.toBeUndefined();
+        expect(axios.get).toHaveBeenCalledTimes(2);
+    });
+
+    it('explains a server error that does not go away', async () => {
+        axios.get.mockRejectedValue(httpError(504));
+        await expect(validateManifestUrl('https://example.com/manifest.json')).rejects.toThrow(
+            'Could not load the manifest: The server did not answer properly (status 504). This is usually temporary',
+        );
+    });
+
+    it('explains a missing manifest without trying again', async () => {
+        axios.get.mockRejectedValue(httpError(404));
+        await expect(validateManifestUrl('https://example.com/manifest.json')).rejects.toThrow(
+            'Could not load the manifest: Nothing was found at that address (404).',
+        );
+        expect(axios.get).toHaveBeenCalledTimes(1);
     });
 
     it.each([
