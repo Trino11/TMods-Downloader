@@ -3,9 +3,6 @@
 
 const DEV_SERVER_URL = 'http://localhost:3000';
 
-// How often a running app looks for a new release.
-const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
-
 // `npm start` passes --dev so the window loads the Vite dev server (with hot reload)
 // instead of the built files. A packaged app always loads its own build.
 function useDevServer(isPackaged, argv) {
@@ -67,38 +64,63 @@ function externalLinkHandler(openExternal) {
     };
 }
 
-// Updates download in the background. Once one is ready, `onReady({ version })` is told,
-// so the page can offer to restart; otherwise it installs on the next quit. A failed
-// check is logged and retried next time.
-function startAutoUpdates(autoUpdater, log, onReady, schedule = setInterval) {
+// Looks for a new release once, when the app opens. Nothing is downloaded until the
+// player picks an option in the page's update popup: `onAvailable({ version })` is told
+// about the new version so the page can ask. A failed check is only logged.
+function startAutoUpdates(autoUpdater, log, onAvailable) {
     autoUpdater.logger = log;
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = false;
     autoUpdater.on('error', error => log.error('Auto-update failed:', error));
-    autoUpdater.on('update-downloaded', info => onReady({ version: info.version }));
+    autoUpdater.on('update-available', info => onAvailable({ version: info.version }));
 
     // checkForUpdates resolves to null instead of a promise when updates are off.
-    const check = () =>
-        Promise.resolve(autoUpdater.checkForUpdates()).catch(error => log.error('Update check failed:', error));
-    check();
-    return schedule(check, UPDATE_CHECK_INTERVAL_MS);
+    return Promise.resolve(autoUpdater.checkForUpdates()).catch(error => log.error('Update check failed:', error));
 }
 
-// The page's update popup: it asks for an update that was ready before it loaded, hears
-// about new ones on UPDATE_CHANNELS.ready, and can restart the app to install one.
+// What the popup's buttons do with an available update. "Install now" downloads it,
+// then closes the app, installs it quietly and opens the new version. "Install on quit"
+// downloads it in the background and installs it when the player closes the app.
+// "Dismiss" needs nothing: the update is left alone until the app is opened again.
+function createUpdateActions(autoUpdater) {
+    return {
+        async installNow() {
+            await autoUpdater.downloadUpdate();
+            autoUpdater.quitAndInstall(true, true);
+        },
+        async installOnQuit() {
+            autoUpdater.autoInstallOnAppQuit = true;
+            await autoUpdater.downloadUpdate();
+        },
+    };
+}
+
+// The page's update popup: it asks for the update found before it loaded, hears about
+// one found later on UPDATE_CHANNELS.available, and picks what to do with it.
 const UPDATE_CHANNELS = {
     pending: 'updates:pending',
-    ready: 'updates:ready',
-    install: 'updates:install',
+    available: 'updates:available',
+    installNow: 'updates:install-now',
+    installOnQuit: 'updates:install-on-quit',
 };
 
-// `updates` is { pending() → { version } or null, install() }. Only the app's own page
-// may restart the app.
+// `updates` is { pending() → { version } or null, installNow(), installOnQuit() }. Only
+// the app's own page may use them, and only when there is an update to install.
 function registerUpdateHandlers(ipcMain, updates, fromApp) {
+    const allowed = event => fromApp(event) && Boolean(updates.pending());
     ipcMain.handle(UPDATE_CHANNELS.pending, event => (fromApp(event) ? updates.pending() : null));
-    ipcMain.handle(UPDATE_CHANNELS.install, event => {
-        if (!fromApp(event) || !updates.pending()) {
+    ipcMain.handle(UPDATE_CHANNELS.installNow, async event => {
+        if (!allowed(event)) {
             return false;
         }
-        updates.install();
+        await updates.installNow();
+        return true;
+    });
+    ipcMain.handle(UPDATE_CHANNELS.installOnQuit, async event => {
+        if (!allowed(event)) {
+            return false;
+        }
+        await updates.installOnQuit();
         return true;
     });
 }
@@ -233,7 +255,6 @@ module.exports = {
     LOG_CHANNELS,
     registerLogHandlers,
     DEV_SERVER_URL,
-    UPDATE_CHECK_INTERVAL_MS,
     MIN_WINDOW_SIZE,
     useDevServer,
     tmodsUserAgent,
@@ -242,6 +263,7 @@ module.exports = {
     externalLinkHandler,
     canAutoUpdate,
     startAutoUpdates,
+    createUpdateActions,
     UPDATE_CHANNELS,
     registerUpdateHandlers,
     APP_USER_MODEL_ID,

@@ -1,11 +1,13 @@
-// The popup shown when a new version of the app is ready to install.
+// The popup shown when the app opens and a newer version of it is out.
 const updates = {
-    title: 'Update ready',
-    ready: 'TMods Downloader {version} has been downloaded. Restart now to install it, or it will install the next time you close the app.',
+    title: 'New version available',
+    available: 'TMods Downloader {version} is out. Install it now, or when you close the app?',
     whatsNew: "See what's new",
-    later: 'Later',
-    restart: 'Restart now',
-    restarting: 'Restarting…',
+    dismiss: 'Dismiss',
+    installOnQuit: 'Install on quit',
+    installNow: 'Install now',
+    downloading: 'Downloading the update. The app will restart when it is ready.',
+    failed: 'Could not install the update: {message}',
 };
 
 export default updates;

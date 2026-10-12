@@ -76,12 +76,13 @@ export const logs = {
     showInFolder: () => bridge.logs.showInFolder(),
 };
 
-// App updates the main process downloaded (see public/mainProcess.js). There are none
-// without the app around it (tests, a plain browser), so these then do nothing.
+// A newer version of the app the main process found (see public/mainProcess.js). There
+// is none without the app around it (tests, a plain browser), so these then do nothing.
 export const updates = {
     pending: async () => (bridge?.updates ? bridge.updates.pending() : null),
-    install: async () => (bridge?.updates ? bridge.updates.install() : false),
-    onReady: listener => (bridge?.updates ? bridge.updates.onReady(listener) : () => {}),
+    installNow: () => unwrapped(async () => (bridge?.updates ? bridge.updates.installNow() : false)),
+    installOnQuit: () => unwrapped(async () => (bridge?.updates ? bridge.updates.installOnQuit() : false)),
+    onAvailable: listener => (bridge?.updates ? bridge.updates.onAvailable(listener) : () => {}),
 };
 
 // Electron wraps errors from the main process as "Error invoking remote method 'x': Error: …";

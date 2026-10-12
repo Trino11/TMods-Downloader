@@ -13,6 +13,7 @@ const {
     MIN_WINDOW_SIZE,
     externalLinkHandler,
     canAutoUpdate,
+    createUpdateActions,
     initialWindowState,
     isAppUrl,
     loadWindowState,
@@ -37,8 +38,8 @@ if (process.platform === 'win32') {
 }
 
 let mainWindow = null;
-// The downloaded update waiting to be installed ({ version }), for the page's popup.
-let readyUpdate = null;
+// The newer version found when the app opened ({ version }), for the page's popup.
+let availableUpdate = null;
 
 function createWindow() {
     const stateFile = path.join(app.getPath('userData'), 'window-state.json');
@@ -124,15 +125,7 @@ function listenToPage() {
     });
     registerGitHubHandlers(ipcMain, publisher, fromApp);
 
-    registerUpdateHandlers(
-        ipcMain,
-        {
-            pending: () => readyUpdate,
-            // Installs quietly and starts the new version once it's in.
-            install: () => autoUpdater.quitAndInstall(true, true),
-        },
-        fromApp,
-    );
+    registerUpdateHandlers(ipcMain, { pending: () => availableUpdate, ...createUpdateActions(autoUpdater) }, fromApp);
 }
 
 // The window only ever shows the app: no navigating away, no new windows (web links
@@ -158,9 +151,9 @@ app.whenReady().then(() => {
     if (app.isPackaged && canAutoUpdate(process.platform)) {
         log.transports.file.level = 'info';
         startAutoUpdates(autoUpdater, log, update => {
-            readyUpdate = update;
+            availableUpdate = update;
             if (mainWindow) {
-                mainWindow.webContents.send(UPDATE_CHANNELS.ready, update);
+                mainWindow.webContents.send(UPDATE_CHANNELS.available, update);
             }
         });
     }

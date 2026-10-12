@@ -27,15 +27,16 @@ const api = {
         openFile: () => ipcRenderer.invoke('logs:open-file'),
         showInFolder: () => ipcRenderer.invoke('logs:show-in-folder'),
     },
-    // The "update ready" popup (UPDATE_CHANNELS in mainProcess.js). onReady returns a
+    // The update popup (UPDATE_CHANNELS in mainProcess.js). onAvailable returns a
     // function that stops listening.
     updates: {
         pending: () => ipcRenderer.invoke('updates:pending'),
-        install: () => ipcRenderer.invoke('updates:install'),
-        onReady: listener => {
+        installNow: () => ipcRenderer.invoke('updates:install-now'),
+        installOnQuit: () => ipcRenderer.invoke('updates:install-on-quit'),
+        onAvailable: listener => {
             const forward = (event, update) => listener(update);
-            ipcRenderer.on('updates:ready', forward);
-            return () => ipcRenderer.removeListener('updates:ready', forward);
+            ipcRenderer.on('updates:available', forward);
+            return () => ipcRenderer.removeListener('updates:available', forward);
         },
     },
     // Publishing to the player's bundles repository (GITHUB_CHANNELS in bundlePublisher.js).
