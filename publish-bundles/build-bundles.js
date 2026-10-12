@@ -6,7 +6,6 @@
 //   <source>/<category>/<version id>/bundle.json     optional: text, Modrinth versions, links
 //   <source>/<category>/<version id>/CHANGELOG.md    optional: the changelog, as text
 //   <source>/packs/<version id>/<name>.mrpack        a whole pack, published as the .mrpack
-//   <source>/bundles.json                            optional: { "latest": { "<category>": "<id>" } }
 //
 // (sources.js reads a version folder) and writes the manifest plus the zips (and packs)
 // that need uploading into <out>. A version whose inputs match the previous manifest's `source`
@@ -76,10 +75,6 @@ async function buildBundles({ source, downloadBase, previous = null, remote = cr
         throw new Error(`Unknown category folder(s): ${unknown.join(', ')}. Use: ${ALL_CATEGORIES.join(', ')}.`);
     }
 
-    const configFile = path.join(source, 'bundles.json');
-    const config = fs.existsSync(configFile) ? readJson(configFile, 'bundles.json') : {};
-    const latestOverrides = config.latest || {};
-
     // Read and check every folder before downloading anything, so a typo fails fast.
     const plan = [];
     const assetNames = new Set();
@@ -98,7 +93,7 @@ async function buildBundles({ source, downloadBase, previous = null, remote = cr
         }
     }
 
-    const manifest = { latest: {}, versions: {} };
+    const manifest = { versions: {} };
     const uploads = [];
     for (const { category, id, label, name, metadata, inputs, key, data } of plan) {
         const before = previousEntry(previous, category, id);
@@ -123,21 +118,6 @@ async function buildBundles({ source, downloadBase, previous = null, remote = cr
         manifest.versions[category].push({ id, ...entry, source: key, ...metadata });
     }
 
-    for (const [category, versions] of Object.entries(manifest.versions)) {
-        const ids = versions.map(version => version.id);
-        const latest = latestOverrides[category] ?? ids[0];
-        if (!ids.includes(latest)) {
-            throw new Error(
-                `bundles.json names ${category} ${latest} as latest, but there is no ${category}/${latest}.`,
-            );
-        }
-        manifest.latest[category] = latest;
-    }
-    for (const category of Object.keys(latestOverrides)) {
-        if (!manifest.versions[category]) {
-            throw new Error(`bundles.json names a latest ${category}, but there is no ${category} folder.`);
-        }
-    }
     if (Object.keys(manifest.versions).length === 0) {
         throw new Error(`${source} has no bundles. Add folders like ${source}/mods/1.0.0/mods/<your jars>.`);
     }
@@ -151,8 +131,8 @@ function releaseNotes(manifest, uploads) {
         '| Category | Latest |',
         '| --- | --- |',
     ];
-    for (const [category, latest] of Object.entries(manifest.latest)) {
-        lines.push(`| ${category} | ${latest} |`);
+    for (const [category, versions] of Object.entries(manifest.versions)) {
+        lines.push(`| ${category} | ${versions[0].id} |`);
     }
     lines.push('', uploads.length ? 'New or changed in this release:' : 'No bundle changed; only the manifest is new.');
     for (const upload of uploads) {
@@ -202,7 +182,7 @@ async function main(argv) {
     const changed = uploads.length > 0 || !previous || JSON.stringify(previous) !== JSON.stringify(manifest);
     const manifestUrl = `${repoUrl}/releases/latest/download/manifest.json`;
     for (const [category, versions] of Object.entries(manifest.versions)) {
-        console.log(`${category}: ${versions.map(v => v.id).join(', ')} (latest ${manifest.latest[category]})`);
+        console.log(`${category}: ${versions.map(v => v.id).join(', ')} (latest ${versions[0].id})`);
     }
     for (const upload of uploads.filter(u => u.replaced)) {
         console.log(

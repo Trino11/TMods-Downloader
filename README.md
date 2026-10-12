@@ -99,10 +99,10 @@ manifest URL set on first launch. It lists zips per category:
 anything is installed.
 
 The Home page checks every category for updates and installs the latest with one click.
-An optional top-level `"latest": { "mods": "1.2.0" }` names the latest version of a
-category; without it, the first version listed is taken as the latest. List versions
-newest first: when an update is available, Home shows the `changelog` of every version
-between the installed one and the latest. Changelogs are shown as plain text.
+The latest version of a category is the one with the highest version number (`1.10.0`
+is newer than `1.9.0`), whatever order the manifest lists them in. When an update is
+available, Home shows the `changelog` of every version between the installed one and
+the latest. Changelogs are shown as plain text.
 
 The Modrinth page and Home also show each mod update's changelog, as its author wrote it
 on Modrinth, before you update.
