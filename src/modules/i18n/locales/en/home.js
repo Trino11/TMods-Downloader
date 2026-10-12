@@ -46,6 +46,16 @@ const home = {
             other: 'Updated {count} items from Modrinth.',
         },
     },
+    latestPack: {
+        title: 'Latest pack',
+        loading: "Loading your channel's latest pack...",
+        loadFailed: "Could not load your channel's packs: {error}",
+        none: 'Your channel has no packs yet. Publish one from the Packs page.',
+        whatsNew: "What's new in pack {id}",
+        download: 'Download',
+        pack: 'Pack {id}',
+        pickProfile: 'You pick the profile it goes into before anything changes.',
+    },
 };
 
 export default home;

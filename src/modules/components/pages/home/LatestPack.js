@@ -13,11 +13,13 @@ import { ChangelogButton } from '../../utils/Changelog';
 import PackImporter from '../packs/PackImporter';
 import { changelogEntries, changelogOf, fetchLatestPack } from '../../../services/manifest';
 import { downloadPublishedPack } from '../../../services/mrpack';
+import { useTranslation } from '../../../i18n';
 
 // Quick action: the newest whole pack the channel publishes. Download fetches it and
 // shows the Packs page's import step, where the player picks what goes in and which
 // profile it goes into (the active one by default, or a new one).
 function LatestPack({ profile, onProfilesChange }) {
+    const { t } = useTranslation();
     // undefined while loading, null when the channel has no packs.
     const [pack, setPack] = useState(undefined);
     const [loadError, setLoadError] = useState('');
@@ -64,11 +66,11 @@ function LatestPack({ profile, onProfilesChange }) {
 
     let body;
     if (loadError) {
-        body = `Could not load your channel's packs: ${loadError}`;
+        body = t('home.latestPack.loadFailed', { error: loadError });
     } else if (pack === undefined) {
-        body = "Loading your channel's latest pack...";
+        body = t('home.latestPack.loading');
     } else if (!pack) {
-        body = 'Your channel has no packs yet. Publish one from the Packs page.';
+        body = t('home.latestPack.none');
     }
 
     return (
@@ -77,11 +79,11 @@ function LatestPack({ profile, onProfilesChange }) {
                 <Stack spacing={2}>
                     <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
                         <Typography variant='subtitle1' component='h2' sx={{ flexGrow: 1 }}>
-                            Latest pack
+                            {t('home.latestPack.title')}
                         </Typography>
                         {pack && changelogOf(pack) && (
                             <ChangelogButton
-                                title={`What's new in pack ${pack.id}`}
+                                title={t('home.latestPack.whatsNew', { id: pack.id })}
                                 entries={changelogEntries([pack])}
                             />
                         )}
@@ -92,7 +94,7 @@ function LatestPack({ profile, onProfilesChange }) {
                                 onClick={download}
                                 disabled={busy}
                             >
-                                Download
+                                {t('home.latestPack.download')}
                             </Button>
                         )}
                     </Stack>
@@ -102,10 +104,12 @@ function LatestPack({ profile, onProfilesChange }) {
                         </Typography>
                     ) : (
                         <div>
-                            <Typography sx={{ fontWeight: 500 }}>Pack {pack.id}</Typography>
+                            <Typography sx={{ fontWeight: 500 }}>
+                                {t('home.latestPack.pack', { id: pack.id })}
+                            </Typography>
                             <Typography variant='body2' sx={{ color: 'text.secondary' }}>
                                 {[pack.target, pack.description].filter(Boolean).join(' · ') ||
-                                    'You pick the profile it goes into before anything changes.'}
+                                    t('home.latestPack.pickProfile')}
                             </Typography>
                         </div>
                     )}

@@ -45,6 +45,16 @@ const home = {
             other: 'Se actualizaron {count} elementos desde Modrinth.',
         },
     },
+    latestPack: {
+        title: 'Último pack',
+        loading: 'Cargando el último pack de tu canal...',
+        loadFailed: 'No se pudieron cargar los packs de tu canal: {error}',
+        none: 'Tu canal aún no tiene packs. Publica uno desde la página Packs.',
+        whatsNew: 'Novedades del pack {id}',
+        download: 'Descargar',
+        pack: 'Pack {id}',
+        pickProfile: 'Antes de cambiar nada, eliges en qué perfil se instala.',
+    },
 };
 
 export default home;

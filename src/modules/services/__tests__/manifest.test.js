@@ -142,12 +142,15 @@ it('fetchLatestVersions reads the manifest once for every category', async () =>
 
 it('fetchLatestPack picks the pack the manifest names as latest', async () => {
     axios.get.mockReset();
-    axios.get.mockResolvedValue({
-        data: { latest: { packs: '1.0.0' }, versions: { packs: [{ id: '1.1.0-beta' }, { id: '1.0.0' }] } },
-    });
+    // Only manifests the publish action wrote (versions carry a `source`) are trusted to name `latest`.
+    const packs = [
+        { id: '1.1.0-beta', source: 'packs/1.1.0-beta.mrpack' },
+        { id: '1.0.0', source: 'packs/1.0.0.mrpack' },
+    ];
+    axios.get.mockResolvedValue({ data: { latest: { packs: '1.0.0' }, versions: { packs } } });
     setManifestUrl('https://example.com/manifest.json');
 
-    await expect(fetchLatestPack()).resolves.toEqual({ id: '1.0.0' });
+    await expect(fetchLatestPack()).resolves.toEqual(packs[1]);
 });
 
 it('fetchLatestPack is null when the channel has no packs', async () => {
