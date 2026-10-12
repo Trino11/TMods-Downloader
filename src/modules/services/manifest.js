@@ -85,29 +85,10 @@ export function versionsNewestFirst(manifest, categoryId) {
     return Array.isArray(versions) ? [...versions].sort(compareIdsDescending) : [];
 }
 
-// Manifests the bundles publish action writes mark every version with its `source`.
-// Only those keep `latest` up to date: hand-made ones (like the first TMods manifest)
-// often carry a `latest` key nobody updated, because the old app never read it.
-function writtenByPublishAction(manifest) {
-    return Object.values(manifest?.versions || {}).some(
-        versions => Array.isArray(versions) && versions.some(version => typeof version?.source === 'string'),
-    );
-}
-
 // The version of a category to install when the player asks for "the latest": the one
-// with the highest version number. A manifest written by the bundles publish action can
-// pick another one under `latest` (bundles.json lets the owner roll back that way).
+// with the highest version number.
 export function latestVersion(manifest, categoryId) {
-    const versions = versionsNewestFirst(manifest, categoryId);
-    if (writtenByPublishAction(manifest)) {
-        const named = manifest?.latest?.[categoryId];
-        const id = typeof named === 'object' && named ? named.id : named;
-        const picked = versions.find(version => version.id === id);
-        if (picked) {
-            return picked;
-        }
-    }
-    return versions[0] || null;
+    return versionsNewestFirst(manifest, categoryId)[0] || null;
 }
 
 // The latest version of each category, keyed by category id (null when it has none),

@@ -44,7 +44,7 @@ jobs:
           test "$MANIFEST_URL" = "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/manifest.json"
           test "$CHANGED" = "true"
           manifest="$OUT/assets/manifest.json"
-          test "$(jq -r '.latest.mods' "$manifest")" = "1.10.0"
+          test "$(jq -r '.versions.mods[0].id' "$manifest")" = "1.10.0"
           jq -e '.versions.mods[0].changelog | length > 0' "$manifest"
           # Every listed zip is there, matches its sha256 and unpacks cleanly.
           jq -r '.versions[][] | "\(.sha256)  \(.url | split("/") | last)"' "$manifest" > "$OUT/sums"

@@ -48,8 +48,7 @@ files one; replace them with your own.
 
 ## Rules
 
-- Versions are listed newest first (`1.10.0` before `1.9.0`) and the first is the latest.
-  To pick another, add `bundles/bundles.json` with `{ "latest": { "mods": "1.0.0" } }`.
+- Versions are listed newest first (`1.10.0` before `1.9.0`) and the highest is the latest.
 - To update a bundle, add a new version folder. Changing a published version won't reach
   players who installed it.
 - Don't delete old releases: newer manifests can still link to zips and packs in them.

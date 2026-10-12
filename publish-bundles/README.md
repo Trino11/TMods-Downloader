@@ -29,7 +29,6 @@ bundles/
   packs/
     1.0.0/
       pack.mrpack        a whole pack, imported into a profile
-  bundles.json           optional
 .github/workflows/publish.yml
 ```
 
@@ -38,8 +37,7 @@ bundles/
   `packs` works differently from the rest; see [Whole packs](#whole-packs).
 - Each folder inside a category is one version; its name is the version id players see.
 - Versions are listed newest first, comparing numbers as numbers (`1.10.0` before
-  `1.9.0`), and the first one is the latest. To pick another, add
-  `bundles.json` with `{ "latest": { "mods": "1.9.0" } }`.
+  `1.9.0`), and the highest one is the latest.
 
 ## 2. Fill in a version
 

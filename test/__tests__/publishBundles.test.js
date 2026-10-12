@@ -51,7 +51,7 @@ describe('buildBundles', () => {
     it('writes the manifest the app reads, newest version first', async () => {
         const { manifest, uploads } = await buildBundles({ source: FIXTURE, downloadBase: BASE });
 
-        expect(manifest.latest).toEqual({ mods: '1.10.0', configs: '2024-06' });
+        expect(manifest.latest).toBeUndefined();
         expect(manifest.versions.mods.map(v => v.id)).toEqual(['1.10.0', '1.9.0']);
         expect(manifest.versions.mods[0]).toEqual({
             id: '1.10.0',
@@ -117,16 +117,6 @@ describe('buildBundles', () => {
         expect(manifest.versions.mods[1].url).toBe(`${BASE}/mods-1.9.0.zip`);
     });
 
-    it('lets bundles.json pick the latest version', async () => {
-        const source = writeTree(path.join(temp, 'src'), {
-            'mods/1.0.0/mods/a.jar': 'a',
-            'mods/2.0.0-beta/mods/b.jar': 'b',
-            'bundles.json': JSON.stringify({ latest: { mods: '1.0.0' } }),
-        });
-        const { manifest } = await buildBundles({ source, downloadBase: BASE });
-        expect(latestVersion(manifest, 'mods').id).toBe('1.0.0');
-    });
-
     it.each([
         [{ 'mod/1.0.0/a.jar': 'a' }, /Unknown category folder\(s\): mod/],
         [{ 'mods/1.0.0/bundle.json': '{}' }, /mods\/1.0.0 has no files/],
@@ -137,7 +127,6 @@ describe('buildBundles', () => {
             { 'mods/1.0.0/a.jar': 'a', 'mods/1.0.0/bundle.json': '{"changelog":"x"}', 'mods/1.0.0/CHANGELOG.md': 'y' },
             /keep one/,
         ],
-        [{ 'mods/1.0.0/a.jar': 'a', 'bundles.json': '{"latest":{"mods":"9"}}' }, /no mods\/9/],
         [{ 'mods/a b/a.jar': 'a', 'mods/a-b/a.jar': 'a' }, /already uses/],
         [{ 'README.md': 'hi' }, /has no bundles/],
     ])('refuses a broken bundles folder (%#)', async (files, message) => {
@@ -368,7 +357,7 @@ describe('bundles built from references', () => {
 
             expect(uploads.map(upload => upload.name)).toEqual(['packs-1.0.0.mrpack']);
             expect(Buffer.compare(uploads[0].data, pack)).toBe(0);
-            expect(manifest.latest.packs).toBe('1.0.0');
+            expect(latestVersion(manifest, 'packs').id).toBe('1.0.0');
             expect(manifest.versions.packs[0]).toEqual({
                 id: '1.0.0',
                 url: `${BASE}/packs-1.0.0.mrpack`,
