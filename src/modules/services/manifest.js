@@ -1,9 +1,40 @@
 import axios from 'axios';
 import { getManifestUrl } from './settings';
 
+// Waits between tries of the manifest download. Gateway errors (502, 503, 504) and
+// dropped connections are usually brief hiccups on the host's side, GitHub release links
+// included, so the download is tried again before giving up.
+export const RETRY_DELAYS_MS = [1000, 3000];
+
+function worthRetrying(error) {
+    const status = error?.response?.status;
+    return status === undefined || status === 429 || status >= 500;
+}
+
 async function fetchManifest(url) {
-    const { data } = await axios.get(url);
-    return data;
+    for (let attempt = 0; ; attempt++) {
+        try {
+            const { data } = await axios.get(url);
+            return data;
+        } catch (error) {
+            if (attempt >= RETRY_DELAYS_MS.length || !worthRetrying(error)) {
+                throw error;
+            }
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
+        }
+    }
+}
+
+// What went wrong loading a manifest, in words a player can act on.
+function describeLoadError(error) {
+    const status = error?.response?.status;
+    if (status === 404) {
+        return 'Nothing was found at that address (404). Check the link, and that the bundles repository has published a release.';
+    }
+    if (status >= 500) {
+        return `The server did not answer properly (status ${status}). This is usually temporary, so try again in a minute.`;
+    }
+    return error.message;
 }
 
 // Throws an Error with a user-facing message if `url` doesn't serve a usable manifest.
@@ -22,7 +53,7 @@ export async function validateManifestUrl(url) {
     try {
         manifest = await fetchManifest(url);
     } catch (error) {
-        throw new Error(`Could not load the manifest: ${error.message}`, { cause: error });
+        throw new Error(`Could not load the manifest: ${describeLoadError(error)}`, { cause: error });
     }
     if (!manifest || typeof manifest !== 'object' || !manifest.versions || typeof manifest.versions !== 'object') {
         throw new Error('The URL loaded, but it is not a TMods manifest (no "versions" field).');
