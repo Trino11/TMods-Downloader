@@ -14,6 +14,7 @@ import LatestPack from './LatestPack';
 import NewProfile from './NewProfile';
 import { VERSION } from '../../../config';
 import { detectTarget } from '../../../services/gameTarget';
+import { describeVersionId } from '../../../services/loaderIds';
 import { DEFAULT_PROFILE_ID, LATEST_RELEASE, LATEST_SNAPSHOT, updateProfile } from '../../../services/profiles';
 import { setTargetVersion } from '../../../services/modrinthMods';
 import { useTranslation } from '../../../i18n';
@@ -45,12 +46,14 @@ function Home({ profile, gameDir, onSelectProfile, onProfilesChange }) {
     function handleFabricInstalled(versionId) {
         if (profile.id === DEFAULT_PROFILE_ID) {
             setTargetVersion(gameDir, versionId);
-            setFabricNotice(t('home.fabric.installedDefault', { version: versionId }));
+            setFabricNotice(t('home.fabric.installedDefault', { version: describeVersionId(versionId) }));
             return;
         }
         updateProfile(profile.id, { name: profile.name, gameVersion: versionId });
         onProfilesChange();
-        setFabricNotice(t('home.fabric.installedProfile', { version: versionId, name: profile.name }));
+        setFabricNotice(
+            t('home.fabric.installedProfile', { version: describeVersionId(versionId), name: profile.name }),
+        );
     }
 
     return (

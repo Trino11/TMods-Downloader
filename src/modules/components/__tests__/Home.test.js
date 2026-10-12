@@ -38,7 +38,11 @@ jest.mock('../../services/gameVersions', () => ({
     ...jest.requireActual('../../services/gameVersions'),
     fetchMojangVersions: jest.fn(),
 }));
-jest.mock('../../services/fabric', () => ({ installFabric: jest.fn(), listFabricGameVersions: jest.fn() }));
+jest.mock('../../services/fabric', () => ({
+    installFabric: jest.fn(),
+    latestLoaderVersion: jest.fn(),
+    listFabricGameVersions: jest.fn(),
+}));
 jest.mock('../../services/gameTarget', () => ({ detectTarget: jest.fn(), gameVersionOf: jest.fn() }));
 jest.mock('../../services/modrinthMods', () => ({
     checkUpdates: jest.fn(),

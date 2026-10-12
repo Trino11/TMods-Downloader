@@ -36,7 +36,11 @@ jest.mock('../../services/bundlePublish', () => ({
     publishPack: jest.fn(),
 }));
 jest.mock('../../services/profiles', () => ({ listProfiles: jest.fn(), updateProfile: jest.fn() }));
-jest.mock('../../services/fabric', () => ({ installFabric: jest.fn(), listFabricGameVersions: jest.fn() }));
+jest.mock('../../services/fabric', () => ({
+    installFabric: jest.fn(),
+    latestLoaderVersion: jest.fn(),
+    listFabricGameVersions: jest.fn(),
+}));
 
 const profile = { id: 'survival', name: 'Survival', gameVersion: 'fabric-loader-0.16.5-1.21.1' };
 const target = { versionId: profile.gameVersion, gameVersion: '1.21.1', loader: 'fabric', loaderVersion: '0.16.5' };

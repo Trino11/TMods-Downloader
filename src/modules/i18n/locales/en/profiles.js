@@ -25,6 +25,7 @@ const profiles = {
         versionLabel: 'Fabric Minecraft version',
         install: 'Install Fabric',
         installing: 'Installing...',
+        willInstall: 'Installs Fabric {loaderVersion} for Minecraft {gameVersion}.',
         listFailed: 'Could not reach Fabric to list Minecraft versions.',
         installFailed: 'Could not install Fabric: {error}',
     },

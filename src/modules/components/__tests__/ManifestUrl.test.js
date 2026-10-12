@@ -31,6 +31,7 @@ jest.mock('../pages/modrinth/ModrinthPage', () => () => <div>modrinth</div>);
 jest.mock('../pages/home/home', () => () => <div>home</div>);
 jest.mock('../../services/fabric', () => ({
     installFabric: jest.fn(),
+    latestLoaderVersion: jest.fn(),
     listFabricGameVersions: jest.fn(() => new Promise(() => {})),
 }));
 

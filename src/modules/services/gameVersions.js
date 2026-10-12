@@ -5,6 +5,7 @@
 // (Fabric, Forge, NeoForge...) are always offered too.
 import axios from 'axios';
 import { LATEST_RELEASE, LATEST_SNAPSHOT, listGameVersions } from './profiles';
+import { describeVersionId } from './loaderIds';
 import { t } from '../i18n';
 
 export const VERSION_MANIFEST_URL = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json';
@@ -50,7 +51,8 @@ export function buildVersionOptions(mojangVersions, installed = listGameVersions
 }
 
 // Releases, aliases and installed versions show by default; snapshots and the old
-// alpha/beta versions only with `showAll`. The search matches anywhere in the id.
+// alpha/beta versions only with `showAll`. The search matches anywhere in the id or
+// in the plain-words name of a loader version ("fabric 0.16").
 // `keep` (the version currently picked) is never filtered out.
 export function filterVersionOptions(options, { query = '', showAll = false, keep } = {}) {
     const needle = query.trim().toLowerCase();
@@ -61,7 +63,11 @@ export function filterVersionOptions(options, { query = '', showAll = false, kee
         if (!showAll && !option.installed && option.type !== 'alias' && option.type !== 'release') {
             return false;
         }
-        return !needle || option.id.toLowerCase().includes(needle);
+        return (
+            !needle ||
+            option.id.toLowerCase().includes(needle) ||
+            describeVersionId(option.id).toLowerCase().includes(needle)
+        );
     });
 }
 
@@ -79,5 +85,6 @@ export function versionLabel(option) {
         NOTED_TYPES.includes(option.type) && t(`services.gameVersions.types.${option.type}`),
         option.installed && t('services.gameVersions.installed'),
     ].filter(Boolean);
-    return notes.length ? `${option.id} (${notes.join(', ')})` : option.id;
+    const name = describeVersionId(option.id);
+    return notes.length ? `${name} (${notes.join(', ')})` : name;
 }
