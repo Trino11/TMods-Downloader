@@ -70,7 +70,12 @@ function Home({ profile, gameDir, onSelectProfile, onProfilesChange }) {
                     {t('home.settings')}
                 </Button>
             </Stack>
-            <LatestPack profile={profile} onProfilesChange={onProfilesChange} />
+            <LatestPack
+                key={`pack-${profile.id}`}
+                profile={profile}
+                gameDir={gameDir}
+                onProfilesChange={onProfilesChange}
+            />
             <ChannelUpdates key={profile.id} profile={profile} gameDir={gameDir} />
             <NewProfile onCreated={handleCreated} />
             <FabricInstall

@@ -55,6 +55,8 @@ const home = {
         download: 'Download',
         pack: 'Pack {id}',
         pickProfile: 'You pick the profile it goes into before anything changes.',
+        update: 'Update',
+        inProfile: '{status} in {profile}',
     },
 };
 

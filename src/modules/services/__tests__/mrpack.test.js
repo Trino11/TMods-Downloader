@@ -321,6 +321,12 @@ describe('importMrpack into a new profile', () => {
         expect(fs.existsSync(path.join(dir, 'config', 'a.txt'))).toBe(true);
         expect(fs.existsSync(path.join(dir, 'options.txt'))).toBe(false);
     });
+
+    it('remembers the channel pack version in the new profile', async () => {
+        serve();
+        const { profile } = await mrpack.importMrpack(buildPack(), { channelVersion: '2.0.0' });
+        expect(mrpack.readInstalledPack(profiles.profileGameDir(profile))).toBe('2.0.0');
+    });
 });
 
 describe('importMrpack into an existing profile', () => {
@@ -376,6 +382,24 @@ describe('importMrpack into an existing profile', () => {
         expect(fs.readFileSync(path.join(gameDir, 'config', 'sodium.json'), 'utf-8')).toBe('mine');
         expect(fs.existsSync(path.join(gameDir, 'options.txt'))).toBe(false);
         expect(mrpack.listPackBackups(gameDir)).toEqual([]);
+    });
+
+    it('remembers which channel pack version the profile has, and undo puts the old one back', async () => {
+        const empty = () => buildPack({ index: { files: [] }, files: { 'overrides/a.txt': 'a' } });
+        expect(mrpack.readInstalledPack(gameDir)).toBeNull();
+
+        await mrpack.importMrpack(empty(), { into: profile.id, channelVersion: '1.0.0' });
+        expect(mrpack.readInstalledPack(gameDir)).toBe('1.0.0');
+        const { backupId } = await mrpack.importMrpack(empty(), { into: profile.id, channelVersion: '1.1.0' });
+        expect(mrpack.readInstalledPack(gameDir)).toBe('1.1.0');
+
+        // A pack from a file isn't the channel's, so it leaves the record alone.
+        await mrpack.importMrpack(empty(), { into: profile.id });
+        expect(mrpack.readInstalledPack(gameDir)).toBe('1.1.0');
+
+        mrpack.restorePackBackup(gameDir, mrpack.listPackBackups(gameDir)[0].id);
+        mrpack.restorePackBackup(gameDir, backupId);
+        expect(mrpack.readInstalledPack(gameDir)).toBe('1.0.0');
     });
 
     it('changes nothing when a download fails', async () => {

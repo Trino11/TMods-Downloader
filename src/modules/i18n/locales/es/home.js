@@ -54,6 +54,8 @@ const home = {
         download: 'Descargar',
         pack: 'Pack {id}',
         pickProfile: 'Antes de cambiar nada, eliges en qué perfil se instala.',
+        update: 'Actualizar',
+        inProfile: '{status} en {profile}',
     },
 };
 

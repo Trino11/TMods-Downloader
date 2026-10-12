@@ -2,7 +2,7 @@ import axios from 'axios';
 import {
     changelogEntries,
     fetchChannelUpdates,
-    fetchLatestPack,
+    fetchPackUpdates,
     fetchLatestVersions,
     fetchVersions,
     latestVersion,
@@ -133,22 +133,50 @@ it('fetchLatestVersions reads the manifest once for every category', async () =>
     expect(axios.get).toHaveBeenCalledTimes(1);
 });
 
-it('fetchLatestPack picks the pack with the highest version number', async () => {
-    axios.get.mockReset();
-    axios.get.mockResolvedValue({
-        data: { latest: { packs: '1.0.0' }, versions: { packs: [{ id: '1.0.0' }, { id: '1.1.0' }] } },
+describe('fetchPackUpdates', () => {
+    const packs = [
+        { id: '1.0.0', changelog: 'First' },
+        { id: '1.2.0', changelog: 'Adds shaders' },
+        { id: '1.1.0', changelog: 'Fixes' },
+    ];
+
+    beforeEach(() => {
+        axios.get.mockReset();
+        axios.get.mockResolvedValue({ data: { versions: { packs } } });
+        setManifestUrl('https://example.com/manifest.json');
     });
-    setManifestUrl('https://example.com/manifest.json');
 
-    await expect(fetchLatestPack()).resolves.toEqual({ id: '1.1.0' });
-});
+    it('lists the packs newest first and picks the highest version number', async () => {
+        const result = await fetchPackUpdates();
+        expect(result.packs.map(pack => pack.id)).toEqual(['1.2.0', '1.1.0', '1.0.0']);
+        expect(result.latest).toEqual(packs[1]);
+        expect(result.outdated).toBe(false);
+        expect(result.changes).toEqual([{ id: '1.2.0', label: '1.2.0', text: 'Adds shaders' }]);
+    });
 
-it('fetchLatestPack is null when the channel has no packs', async () => {
-    axios.get.mockReset();
-    axios.get.mockResolvedValue({ data: { versions: { mods: [{ id: '1.0' }] } } });
-    setManifestUrl('https://example.com/manifest.json');
+    it('says an older installed pack is outdated, with the changelogs of what updating brings', async () => {
+        const result = await fetchPackUpdates('1.0.0');
+        expect(result.installed).toBe('1.0.0');
+        expect(result.outdated).toBe(true);
+        expect(result.changes.map(entry => entry.id)).toEqual(['1.2.0', '1.1.0']);
+    });
 
-    await expect(fetchLatestPack()).resolves.toBeNull();
+    it('says the latest installed pack is up to date', async () => {
+        const result = await fetchPackUpdates('1.2.0');
+        expect(result.outdated).toBe(false);
+        expect(result.changes.map(entry => entry.id)).toEqual(['1.2.0']);
+    });
+
+    it('is empty when the channel has no packs', async () => {
+        axios.get.mockResolvedValue({ data: { versions: { mods: [{ id: '1.0' }] } } });
+        await expect(fetchPackUpdates('1.0.0')).resolves.toEqual({
+            packs: [],
+            latest: null,
+            installed: '1.0.0',
+            outdated: false,
+            changes: [],
+        });
+    });
 });
 
 describe('changelogs', () => {

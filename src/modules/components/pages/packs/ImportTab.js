@@ -2,32 +2,37 @@ import { useEffect, useState } from 'react';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import { ItemList, ItemRow } from '../../utils/ItemList';
+import { ChangelogButton } from '../../utils/Changelog';
 import FabricInstall from '../profiles/FabricInstall';
 import PackImporter from './PackImporter';
-import { fetchPacks } from '../../../services/manifest';
-import { downloadPublishedPack, listPackBackups, restorePackBackup } from '../../../services/mrpack';
+import { PackStatusChip, describePackStatus } from './PackStatus';
+import { fetchPackUpdates } from '../../../services/manifest';
+import { downloadPublishedPack, listPackBackups, readInstalledPack, restorePackBackup } from '../../../services/mrpack';
 import { updateProfile } from '../../../services/profiles';
 import { formatDateTime, useTranslation } from '../../../i18n';
 
-// The packs the player's channel publishes, each ready to preview.
-function ChannelPacks({ busy, onPick }) {
+// The packs the player's channel publishes, each ready to preview, and where the active
+// profile stands with them: which one it has and whether a newer one is out. `checks`
+// changes after every import, to look again.
+function ChannelPacks({ profile, gameDir, checks, busy, onPick }) {
     const { t } = useTranslation();
-    const [packs, setPacks] = useState(null);
+    const [status, setStatus] = useState(null);
     const [error, setError] = useState('');
 
     useEffect(() => {
         let live = true;
-        fetchPacks()
-            .then(list => live && setPacks(list))
+        fetchPackUpdates(readInstalledPack(gameDir))
+            .then(result => live && setStatus(result))
             .catch(fetchError => live && setError(fetchError.message));
         return () => {
             live = false;
         };
-    }, []);
+    }, [gameDir, checks]);
 
     if (error) {
         return (
@@ -36,14 +41,14 @@ function ChannelPacks({ busy, onPick }) {
             </Typography>
         );
     }
-    if (!packs) {
+    if (!status) {
         return (
             <Typography variant='body2' sx={{ color: 'text.secondary' }}>
                 {t('packs.import.channelLoading')}
             </Typography>
         );
     }
-    if (packs.length === 0) {
+    if (status.packs.length === 0) {
         return (
             <Typography variant='body2' sx={{ color: 'text.secondary' }}>
                 {t('packs.import.channelEmpty')}
@@ -51,23 +56,59 @@ function ChannelPacks({ busy, onPick }) {
         );
     }
     return (
-        <ItemList>
-            {packs.map(pack => (
-                <ItemRow
-                    key={pack.id}
-                    actions={
-                        <Button variant='outlined' disabled={busy} onClick={() => onPick(pack)}>
-                            {t('packs.import.preview')}
-                        </Button>
-                    }
-                >
-                    <Typography>{pack.id}</Typography>
-                    <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                        {[pack.target, pack.description].filter(Boolean).join(' · ')}
-                    </Typography>
-                </ItemRow>
-            ))}
-        </ItemList>
+        <Stack spacing={1.5}>
+            <Card variant='outlined'>
+                <CardContent>
+                    <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
+                        <Stack sx={{ flexGrow: 1 }}>
+                            <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
+                                <Typography sx={{ fontWeight: 500 }}>
+                                    {t('packs.import.channelStatusTitle', { profile: profile.name })}
+                                </Typography>
+                                <PackStatusChip status={status} />
+                            </Stack>
+                            <Typography variant='body2' sx={{ color: 'text.secondary' }}>
+                                {describePackStatus(status) ||
+                                    t('packs.import.channelStatusNone', { profile: profile.name })}
+                            </Typography>
+                        </Stack>
+                        {status.outdated && status.changes.length > 0 && (
+                            <ChangelogButton
+                                title={t('packs.import.whatsNew', { id: status.latest.id })}
+                                entries={status.changes}
+                            />
+                        )}
+                        {status.outdated && (
+                            <Button variant='contained' disabled={busy} onClick={() => onPick(status.latest)}>
+                                {t('packs.import.update')}
+                            </Button>
+                        )}
+                    </Stack>
+                </CardContent>
+            </Card>
+            <ItemList>
+                {status.packs.map(pack => (
+                    <ItemRow
+                        key={pack.id}
+                        actions={
+                            <Button variant='outlined' disabled={busy} onClick={() => onPick(pack)}>
+                                {t('packs.import.preview')}
+                            </Button>
+                        }
+                    >
+                        <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
+                            <Typography>{pack.id}</Typography>
+                            {pack.id === status.installed && (
+                                <Chip size='small' variant='outlined' label={t('packs.import.installedChip')} />
+                            )}
+                        </Stack>
+                        <Typography variant='body2' sx={{ color: 'text.secondary' }}>
+                            {[pack.target, pack.description].filter(Boolean).join(' · ')}
+                        </Typography>
+                    </ItemRow>
+                ))}
+            </ItemList>
+        </Stack>
     );
 }
 
@@ -78,6 +119,7 @@ function ImportTab({ profile, gameDir, busy, run, onChanged }) {
     const [pending, setPending] = useState(null);
     const [fabricFor, setFabricFor] = useState(null);
     const [backups, setBackups] = useState(() => listPackBackups(gameDir));
+    const [checks, setChecks] = useState(0);
 
     function handleFile(event) {
         const file = event.target.files[0];
@@ -92,7 +134,7 @@ function ImportTab({ profile, gameDir, busy, run, onChanged }) {
 
     function pickChannelPack(pack) {
         run(async () => {
-            setPending({ data: await downloadPublishedPack(pack) });
+            setPending({ data: await downloadPublishedPack(pack), pack });
             return '';
         });
     }
@@ -100,6 +142,7 @@ function ImportTab({ profile, gameDir, busy, run, onChanged }) {
     function handleImported(result, intoNew) {
         setPending(null);
         setBackups(listPackBackups(gameDir));
+        setChecks(count => count + 1);
         setFabricFor(intoNew && result.needsLoader && result.loader?.loader === 'fabric' ? result : null);
         onChanged();
     }
@@ -111,6 +154,7 @@ function ImportTab({ profile, gameDir, busy, run, onChanged }) {
         run(async () => {
             restorePackBackup(gameDir, backup.id);
             setBackups(listPackBackups(gameDir));
+            setChecks(count => count + 1);
             onChanged();
             return t('packs.import.restored', {
                 profile: profile.name,
@@ -130,6 +174,7 @@ function ImportTab({ profile, gameDir, busy, run, onChanged }) {
         return (
             <PackImporter
                 data={pending.data}
+                channelPack={pending.pack}
                 activeProfile={profile}
                 busy={busy}
                 run={run}
@@ -176,7 +221,13 @@ function ImportTab({ profile, gameDir, busy, run, onChanged }) {
                 <Typography variant='h6' component='h2' gutterBottom>
                     {t('packs.import.fromChannel')}
                 </Typography>
-                <ChannelPacks busy={busy} onPick={pickChannelPack} />
+                <ChannelPacks
+                    profile={profile}
+                    gameDir={gameDir}
+                    checks={checks}
+                    busy={busy}
+                    onPick={pickChannelPack}
+                />
             </section>
             {backups.length > 0 && (
                 <section>

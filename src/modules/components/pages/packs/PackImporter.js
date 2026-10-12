@@ -35,8 +35,9 @@ export function importMessage(result, intoNew) {
 // Shows what a pack (its bytes, `data`) holds and installs the picked items into the
 // profile chosen in the selector: the active one by default, or a new one. `run`
 // performs an action with the page's busy state and messages; `onImported` gets the
-// import's result and whether it made a new profile.
-function PackImporter({ data, activeProfile, busy, run, onImported, onCancel }) {
+// import's result and whether it made a new profile. `channelPack` is the manifest
+// version when the pack comes from the player's channel, so the profile remembers it.
+function PackImporter({ data, channelPack, activeProfile, busy, run, onImported, onCancel }) {
     useTranslation();
     const pack = useMemo(() => {
         try {
@@ -69,6 +70,7 @@ function PackImporter({ data, activeProfile, busy, run, onImported, onCancel }) 
                 into,
                 name: intoNew ? newName.trim() : undefined,
                 items: [...selected],
+                channelVersion: channelPack?.id,
             });
             onImported(result, intoNew);
             return importMessage(result, intoNew);
