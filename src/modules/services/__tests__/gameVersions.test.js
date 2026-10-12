@@ -122,3 +122,16 @@ it('labels versions readably', () => {
     expect(versionLabel({ id: '24w14a', type: 'snapshot', installed: false })).toBe('24w14a (snapshot)');
     expect(versionLabel({ id: 'b1.7.3', type: 'old_beta', installed: true })).toBe('b1.7.3 (beta, installed)');
 });
+
+it('names installed loader versions in plain words', () => {
+    expect(versionLabel({ id: 'fabric-loader-0.16.5-1.21.1', type: 'installed', installed: true })).toBe(
+        'Minecraft 1.21.1 · Fabric 0.16.5 (installed)',
+    );
+});
+
+it('finds loader versions by their plain-words name', () => {
+    const options = buildVersionOptions([], ['fabric-loader-0.16.5-1.21.1', '1.20.1-forge-47.2.0']);
+    expect(filterVersionOptions(options, { query: 'fabric 0.16' }).map(o => o.id)).toEqual([
+        'fabric-loader-0.16.5-1.21.1',
+    ]);
+});

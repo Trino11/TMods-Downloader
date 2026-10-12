@@ -10,7 +10,13 @@ import Typography from '@mui/material/Typography';
 import Page from '../../utils/Page';
 import { ItemList, ItemRow } from '../../utils/ItemList';
 import VersionPicker from '../../profiles/VersionPicker';
-import { buildVersionOptions, fetchMojangVersions, readCachedVersions } from '../../../services/gameVersions';
+import {
+    buildVersionOptions,
+    fetchMojangVersions,
+    readCachedVersions,
+    versionLabel,
+} from '../../../services/gameVersions';
+import { describeVersionId } from '../../../services/loaderIds';
 import {
     DEFAULT_PROFILE_ID,
     LATEST_RELEASE,
@@ -87,7 +93,7 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
         setVersionOptions(buildVersionOptions(readCachedVersions()));
         setForm(current => ({ ...current, gameVersion: versionId }));
         setError('');
-        setNotice(t('profiles.fabricSelected', { version: versionId }));
+        setNotice(t('profiles.fabricSelected', { version: describeVersionId(versionId) }));
     }
 
     function handleDelete(profile) {
@@ -173,7 +179,12 @@ function Profiles({ profiles, activeId, onSelect, onChange }) {
                             <Chip
                                 size='small'
                                 variant='outlined'
-                                label={profile.gameVersion || t('profiles.launcherProfiles')}
+                                label={
+                                    profile.gameVersion
+                                        ? versionLabel({ id: profile.gameVersion })
+                                        : t('profiles.launcherProfiles')
+                                }
+                                title={profile.gameVersion}
                             />
                         </Stack>
                         <Typography

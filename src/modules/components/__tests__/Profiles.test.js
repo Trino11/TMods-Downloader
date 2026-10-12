@@ -3,7 +3,7 @@ import Profiles from '../pages/profiles/Profiles';
 import ProfileSelector from '../profiles/ProfileSelector';
 import { createProfile, deleteProfile, listGameVersions, profileGameDir, updateProfile } from '../../services/profiles';
 import { fetchMojangVersions } from '../../services/gameVersions';
-import { installFabric, listFabricGameVersions } from '../../services/fabric';
+import { installFabric, latestLoaderVersion, listFabricGameVersions } from '../../services/fabric';
 
 jest.mock('../../services/profiles', () => ({
     DEFAULT_PROFILE_ID: 'default',
@@ -24,6 +24,7 @@ jest.mock('../../services/gameVersions', () => ({
 
 jest.mock('../../services/fabric', () => ({
     installFabric: jest.fn(),
+    latestLoaderVersion: jest.fn(),
     listFabricGameVersions: jest.fn(),
 }));
 
@@ -52,6 +53,7 @@ beforeEach(() => {
     window.confirm = jest.fn(() => true);
     listFabricGameVersions.mockResolvedValue(['1.21.1', '1.20.1']);
     installFabric.mockResolvedValue('fabric-loader-0.16.5-1.20.1');
+    latestLoaderVersion.mockResolvedValue('0.16.5');
 });
 
 function renderPage(activeId = 'default') {
@@ -188,13 +190,14 @@ it('installs Fabric and picks it for the profile being made', async () => {
     const fabricSelect = await screen.findByLabelText('Fabric Minecraft version');
     await screen.findByRole('option', { name: '1.20.1' });
     fireEvent.change(fabricSelect, { target: { value: '1.20.1' } });
+    expect(await screen.findByText('Installs Fabric 0.16.5 for Minecraft 1.20.1.')).toBeInTheDocument();
     listGameVersions.mockReturnValue(['latest-release', 'latest-snapshot', 'fabric-loader-0.16.5-1.20.1']);
     fireEvent.click(screen.getByRole('button', { name: 'Install Fabric' }));
 
-    expect(await screen.findByText(/Installed fabric-loader-0.16.5-1.20.1/)).toBeInTheDocument();
-    expect(installFabric).toHaveBeenCalledWith('1.20.1');
+    expect(await screen.findByText(/Installed Minecraft 1.20.1 · Fabric 0.16.5/)).toBeInTheDocument();
+    expect(installFabric).toHaveBeenCalledWith('1.20.1', { loaderVersion: '0.16.5' });
     expect(screen.getByLabelText('Game version')).toHaveValue('fabric-loader-0.16.5-1.20.1');
-    expect(screen.getByRole('option', { name: 'fabric-loader-0.16.5-1.20.1 (installed)' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Minecraft 1.20.1 · Fabric 0.16.5 (installed)' })).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText('Profile name'), { target: { value: 'Pack' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));

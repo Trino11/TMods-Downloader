@@ -21,6 +21,7 @@ import Modpacks from './Modpacks';
 import { KINDS, LOADERS, SHADER_LOADERS } from '../../../services/modrinth';
 import { applyFix, checkBeforeInstall, checkCompatibility } from '../../../services/modCompat';
 import { detectTarget, gameVersionOf } from '../../../services/gameTarget';
+import { describeVersionId } from '../../../services/loaderIds';
 import { DEFAULT_PROFILE_ID, LATEST_RELEASE, LATEST_SNAPSHOT, listGameVersions } from '../../../services/profiles';
 import {
     adoptUnmanaged,
@@ -98,7 +99,7 @@ function TargetBar({ profile, versionId, target, gameVersion, onPick }) {
                         <option value=''>{t('modrinth.target.pick')}</option>
                         {versions.map(id => (
                             <option key={id} value={id}>
-                                {id}
+                                {describeVersionId(id)}
                             </option>
                         ))}
                     </TextField>
