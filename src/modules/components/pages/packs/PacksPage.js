@@ -13,7 +13,7 @@ import { profileTarget } from '../../../services/mrpack';
 import { recogniseFiles, scanProfile } from '../../../services/packScan';
 import { useTranslation } from '../../../i18n';
 
-const TABS = ['export', 'import', 'publish'];
+const TABS = ['import', 'export', 'publish'];
 
 function ticked(items) {
     return new Set(items.filter(item => item.ticked).map(item => item.id));
@@ -23,7 +23,7 @@ function ticked(items) {
 // file at once, picked from one list. App remounts the page when the profile changes.
 function PacksPage({ profile, gameDir, onProfilesChange }) {
     const { t } = useTranslation();
-    const [tab, setTab] = useState('export');
+    const [tab, setTab] = useState('import');
     const [items, setItems] = useState(() => scanProfile(gameDir));
     const [selected, setSelected] = useState(() => ticked(items));
     const [recognising, setRecognising] = useState(true);

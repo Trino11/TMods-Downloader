@@ -111,9 +111,17 @@ beforeEach(() => {
     URL.revokeObjectURL = jest.fn();
 });
 
+it('lists Import first and opens on it', () => {
+    show();
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map(tab => tab.textContent)).toEqual(['Import', 'Export', 'Publish']);
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+});
+
 describe('Export', () => {
     it('groups the profile by kind and saves the picked files as a .mrpack', async () => {
         show();
+        openTab('Export');
         await waitFor(() => expect(recogniseFiles).toHaveBeenCalledWith('/game'));
 
         expect(screen.getByText(/^2 of 2 picked/)).toBeInTheDocument();
@@ -143,6 +151,7 @@ describe('Export', () => {
             throw new Error('Pick the loader version this profile plays with before exporting mods.');
         });
         show();
+        openTab('Export');
         fireEvent.click(screen.getByRole('button', { name: 'Save .mrpack' }));
         expect(await screen.findByText(/Pick the loader version/)).toBeInTheDocument();
     });
