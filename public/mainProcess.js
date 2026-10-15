@@ -15,6 +15,18 @@ function tmodsUserAgent(appVersion) {
     return `Trino11/TMods-Downloader/${appVersion} (github.com/Trino11/TMods-Downloader)`;
 }
 
+// The keyring Electron's safeStorage should use on Linux, or null to leave its choice.
+// Electron only picks one on desktops it knows (GNOME, KDE...); on others such as
+// Hyprland or Sway it picks none, so saving the GitHub token fails even with a keyring
+// running. libsecret reaches gnome-keyring and the other Secret Service keyrings; KDE
+// keeps KWallet, and a --password-store the player passed always wins.
+function linuxPasswordStore(platform, desktop, hasPasswordStoreSwitch) {
+    if (platform !== 'linux' || hasPasswordStoreSwitch || /kde/i.test(desktop || '')) {
+        return null;
+    }
+    return 'gnome-libsecret';
+}
+
 // The policy the built page runs under (added as a meta tag at build time): its own
 // scripts only, styles inline too (MUI writes them at runtime), images from the web
 // (mod icons), and no network access of its own, since web requests go through the
@@ -258,6 +270,7 @@ module.exports = {
     MIN_WINDOW_SIZE,
     useDevServer,
     tmodsUserAgent,
+    linuxPasswordStore,
     CONTENT_SECURITY_POLICY,
     isAppUrl,
     externalLinkHandler,

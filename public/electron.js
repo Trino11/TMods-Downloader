@@ -16,6 +16,7 @@ const {
     createUpdateActions,
     initialWindowState,
     isAppUrl,
+    linuxPasswordStore,
     loadWindowState,
     registerLogHandlers,
     registerUpdateHandlers,
@@ -31,6 +32,16 @@ const { createBundlePublisher, registerGitHubHandlers } = require('./bundlePubli
 const isDev = useDevServer(app.isPackaged, process.argv);
 const indexFile = path.join(__dirname, 'index.html');
 const appUrl = isDev ? DEV_SERVER_URL : pathToFileURL(indexFile).href;
+
+// Must be set before the app is ready, when safeStorage picks its keyring.
+const passwordStore = linuxPasswordStore(
+    process.platform,
+    process.env.XDG_CURRENT_DESKTOP,
+    app.commandLine.hasSwitch('password-store'),
+);
+if (passwordStore) {
+    app.commandLine.appendSwitch('password-store', passwordStore);
+}
 
 // Same identity as the installer's shortcuts, so pins and notifications belong to them.
 if (process.platform === 'win32') {

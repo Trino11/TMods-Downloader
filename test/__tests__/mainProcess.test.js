@@ -10,6 +10,7 @@ const {
     UPDATE_CHANNELS,
     APP_USER_MODEL_ID,
     tmodsUserAgent,
+    linuxPasswordStore,
     useDevServer,
 } = require('../../public/mainProcess');
 
@@ -24,6 +25,28 @@ describe('useDevServer', () => {
 describe('tmodsUserAgent', () => {
     it('names the app, its version and where to find it, as Modrinth asks', () => {
         expect(tmodsUserAgent('1.2.3')).toBe('Trino11/TMods-Downloader/1.2.3 (github.com/Trino11/TMods-Downloader)');
+    });
+});
+
+describe('linuxPasswordStore', () => {
+    it('points Linux desktops Electron does not know, like Hyprland and Sway, at libsecret', () => {
+        expect(linuxPasswordStore('linux', 'Hyprland', false)).toBe('gnome-libsecret');
+        expect(linuxPasswordStore('linux', 'sway', false)).toBe('gnome-libsecret');
+        expect(linuxPasswordStore('linux', 'ubuntu:GNOME', false)).toBe('gnome-libsecret');
+        expect(linuxPasswordStore('linux', undefined, false)).toBe('gnome-libsecret');
+    });
+
+    it('leaves KDE on KWallet', () => {
+        expect(linuxPasswordStore('linux', 'KDE', false)).toBeNull();
+    });
+
+    it('keeps a --password-store the player passed', () => {
+        expect(linuxPasswordStore('linux', 'Hyprland', true)).toBeNull();
+    });
+
+    it('changes nothing off Linux', () => {
+        expect(linuxPasswordStore('win32', undefined, false)).toBeNull();
+        expect(linuxPasswordStore('darwin', undefined, false)).toBeNull();
     });
 });
 
