@@ -9,8 +9,10 @@ import { filterVersionOptions, versionLabel } from '../../services/gameVersions'
 import { useTranslation } from '../../i18n';
 
 // Game version dropdown with a search box and a toggle for snapshots and the old
-// alpha/beta versions. The picked version stays in the list whatever the filter.
-function VersionPicker({ options, value, onChange }) {
+// alpha/beta versions. The picked version stays in the list whatever the filter. `id`
+// tells two pickers on screen at once apart; `fullWidth` fills the row instead of the
+// usual fixed width.
+function VersionPicker({ id = 'profileVersion', options, value, onChange, fullWidth = false }) {
     const { t } = useTranslation();
     const [query, setQuery] = useState('');
     const [showAll, setShowAll] = useState(false);
@@ -22,9 +24,9 @@ function VersionPicker({ options, value, onChange }) {
     }
 
     return (
-        <Stack spacing={1} sx={{ width: 300, flexShrink: 0 }}>
+        <Stack spacing={1} sx={{ width: fullWidth ? '100%' : 300, flexShrink: 0 }}>
             <TextField
-                id='profileVersion'
+                id={id}
                 label={t('nav.versionPicker.gameVersion')}
                 select
                 fullWidth
@@ -58,7 +60,7 @@ function VersionPicker({ options, value, onChange }) {
             <FormControlLabel
                 control={
                     <Checkbox
-                        id='showAllVersions'
+                        id={`${id}ShowAll`}
                         size='small'
                         checked={showAll}
                         onChange={event => setShowAll(event.target.checked)}

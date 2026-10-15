@@ -2,8 +2,16 @@
 const profiles = {
     title: 'Profiles',
     description:
-        "Each profile has its own mods, configs and packs, and shows up in the official Minecraft Launcher, where you press Play. Fabric can be installed below. For Forge or NeoForge, run the loader's installer first, then pick its version here.",
-    editTitle: 'Edit profile',
+        "Each profile has its own mods, configs and packs, and shows up in the official Minecraft Launcher, where you press Play. Edit a profile to change it or install Fabric for it. For Forge or NeoForge, run the loader's installer first, then pick its version here.",
+    editNamed: 'Edit {name}',
+    defaultEditHelp:
+        'This profile is your usual .minecraft folder and plays whatever the Minecraft Launcher picks, so only its manifest can be changed here.',
+    folder: 'Game folder',
+    folderHelp: "Where this profile's mods, configs, worlds and settings are kept.",
+    fabricHelp: 'Installs Fabric and picks it as the game version above.',
+    fabricPicked: 'Installed {version} and picked it. Press Save to keep it.',
+    fabricInstalledDefault: 'Installed {version}. Pick it in the Minecraft Launcher to play with it.',
+    followsManifest: 'Follows {manifest}',
     newTitle: 'New profile',
     name: 'Name',
     namePlaceholder: 'Profile name',
@@ -11,7 +19,6 @@ const profiles = {
     versionsOffline: 'Could not load the full Minecraft version list, showing the versions known offline.',
     saved: 'Profile saved. Restart the Minecraft Launcher if it is open to see the change.',
     created: 'Profile created. Restart the Minecraft Launcher if it is open to see it.',
-    fabricSelected: "Installed {version}. It's now selected for this profile.",
     confirmDelete:
         'Delete the profile "{name}"? It is removed from TMods and the Minecraft Launcher. Its files stay in {folder}.',
     deleted: 'Profile deleted. Its files are still in {folder}.',
@@ -21,7 +28,6 @@ const profiles = {
     delete: 'Delete',
     launcherProfiles: 'Your usual launcher profiles',
     manifest: 'Manifest',
-    manifestChanged: '{name} now follows {manifest}.',
     servers: {
         title: 'Servers for {profile}',
         description:

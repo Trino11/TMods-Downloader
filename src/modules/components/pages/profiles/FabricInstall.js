@@ -15,8 +15,9 @@ import { t, useTranslation } from '../../../i18n';
 // launcher version id; `preferredVersion` is the Minecraft version picked at first when
 // Fabric supports it, and `notice` a success message shown under the row. The loader
 // that will be installed is looked up for the picked version and named under the row,
-// and that exact loader is what Install puts in.
-function FabricInstall({ onInstalled, preferredVersion, title, description, notice }) {
+// and that exact loader is what Install puts in. `bare` leaves out the card, for use
+// inside another box such as the edit profile window.
+function FabricInstall({ onInstalled, preferredVersion, title, description, notice, bare = false }) {
     useTranslation();
     const [versions, setVersions] = useState([]);
     const [gameVersion, setGameVersion] = useState('');
@@ -70,53 +71,57 @@ function FabricInstall({ onInstalled, preferredVersion, title, description, noti
         }
     }
 
+    const content = (
+        <Stack spacing={2}>
+            <Typography variant='subtitle1' component='h2'>
+                {title || t('profiles.fabric.title')}
+            </Typography>
+            {description && (
+                <Typography variant='body2' sx={{ color: 'text.secondary' }}>
+                    {description}
+                </Typography>
+            )}
+            <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
+                <TextField
+                    id='fabricVersion'
+                    label={t('profiles.fabric.versionLabel')}
+                    select
+                    value={gameVersion}
+                    onChange={event => setGameVersion(event.target.value)}
+                    disabled={busy || versions.length === 0}
+                    slotProps={{ select: { native: true } }}
+                    sx={{ width: 300 }}
+                >
+                    {versions.map(version => (
+                        <option key={version} value={version}>
+                            {version}
+                        </option>
+                    ))}
+                </TextField>
+                <Button
+                    variant='contained'
+                    onClick={handleInstall}
+                    disabled={busy || !gameVersion}
+                    startIcon={busy ? <Downloadspinner /> : null}
+                >
+                    {busy ? t('profiles.fabric.installing') : t('profiles.fabric.install')}
+                </Button>
+            </Stack>
+            {loaderVersion && (
+                <Typography variant='body2' sx={{ color: 'text.secondary' }}>
+                    {t('profiles.fabric.willInstall', { loaderVersion, gameVersion })}
+                </Typography>
+            )}
+            {error && <Alert severity='error'>{error}</Alert>}
+            {notice && <Alert severity='success'>{notice}</Alert>}
+        </Stack>
+    );
+    if (bare) {
+        return content;
+    }
     return (
         <Card variant='outlined'>
-            <CardContent>
-                <Stack spacing={2}>
-                    <Typography variant='subtitle1' component='h2'>
-                        {title || t('profiles.fabric.title')}
-                    </Typography>
-                    {description && (
-                        <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                            {description}
-                        </Typography>
-                    )}
-                    <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
-                        <TextField
-                            id='fabricVersion'
-                            label={t('profiles.fabric.versionLabel')}
-                            select
-                            value={gameVersion}
-                            onChange={event => setGameVersion(event.target.value)}
-                            disabled={busy || versions.length === 0}
-                            slotProps={{ select: { native: true } }}
-                            sx={{ width: 300 }}
-                        >
-                            {versions.map(version => (
-                                <option key={version} value={version}>
-                                    {version}
-                                </option>
-                            ))}
-                        </TextField>
-                        <Button
-                            variant='contained'
-                            onClick={handleInstall}
-                            disabled={busy || !gameVersion}
-                            startIcon={busy ? <Downloadspinner /> : null}
-                        >
-                            {busy ? t('profiles.fabric.installing') : t('profiles.fabric.install')}
-                        </Button>
-                    </Stack>
-                    {loaderVersion && (
-                        <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-                            {t('profiles.fabric.willInstall', { loaderVersion, gameVersion })}
-                        </Typography>
-                    )}
-                    {error && <Alert severity='error'>{error}</Alert>}
-                    {notice && <Alert severity='success'>{notice}</Alert>}
-                </Stack>
-            </CardContent>
+            <CardContent>{content}</CardContent>
         </Card>
     );
 }

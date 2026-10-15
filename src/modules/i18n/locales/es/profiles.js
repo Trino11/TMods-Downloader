@@ -2,8 +2,16 @@
 const profiles = {
     title: 'Perfiles',
     description:
-        'Cada perfil tiene sus propios mods, configuraciones y packs, y aparece en el Minecraft Launcher oficial, donde le das a Jugar. Puedes instalar Fabric más abajo. Para Forge o NeoForge, ejecuta primero el instalador del loader y luego elige su versión aquí.',
-    editTitle: 'Editar perfil',
+        'Cada perfil tiene sus propios mods, configuraciones y packs, y aparece en el Minecraft Launcher oficial, donde le das a Jugar. Edita un perfil para cambiarlo o instalarle Fabric. Para Forge o NeoForge, ejecuta primero el instalador del loader y luego elige su versión aquí.',
+    editNamed: 'Editar {name}',
+    defaultEditHelp:
+        'Este perfil es tu carpeta .minecraft de siempre y juega con lo que elija el Minecraft Launcher, así que aquí solo se puede cambiar su manifiesto.',
+    folder: 'Carpeta del juego',
+    folderHelp: 'Donde se guardan los mods, configuraciones, mundos y ajustes de este perfil.',
+    fabricHelp: 'Instala Fabric y lo elige como versión del juego de arriba.',
+    fabricPicked: 'Se instaló {version} y quedó elegida. Pulsa Guardar para conservarla.',
+    fabricInstalledDefault: 'Se instaló {version}. Elígela en el Minecraft Launcher para jugar con ella.',
+    followsManifest: 'Sigue {manifest}',
     newTitle: 'Nuevo perfil',
     name: 'Nombre',
     namePlaceholder: 'Nombre del perfil',
@@ -12,7 +20,6 @@ const profiles = {
         'No se pudo cargar la lista completa de versiones de Minecraft; se muestran las versiones conocidas sin conexión.',
     saved: 'Perfil guardado. Reinicia el Minecraft Launcher si está abierto para ver el cambio.',
     created: 'Perfil creado. Reinicia el Minecraft Launcher si está abierto para verlo.',
-    fabricSelected: 'Se instaló {version}. Ya está seleccionada para este perfil.',
     confirmDelete:
         '¿Borrar el perfil "{name}"? Se quita de TMods y del Minecraft Launcher. Sus archivos se quedan en {folder}.',
     deleted: 'Perfil borrado. Sus archivos siguen en {folder}.',
@@ -22,7 +29,6 @@ const profiles = {
     delete: 'Borrar',
     launcherProfiles: 'Tus perfiles habituales del launcher',
     manifest: 'Manifiesto',
-    manifestChanged: '{name} ahora sigue {manifest}.',
     servers: {
         title: 'Servidores de {profile}',
         description:
