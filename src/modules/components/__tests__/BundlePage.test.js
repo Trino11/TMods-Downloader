@@ -4,6 +4,7 @@ import categories from '../../categories';
 import { fetchVersions } from '../../services/manifest';
 import { installBundle, listBackups, readInstalledVersion, restoreBackup } from '../../services/bundleInstaller';
 import { isPinned, setPinned } from '../../services/pins';
+import { safeCheckIntegrity } from '../../services/integrity';
 
 jest.mock('../../services/manifest', () => ({
     ...jest.requireActual('../../services/manifest'),
@@ -17,6 +18,7 @@ jest.mock('../../services/bundleInstaller', () => ({
 }));
 
 jest.mock('../../services/pins', () => ({ isPinned: jest.fn(), setPinned: jest.fn() }));
+jest.mock('../../services/integrity', () => ({ safeCheckIntegrity: jest.fn() }));
 
 const mods = categories.find(c => c.id === 'mods');
 const backup = { id: 'b1', createdAt: '2026-10-11T10:00:00.000Z', version: '1.0' };
@@ -27,6 +29,7 @@ beforeEach(() => {
     readInstalledVersion.mockReturnValue('');
     listBackups.mockReturnValue([]);
     isPinned.mockReturnValue(false);
+    safeCheckIntegrity.mockReturnValue(null);
     window.confirm = jest.fn(() => true);
 });
 
@@ -154,4 +157,50 @@ it('keeps the installed version, or lets updates through again', () => {
 it('has nothing to keep when no version is installed', () => {
     render(<BundlePage category={mods} gameDir='/games/a' />);
     expect(screen.queryByRole('button', { name: 'Keep this version' })).not.toBeInTheDocument();
+});
+
+it('marks the installed version as unchanged or modified, and checks again after an install', async () => {
+    readInstalledVersion.mockReturnValue('1.0');
+    safeCheckIntegrity.mockReturnValue({
+        tracked: true,
+        modified: true,
+        merged: [],
+        changed: [],
+        added: ['mods/extra.jar'],
+        removed: [],
+    });
+    fetchVersions.mockResolvedValue([
+        { id: '2.0', url: 'https://example.com/2.zip' },
+        { id: '1.0', url: 'https://example.com/1.zip' },
+    ]);
+    installBundle.mockResolvedValue();
+    render(<BundlePage category={mods} gameDir='/games/fabric' />);
+
+    expect(await screen.findByText('Modified')).toBeInTheDocument();
+    expect(screen.getByText('Not the same as the download: 1 file added.')).toBeInTheDocument();
+    expect(safeCheckIntegrity).toHaveBeenCalledWith(mods, '/games/fabric', '1.0');
+
+    readInstalledVersion.mockReturnValue('2.0');
+    safeCheckIntegrity.mockReturnValue({
+        tracked: true,
+        modified: false,
+        merged: [],
+        changed: [],
+        added: [],
+        removed: [],
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+
+    expect(await screen.findByText('Unchanged')).toBeInTheDocument();
+    expect(screen.queryByText('Modified')).not.toBeInTheDocument();
+});
+
+it('says when an install from before records were kept cannot be checked', async () => {
+    readInstalledVersion.mockReturnValue('1.0');
+    safeCheckIntegrity.mockReturnValue({ tracked: false });
+    fetchVersions.mockResolvedValue([{ id: '1.0', url: 'https://example.com/1.zip' }]);
+    render(<BundlePage category={mods} />);
+
+    expect(await screen.findByText('Not checked')).toBeInTheDocument();
 });

@@ -13,6 +13,25 @@ const common = {
         keeping: 'Keeping {version}',
         keepingNewer: 'Keeping {version} ({latest} is out)',
     },
+    integrity: {
+        unchanged: 'Unchanged',
+        unchangedHelp: 'The files on disk are byte for byte the ones that were downloaded.',
+        modified: 'Modified',
+        modifiedBecause: 'Not the same as the download: {reasons}.',
+        untracked: 'Not checked',
+        untrackedHelp:
+            'Installed before TMods kept track of the files it downloads. Download this version again to check it from now on.',
+        andMore: 'and {count} more',
+        reasons: {
+            merged: {
+                one: 'added to {count} file you already had',
+                other: 'added to {count} files you already had',
+            },
+            changed: { one: '{count} file changed', other: '{count} files changed' },
+            added: { one: '{count} file added', other: '{count} files added' },
+            removed: { one: '{count} file removed', other: '{count} files removed' },
+        },
+    },
     replaceContent: {
         title: 'Replace what you have?',
         intro: 'This installs into {folders}.',

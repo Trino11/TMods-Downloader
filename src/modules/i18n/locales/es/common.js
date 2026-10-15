@@ -13,6 +13,25 @@ const common = {
         keeping: 'Se mantiene {version}',
         keepingNewer: 'Se mantiene {version} (ya salió {latest})',
     },
+    integrity: {
+        unchanged: 'Sin cambios',
+        unchangedHelp: 'Los archivos del disco son idénticos, byte a byte, a los que se descargaron.',
+        modified: 'Modificado',
+        modifiedBecause: 'No es igual a la descarga: {reasons}.',
+        untracked: 'Sin comprobar',
+        untrackedHelp:
+            'Se instaló antes de que TMods guardara registro de los archivos que descarga. Descarga esta versión de nuevo para comprobarla a partir de ahora.',
+        andMore: 'y {count} más',
+        reasons: {
+            merged: {
+                one: 'se añadió a {count} archivo que ya tenías',
+                other: 'se añadió a {count} archivos que ya tenías',
+            },
+            changed: { one: '{count} archivo cambiado', other: '{count} archivos cambiados' },
+            added: { one: '{count} archivo añadido', other: '{count} archivos añadidos' },
+            removed: { one: '{count} archivo eliminado', other: '{count} archivos eliminados' },
+        },
+    },
     replaceContent: {
         title: '¿Reemplazar lo que tienes?',
         intro: 'Esto se instala en {folders}.',

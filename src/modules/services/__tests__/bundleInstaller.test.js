@@ -20,6 +20,7 @@ let readInstalledVersion;
 let listBackups;
 let restoreBackup;
 let MAX_BACKUPS;
+let checkIntegrity;
 
 beforeEach(() => {
     home = fs.mkdtempSync(path.join(os.tmpdir(), 'tmods-test-'));
@@ -35,6 +36,7 @@ beforeEach(() => {
             restoreBackup,
             MAX_BACKUPS,
         } = require('../bundleInstaller'));
+        ({ checkIntegrity } = require('../integrity'));
     });
     axios.get.mockReset();
 });
@@ -389,5 +391,127 @@ describe('custom game folder', () => {
 
         expect(fs.readFileSync(path.join(profileDir, 'mods', 'old.jar'), 'utf-8')).toBe('old');
         expect(exists('mods')).toBe(false);
+    });
+});
+
+describe('install integrity', () => {
+    const mods = () => category('mods');
+    const check = () => checkIntegrity(mods(), minecraftDir, readInstalledVersion(mods()));
+
+    it('says nothing when nothing is installed', () => {
+        expect(check()).toBeNull();
+    });
+
+    it('is unchanged right after a replacing install', async () => {
+        write('mods/old.jar', 'old');
+        serveZip({ 'mods/a.jar': 'a', 'config/a.toml': 'x=1' });
+        await installBundle(mods(), version);
+
+        expect(check()).toEqual({
+            tracked: true,
+            modified: false,
+            merged: [],
+            changed: [],
+            added: [],
+            removed: [],
+        });
+    });
+
+    it('notices files changed, added and removed after the install', async () => {
+        serveZip({ 'mods/a.jar': 'a', 'mods/b.jar': 'b', 'mods/sub/c.jar': 'c' });
+        await installBundle(mods(), version);
+
+        write('mods/a.jar', 'A');
+        write('mods/extra.jar', 'extra');
+        fs.rmSync(path.join(minecraftDir, 'mods/sub/c.jar'));
+
+        expect(check()).toMatchObject({
+            modified: true,
+            merged: [],
+            changed: ['mods/a.jar'],
+            added: ['mods/extra.jar'],
+            removed: ['mods/sub/c.jar'],
+        });
+    });
+
+    it('notices a same-size edit by its hash', async () => {
+        serveZip({ 'mods/a.jar': 'aaa' });
+        await installBundle(mods(), version);
+
+        const file = path.join(minecraftDir, 'mods/a.jar');
+        fs.writeFileSync(file, 'bbb');
+        fs.utimesSync(file, new Date(), new Date(Date.now() + 5000));
+
+        expect(check()).toMatchObject({ modified: true, changed: ['mods/a.jar'] });
+    });
+
+    it('counts a touched but identical file as unchanged', async () => {
+        serveZip({ 'mods/a.jar': 'aaa' });
+        await installBundle(mods(), version);
+
+        const file = path.join(minecraftDir, 'mods/a.jar');
+        fs.utimesSync(file, new Date(), new Date(Date.now() + 5000));
+
+        expect(check().modified).toBe(false);
+    });
+
+    it("says an install was added to the player's files, until those are gone", async () => {
+        write('mods/mine.jar', 'mine');
+        write('mods/shared.jar', 'old');
+        serveZip({ 'mods/shared.jar': 'new', 'mods/a.jar': 'a' });
+        await installBundle(mods(), version, undefined, { replace: false });
+
+        expect(check()).toMatchObject({ modified: true, merged: ['mods/mine.jar'], changed: [], added: [] });
+
+        fs.rmSync(path.join(minecraftDir, 'mods/mine.jar'));
+        expect(check().modified).toBe(false);
+    });
+
+    it('is unchanged after adding to an empty folder', async () => {
+        serveZip({ 'mods/a.jar': 'a' });
+        await installBundle(mods(), version, undefined, { replace: false });
+
+        expect(check().modified).toBe(false);
+    });
+
+    it('ignores the server list, which the app merges and syncs on its own', async () => {
+        serveZip({ 'servers.dat': serversDat([{ name: 'Bundle', ip: 'bundle.example.com' }]), 'config/a.toml': 'a' });
+        await installBundle(category('configs'), version);
+        write('servers.dat', serversDat([{ name: 'Other', ip: 'other.example.com' }]));
+
+        const configs = category('configs');
+        expect(checkIntegrity(configs, minecraftDir, readInstalledVersion(configs)).modified).toBe(false);
+    });
+
+    it('is not tracked for installs made before records were kept', () => {
+        write('.tmods_loader/mods/downloaded.txt', '1.0');
+        write('mods/a.jar', 'a');
+
+        expect(check()).toEqual({ tracked: false });
+    });
+
+    it("brings back a backup's record when the backup is restored", async () => {
+        serveZip({ 'mods/a.jar': 'a' });
+        await installBundle(mods(), version);
+        write('mods/a.jar', 'edited');
+        serveZip({ 'mods/b.jar': 'b' });
+        await installBundle(mods(), { ...version, id: '3.0' });
+
+        restoreBackup(mods(), listBackups(mods())[0].id);
+
+        expect(readInstalledVersion(mods())).toBe('2.0');
+        expect(check()).toMatchObject({ modified: true, changed: ['mods/a.jar'] });
+    });
+
+    it('stops tracking when a backup without a record is restored', async () => {
+        write('.tmods_loader/mods/downloaded.txt', '1.0');
+        write('mods/old.jar', 'old');
+        serveZip({ 'mods/a.jar': 'a' });
+        await installBundle(mods(), version);
+
+        restoreBackup(mods(), listBackups(mods())[0].id);
+
+        expect(readInstalledVersion(mods())).toBe('1.0');
+        expect(check()).toEqual({ tracked: false });
     });
 });
