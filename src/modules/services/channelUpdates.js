@@ -3,13 +3,15 @@
 import { fetchChannelUpdates } from './manifest';
 import { installBundle, readInstalledVersion } from './bundleInstaller';
 import { isPinned } from './pins';
+import { safeCheckIntegrity } from './integrity';
 
-// Returns one entry per category: { category, installed, latest, pinned, outdated, changes }.
+// Returns one entry per category: { category, installed, latest, pinned, outdated, changes, integrity }.
 // `latest` is null when the manifest has nothing for it; `pinned` is true when the
 // profile keeps the version it has (services/pins.js); `outdated` is true when the
 // latest version isn't the one installed (including when nothing is installed yet) and
 // the profile doesn't keep its version; `changes` holds the changelogs of the versions
-// the update brings, newest first.
+// the update brings, newest first; `integrity` says whether the installed files are still
+// the downloaded ones (services/integrity.js checkIntegrity).
 export async function checkChannels(categories, gameDir) {
     const installed = Object.fromEntries(
         categories.map(category => [category.id, readInstalledVersion(category, gameDir)]),
@@ -25,6 +27,7 @@ export async function checkChannels(categories, gameDir) {
             pinned,
             outdated: Boolean(latest) && latest.id !== installed[category.id] && !pinned,
             changes,
+            integrity: safeCheckIntegrity(category, gameDir, installed[category.id]),
         };
     });
 }

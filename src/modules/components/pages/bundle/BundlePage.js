@@ -13,6 +13,7 @@ import BackupList from './BackupList';
 import { fetchVersions } from '../../../services/manifest';
 import { installBundle, listBackups, readInstalledVersion, restoreBackup } from '../../../services/bundleInstaller';
 import { isPinned, setPinned } from '../../../services/pins';
+import { safeCheckIntegrity } from '../../../services/integrity';
 import { formatDateTime, useTranslation } from '../../../i18n';
 
 // `gameDir` is the active profile's game folder; App remounts the page when it changes.
@@ -22,10 +23,18 @@ function BundlePage({ category, gameDir }) {
     const [installed, setInstalled] = useState(() => readInstalledVersion(category, gameDir));
     const [pinned, setPinnedState] = useState(() => isPinned(gameDir, category.id));
     const [backups, setBackups] = useState(() => listBackups(category, gameDir));
+    // Whether the installed files are still the downloaded ones (services/integrity.js).
+    const [integrity, setIntegrity] = useState(() =>
+        safeCheckIntegrity(category, gameDir, readInstalledVersion(category, gameDir)),
+    );
     const [downloading, setDownloading] = useState(false);
     // The version waiting for the player to say whether it replaces what's there.
     const [asking, setAsking] = useState(null);
     const [error, setError] = useState('');
+
+    function recheck() {
+        setIntegrity(safeCheckIntegrity(category, gameDir, readInstalledVersion(category, gameDir)));
+    }
 
     const refresh = useCallback(() => {
         fetchVersions(category.id)
@@ -49,6 +58,7 @@ function BundlePage({ category, gameDir }) {
             setError(t('bundle.errors.install', { version: version.id, message: installError.message }));
         } finally {
             setBackups(listBackups(category, gameDir));
+            recheck();
             setDownloading(false);
         }
     }
@@ -78,6 +88,7 @@ function BundlePage({ category, gameDir }) {
             setError(t('bundle.errors.restore', { message: restoreError.message }));
         } finally {
             setBackups(listBackups(category, gameDir));
+            recheck();
         }
     }
 
@@ -87,7 +98,10 @@ function BundlePage({ category, gameDir }) {
                 <Button
                     variant='contained'
                     startIcon={downloading ? <Downloadspinner /> : <RefreshIcon />}
-                    onClick={refresh}
+                    onClick={() => {
+                        recheck();
+                        refresh();
+                    }}
                 >
                     {t('bundle.refresh')}
                 </Button>
@@ -102,6 +116,7 @@ function BundlePage({ category, gameDir }) {
                             version={version}
                             showTarget={category.showTarget}
                             installed={installed === version.id}
+                            integrity={installed === version.id ? integrity : null}
                             disabled={downloading}
                             onDownload={() => setAsking(version)}
                         />

@@ -13,6 +13,7 @@ import { ItemList, ItemRow } from '../../utils/ItemList';
 import { ChangelogButton } from '../../utils/Changelog';
 import { KeepVersionButton, KeptChip, describeKept } from '../../utils/KeepVersion';
 import ReplaceContentDialog from '../../utils/ReplaceContent';
+import { IntegrityChip, describeIntegrity } from '../../utils/Integrity';
 import categories from '../../../categories';
 import { checkChannels, installChannelUpdates } from '../../../services/channelUpdates';
 import { installBundle } from '../../../services/bundleInstaller';
@@ -278,13 +279,24 @@ function ChannelUpdates({ profile, gameDir }) {
                                         )
                                     }
                                 >
-                                    <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
+                                    <Stack
+                                        direction='row'
+                                        spacing={1}
+                                        useFlexGap
+                                        sx={{ alignItems: 'center', flexWrap: 'wrap' }}
+                                    >
                                         <Typography sx={{ fontWeight: 500 }}>{status.category.label}</Typography>
                                         <StatusChip status={status} />
+                                        <IntegrityChip integrity={status.integrity} />
                                     </Stack>
                                     <Typography variant='body2' sx={{ color: 'text.secondary' }}>
                                         {describe(status)}
                                     </Typography>
+                                    {describeIntegrity(status.integrity) && (
+                                        <Typography variant='body2' sx={{ color: 'warning.main' }}>
+                                            {describeIntegrity(status.integrity)}
+                                        </Typography>
+                                    )}
                                 </ItemRow>
                             ))}
                             {modUpdates.length > 0 && (

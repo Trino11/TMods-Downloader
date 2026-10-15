@@ -86,7 +86,7 @@ function createBridge({ fs, path, crypto, AdmZip, platform, minecraftDir, roots 
         'fs.copy': (from, to) => fs.cpSync(inside(from), inside(to), { recursive: true }),
         'fs.stat': p => {
             const stat = fs.statSync(inside(p));
-            return { size: stat.size, isDirectory: stat.isDirectory() };
+            return { size: stat.size, mtimeMs: stat.mtimeMs, isDirectory: stat.isDirectory() };
         },
         // Every file under a folder as { name, size }, `name` relative with forward
         // slashes. Links are skipped, so nothing outside the folder is listed.
@@ -111,6 +111,16 @@ function createBridge({ fs, path, crypto, AdmZip, platform, minecraftDir, roots 
                 throw new Error(`Unsupported hash: ${algorithm}`);
             }
             return crypto.createHash(algorithm).update(toBuffer(data)).digest('hex');
+        },
+        // Hashes a file where it is, so its bytes never have to travel to the page.
+        'crypto.hashFile': (algorithm, p) => {
+            if (!HASH_ALGORITHMS.includes(algorithm)) {
+                throw new Error(`Unsupported hash: ${algorithm}`);
+            }
+            return crypto
+                .createHash(algorithm)
+                .update(fs.readFileSync(inside(p)))
+                .digest('hex');
         },
 
         // Every entry of a zip, as { name, isDirectory, data }.

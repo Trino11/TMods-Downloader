@@ -136,6 +136,40 @@ it('checks the channels and Modrinth mods of the active profile', async () => {
     expect(screen.getByRole('button', { name: 'Install all (2)' })).toBeEnabled();
 });
 
+it('says whether each installed channel is still what was downloaded', async () => {
+    const icon = () => null;
+    checkChannels.mockResolvedValue([
+        {
+            category: { ...mods, icon },
+            installed: '1.1',
+            latest: { id: '1.1' },
+            outdated: false,
+            integrity: { tracked: true, modified: false, merged: [], changed: [], added: [], removed: [] },
+        },
+        {
+            category: { id: 'configs', label: 'Configs', backupFolder: 'config', icon },
+            installed: '2.0',
+            latest: { id: '2.0' },
+            outdated: false,
+            integrity: {
+                tracked: true,
+                modified: true,
+                merged: ['config/mine.toml'],
+                changed: ['config/a.toml', 'config/b.toml'],
+                added: [],
+                removed: [],
+            },
+        },
+    ]);
+    renderHome();
+
+    expect(await screen.findByText('Unchanged')).toBeInTheDocument();
+    expect(screen.getByText('Modified')).toBeInTheDocument();
+    expect(
+        screen.getByText('Not the same as the download: added to 1 file you already had, 2 files changed.'),
+    ).toBeInTheDocument();
+});
+
 it('installs every update with one click, then checks again', async () => {
     checkUpdates.mockResolvedValue([sodium]);
     renderHome();

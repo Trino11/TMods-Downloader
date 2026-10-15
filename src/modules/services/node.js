@@ -23,8 +23,8 @@ export const fs = {
     // Recursive, like every copy the app makes.
     cpSync: (from, to) => bridge.fs.copy(from, to),
     statSync: p => {
-        const { size, isDirectory } = bridge.fs.stat(p);
-        return { size, isDirectory: () => isDirectory };
+        const { size, mtimeMs, isDirectory } = bridge.fs.stat(p);
+        return { size, mtimeMs, isDirectory: () => isDirectory };
     },
     // Not Node's: every file under a folder as { name, size }, `name` relative with
     // forward slashes.
@@ -51,6 +51,8 @@ export const crypto = {
         };
         return hash;
     },
+    // Not Node's: the hex hash of a file on disk, read by the main process.
+    hashFile: (algorithm, p) => bridge.crypto.hashFile(algorithm, p),
 };
 
 // Zips are read and written by the main process too. Data is a Uint8Array or ArrayBuffer.

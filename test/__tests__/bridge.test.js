@@ -85,8 +85,16 @@ describe('createBridge', () => {
         fs.writeFileSync(path.join(home, 'secret.txt'), 'secret');
         fs.symlinkSync(path.join(home, 'secret.txt'), inGame('config', 'link.txt'));
 
-        expect(call('fs.stat', inGame('config', 'xaero', 'map.txt')).value).toEqual({ size: 5, isDirectory: false });
-        expect(call('fs.stat', inGame('config')).value).toEqual({ size: expect.any(Number), isDirectory: true });
+        expect(call('fs.stat', inGame('config', 'xaero', 'map.txt')).value).toEqual({
+            size: 5,
+            mtimeMs: expect.any(Number),
+            isDirectory: false,
+        });
+        expect(call('fs.stat', inGame('config')).value).toEqual({
+            size: expect.any(Number),
+            mtimeMs: expect.any(Number),
+            isDirectory: true,
+        });
         expect(call('fs.walk', inGame('config')).value.sort((a, b) => a.name.localeCompare(b.name))).toEqual([
             { name: 'a.json', size: 2 },
             { name: 'xaero/map.txt', size: 5 },
@@ -111,6 +119,15 @@ describe('createBridge', () => {
         const expected = crypto.createHash('sha1').update('abc').digest('hex');
         expect(call('crypto.hash', 'sha1', new TextEncoder().encode('abc'))).toEqual({ value: expected });
         expect(call('crypto.hash', 'md5', 'abc').error).toMatch(/Unsupported/);
+    });
+
+    it('hashes files in the Minecraft folder where they are', () => {
+        fs.mkdirSync(inGame(), { recursive: true });
+        fs.writeFileSync(inGame('a.jar'), 'abc');
+        const expected = crypto.createHash('sha256').update('abc').digest('hex');
+        expect(call('crypto.hashFile', 'sha256', inGame('a.jar'))).toEqual({ value: expected });
+        expect(call('crypto.hashFile', 'md5', inGame('a.jar')).error).toMatch(/Unsupported/);
+        expect(call('crypto.hashFile', 'sha256', path.join(home, 'secret.txt')).error).toMatch(/may not access/);
     });
 
     it('reads, extracts and creates zips', () => {

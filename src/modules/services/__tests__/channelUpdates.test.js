@@ -6,6 +6,10 @@ import { isPinned } from '../pins';
 jest.mock('../manifest', () => ({ fetchChannelUpdates: jest.fn() }));
 jest.mock('../bundleInstaller', () => ({ installBundle: jest.fn(), readInstalledVersion: jest.fn() }));
 jest.mock('../pins', () => ({ isPinned: jest.fn() }));
+// Plain functions, since resetMocks would wipe a jest.fn's implementation.
+jest.mock('../integrity', () => ({
+    safeCheckIntegrity: (category, gameDir, version) => (version ? { checked: `${gameDir} ${version}` } : null),
+}));
 
 const mods = { id: 'mods', label: 'Mods' };
 const configs = { id: 'configs', label: 'Configs' };
@@ -35,9 +39,26 @@ it('marks the channels whose latest version is not installed', async () => {
             pinned: false,
             outdated: true,
             changes: [{ id: '1.1', label: '1.1', text: 'Adds Sodium' }],
+            integrity: { checked: '/games/a 1.0' },
         },
-        { category: configs, installed: '2.0', latest: { id: '2.0' }, pinned: false, outdated: false, changes: [] },
-        { category: shaders, installed: '', latest: null, pinned: false, outdated: false, changes: [] },
+        {
+            category: configs,
+            installed: '2.0',
+            latest: { id: '2.0' },
+            pinned: false,
+            outdated: false,
+            changes: [],
+            integrity: { checked: '/games/a 2.0' },
+        },
+        {
+            category: shaders,
+            installed: '',
+            latest: null,
+            pinned: false,
+            outdated: false,
+            changes: [],
+            integrity: null,
+        },
     ]);
 });
 

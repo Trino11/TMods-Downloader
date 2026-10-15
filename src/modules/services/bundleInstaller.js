@@ -3,6 +3,7 @@ import { crypto, fs, path, zip } from './node';
 import { defaultGameDir } from './paths';
 import { activeManifestUrl } from './manifests';
 import { mergeStagedServers } from './servers';
+import { readRecord, recordInstall, writeRecord } from './integrity';
 import { t } from '../i18n';
 
 // Every function below works on a game folder passed in as `gameDir`, so the same
@@ -117,6 +118,9 @@ function backupFolder(category, gameDir) {
         createdAt: new Date().toISOString(),
         version: fs.existsSync(marker) ? fs.readFileSync(marker, 'utf-8') : '',
         manifest: readInstalledSource(category, gameDir),
+        // What that version's install wrote (services/integrity.js), so a restore can
+        // still tell whether the files are the downloaded ones.
+        integrity: readRecord(category, gameDir),
     };
     fs.writeFileSync(path.join(target, 'backup.json'), JSON.stringify(meta), 'utf-8');
 }
@@ -127,6 +131,8 @@ function backupFolder(category, gameDir) {
 // a `sha256` for the version, the download must match it. The category's folder is
 // backed up first; with `replace` (the default) it is then emptied, so the bundle's
 // files are all that's left in it, and without it the bundle is added to what's there.
+// Every file written is recorded with its hash (services/integrity.js), so the app can
+// later say whether the folder is still exactly what was downloaded.
 export async function installBundle(category, version, gameDir = defaultGameDir, { replace = true } = {}) {
     const response = await axios.get(version.url, { responseType: 'arraybuffer' });
     const data = new Uint8Array(response.data);
@@ -136,6 +142,7 @@ export async function installBundle(category, version, gameDir = defaultGameDir,
 
     const staging = path.join(stateDir(category, gameDir), 'staging');
     fs.rmSync(staging, { recursive: true, force: true });
+    let written;
     try {
         try {
             zip.extract(data, staging);
@@ -155,12 +162,14 @@ export async function installBundle(category, version, gameDir = defaultGameDir,
         }
         // A bundle's servers join the player's list instead of replacing it.
         mergeStagedServers(staging, gameDir);
+        written = fs.walkSync(staging).map(file => file.name);
         fs.cpSync(staging, gameDir, { recursive: true });
     } finally {
         fs.rmSync(staging, { recursive: true, force: true });
     }
 
     writeInstalledVersion(category, version.id, gameDir, activeManifestUrl());
+    recordInstall(category, version.id, gameDir, { written, replace });
 }
 
 // Replaces the category's folder with a backup's contents. The current folder is
@@ -171,12 +180,16 @@ export function restoreBackup(category, backupId, gameDir = defaultGameDir) {
         throw new Error(t('services.bundleInstaller.backupNotFound', { id: backupId, category: category.id }));
     }
     const source = path.join(backupsDir(category, gameDir), backup.id, 'files');
+    const { integrity = null } = JSON.parse(
+        fs.readFileSync(path.join(backupsDir(category, gameDir), backup.id, 'backup.json'), 'utf-8'),
+    );
     const folder = path.join(gameDir, category.backupFolder);
 
     backupFolder(category, gameDir);
     fs.rmSync(folder, { recursive: true, force: true });
     fs.cpSync(source, folder, { recursive: true });
     writeInstalledVersion(category, backup.version, gameDir, backup.manifest);
+    writeRecord(category, gameDir, backup.version && integrity?.version === backup.version ? integrity : null);
     // Prune only now, so the backup being restored is never deleted before it is copied.
     pruneBackups(category, gameDir);
 }
