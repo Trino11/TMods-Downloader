@@ -16,7 +16,6 @@ import {
     readCachedVersions,
     versionLabel,
 } from '../../../services/gameVersions';
-import { describeVersionId } from '../../../services/loaderIds';
 import {
     DEFAULT_PROFILE_ID,
     LATEST_RELEASE,
@@ -27,38 +26,17 @@ import {
     updateProfile,
 } from '../../../services/profiles';
 import { profileManifest } from '../../../services/manifests';
-import FabricInstall from './FabricInstall';
+import EditProfileDialog from './EditProfileDialog';
+import ManifestPicker from './ManifestPicker';
 import ServersCard from './ServersCard';
 import { useTranslation } from '../../../i18n';
 
-const emptyForm = { id: null, name: '', gameVersion: LATEST_RELEASE, manifestId: '' };
-
-// Picks one of the saved manifests (Settings) for a profile to follow.
-function ManifestPicker({ id, manifests, value, onChange, size }) {
-    const { t } = useTranslation();
-    return (
-        <TextField
-            id={id}
-            label={t('profiles.manifest')}
-            select
-            size={size}
-            value={value}
-            onChange={event => onChange(event.target.value)}
-            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
-            sx={{ minWidth: 200, maxWidth: 280 }}
-        >
-            {manifests.map(manifest => (
-                <option key={manifest.id} value={manifest.id}>
-                    {manifest.name}
-                </option>
-            ))}
-        </TextField>
-    );
-}
+const emptyForm = { name: '', gameVersion: LATEST_RELEASE, manifestId: '' };
 
 // Create, edit and delete profiles. Each one gets its own game folder and an entry
 // in the official Minecraft Launcher, and follows one of the saved `manifests`;
-// `onChange` reloads the list in the app.
+// `onChange` reloads the list in the app. New profiles are made in the form at the top;
+// Edit opens a window with everything else, Fabric included.
 function Profiles({ profiles, manifests = [], activeId, onSelect, onChange }) {
     const { t } = useTranslation();
     // Starts from the last list fetched (or just the installed versions) and refreshes
@@ -66,6 +44,8 @@ function Profiles({ profiles, manifests = [], activeId, onSelect, onChange }) {
     const [versionOptions, setVersionOptions] = useState(() => buildVersionOptions(readCachedVersions()));
     const [versionsOffline, setVersionsOffline] = useState(false);
     const [form, setForm] = useState(emptyForm);
+    // The profile open in the edit window, if any.
+    const [editing, setEditing] = useState(null);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
     const activeProfile = profiles.find(profile => profile.id === activeId);
@@ -83,10 +63,6 @@ function Profiles({ profiles, manifests = [], activeId, onSelect, onChange }) {
     // The manifest picker only shows when there is more than one to pick from.
     const pickManifest = manifests.length > 1;
 
-    function resetForm() {
-        setForm(emptyForm);
-    }
-
     // Runs a profile change and reports its outcome under the form.
     function run(action, success) {
         setError('');
@@ -102,40 +78,40 @@ function Profiles({ profiles, manifests = [], activeId, onSelect, onChange }) {
         }
     }
 
-    function handleSubmit(event) {
+    function handleCreate(event) {
         event.preventDefault();
-        const done = form.id
-            ? run(() => updateProfile(form.id, { name: form.name, gameVersion: form.gameVersion }), t('profiles.saved'))
-            : run(
-                  () => createProfile({ ...form, manifestId: form.manifestId || manifests[0]?.id }),
-                  t('profiles.created'),
-              );
+        const done = run(
+            () => createProfile({ ...form, manifestId: form.manifestId || manifests[0]?.id }),
+            t('profiles.created'),
+        );
         if (done) {
-            resetForm();
+            setForm(emptyForm);
         }
     }
 
     function handleEdit(profile) {
-        setForm({ ...emptyForm, id: profile.id, name: profile.name, gameVersion: profile.gameVersion });
         setError('');
         setNotice('');
+        setEditing(profile);
     }
 
-    // Picks the freshly installed Fabric version for the profile being created or edited.
-    function handleFabricInstalled(versionId) {
+    // Saves the edit window; errors are thrown back so the window shows them.
+    function handleSave(profile, changes) {
+        if (profile.id === DEFAULT_PROFILE_ID) {
+            if (changes.manifestId) {
+                setProfileManifest(profile.id, changes.manifestId);
+            }
+        } else {
+            updateProfile(profile.id, changes);
+        }
+        onChange();
+        setNotice(t('profiles.saved'));
+    }
+
+    // A Fabric version installed from the edit window joins the version list.
+    function handleFabricInstalled() {
         // Fetching the version list also caches it, so this keeps Mojang's versions.
         setVersionOptions(buildVersionOptions(readCachedVersions()));
-        setForm(current => ({ ...current, gameVersion: versionId }));
-        setError('');
-        setNotice(t('profiles.fabricSelected', { version: describeVersionId(versionId) }));
-    }
-
-    function handleManifestChange(profile, manifestId) {
-        const manifest = manifests.find(item => item.id === manifestId);
-        run(
-            () => setProfileManifest(profile.id, manifestId),
-            t('profiles.manifestChanged', { name: profile.name, manifest: manifest?.name }),
-        );
     }
 
     function handleDelete(profile) {
@@ -144,18 +120,15 @@ function Profiles({ profiles, manifests = [], activeId, onSelect, onChange }) {
             return;
         }
         run(() => deleteProfile(profile.id), t('profiles.deleted', { folder }));
-        if (form.id === profile.id) {
-            resetForm();
-        }
     }
 
     return (
         <Page title={t('profiles.title')} description={t('profiles.description')}>
             <Card variant='outlined'>
                 <CardContent>
-                    <Stack component='form' spacing={2} onSubmit={handleSubmit}>
+                    <Stack component='form' spacing={2} onSubmit={handleCreate}>
                         <Typography variant='subtitle1' component='h2'>
-                            {form.id ? t('profiles.editTitle') : t('profiles.newTitle')}
+                            {t('profiles.newTitle')}
                         </Typography>
                         <TextField
                             id='profileName'
@@ -173,15 +146,10 @@ function Profiles({ profiles, manifests = [], activeId, onSelect, onChange }) {
                                 onChange={gameVersion => setForm({ ...form, gameVersion })}
                             />
                             <Button type='submit' variant='contained' sx={{ flexShrink: 0, height: 40 }}>
-                                {form.id ? t('common.save') : t('profiles.create')}
+                                {t('profiles.create')}
                             </Button>
-                            {form.id && (
-                                <Button type='button' onClick={resetForm} sx={{ flexShrink: 0, height: 40 }}>
-                                    {t('common.cancel')}
-                                </Button>
-                            )}
                         </Stack>
-                        {pickManifest && !form.id && (
+                        {pickManifest && (
                             <ManifestPicker
                                 id='profileManifest'
                                 manifests={manifests}
@@ -196,8 +164,6 @@ function Profiles({ profiles, manifests = [], activeId, onSelect, onChange }) {
                 </CardContent>
             </Card>
 
-            <FabricInstall onInstalled={handleFabricInstalled} />
-
             {activeProfile && (
                 <ServersCard key={activeProfile.id} profile={activeProfile} gameDir={profileGameDir(activeProfile)} />
             )}
@@ -208,15 +174,6 @@ function Profiles({ profiles, manifests = [], activeId, onSelect, onChange }) {
                         key={profile.id}
                         actions={
                             <>
-                                {pickManifest && (
-                                    <ManifestPicker
-                                        id={`manifest-${profile.id}`}
-                                        size='small'
-                                        manifests={manifests}
-                                        value={profileManifest(profile)?.id}
-                                        onChange={manifestId => handleManifestChange(profile, manifestId)}
-                                    />
-                                )}
                                 {profile.id === activeId ? (
                                     <Button variant='outlined' disabled>
                                         {t('profiles.active')}
@@ -226,13 +183,16 @@ function Profiles({ profiles, manifests = [], activeId, onSelect, onChange }) {
                                         {t('profiles.use')}
                                     </Button>
                                 )}
+                                <Button
+                                    onClick={() => handleEdit(profile)}
+                                    aria-label={t('profiles.editNamed', { name: profile.name })}
+                                >
+                                    {t('profiles.edit')}
+                                </Button>
                                 {profile.id !== DEFAULT_PROFILE_ID && (
-                                    <>
-                                        <Button onClick={() => handleEdit(profile)}>{t('profiles.edit')}</Button>
-                                        <Button color='error' onClick={() => handleDelete(profile)}>
-                                            {t('profiles.delete')}
-                                        </Button>
-                                    </>
+                                    <Button color='error' onClick={() => handleDelete(profile)}>
+                                        {t('profiles.delete')}
+                                    </Button>
                                 )}
                             </>
                         }
@@ -249,6 +209,13 @@ function Profiles({ profiles, manifests = [], activeId, onSelect, onChange }) {
                                 }
                                 title={profile.gameVersion}
                             />
+                            {pickManifest && (
+                                <Chip
+                                    size='small'
+                                    variant='outlined'
+                                    label={t('profiles.followsManifest', { manifest: profileManifest(profile)?.name })}
+                                />
+                            )}
                         </Stack>
                         <Typography
                             variant='body2'
@@ -261,6 +228,18 @@ function Profiles({ profiles, manifests = [], activeId, onSelect, onChange }) {
                     </ItemRow>
                 ))}
             </ItemList>
+
+            {editing && (
+                <EditProfileDialog
+                    key={editing.id}
+                    profile={editing}
+                    manifests={manifests}
+                    versionOptions={versionOptions}
+                    onFabricInstalled={handleFabricInstalled}
+                    onSave={changes => handleSave(editing, changes)}
+                    onClose={() => setEditing(null)}
+                />
+            )}
         </Page>
     );
 }

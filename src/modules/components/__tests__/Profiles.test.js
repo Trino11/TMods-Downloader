@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import Profiles from '../pages/profiles/Profiles';
 import ProfileSelector from '../profiles/ProfileSelector';
 import {
@@ -97,16 +97,35 @@ describe('manifests', () => {
         expect(screen.queryByLabelText('Manifest')).not.toBeInTheDocument();
     });
 
-    it('shows the manifest each profile follows and changes it', () => {
+    it('shows the manifest each profile follows and changes it in the edit window', () => {
         renderWithManifests([defaultProfile, { ...fabric, manifestId: 'manifest-2' }]);
 
-        expect(document.getElementById('manifest-default')).toHaveValue('manifest-1');
-        expect(document.getElementById('manifest-fabric')).toHaveValue('manifest-2');
+        expect(screen.getByText('Follows Main')).toBeInTheDocument();
+        expect(screen.getByText('Follows Server')).toBeInTheDocument();
 
-        fireEvent.change(document.getElementById('manifest-default'), { target: { value: 'manifest-2' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Edit Default (.minecraft)' }));
+        const dialog = within(screen.getByRole('dialog'));
+        expect(dialog.queryByPlaceholderText('Profile name')).not.toBeInTheDocument();
+        expect(document.getElementById('editProfileManifest')).toHaveValue('manifest-1');
+        fireEvent.change(document.getElementById('editProfileManifest'), { target: { value: 'manifest-2' } });
+        fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+
         expect(setProfileManifest).toHaveBeenCalledWith('default', 'manifest-2');
         expect(onChange).toHaveBeenCalled();
-        expect(screen.getByText('Default (.minecraft) now follows Server.')).toBeInTheDocument();
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it("saves an edited profile's manifest with the rest of its settings", () => {
+        renderWithManifests();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Edit Fabric' }));
+        fireEvent.change(document.getElementById('editProfileManifest'), { target: { value: 'manifest-2' } });
+        fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save' }));
+
+        expect(updateProfile).toHaveBeenCalledWith(
+            'fabric',
+            expect.objectContaining({ name: 'Fabric', gameVersion: '1.21', manifestId: 'manifest-2' }),
+        );
     });
 
     it('creates a profile following the picked manifest', () => {
@@ -145,18 +164,53 @@ it('shows the error when creating fails', () => {
     expect(onChange).not.toHaveBeenCalled();
 });
 
-it('edits an existing profile', () => {
+function openEdit(name = 'Fabric') {
+    fireEvent.click(screen.getByRole('button', { name: `Edit ${name}` }));
+    return within(screen.getByRole('dialog'));
+}
+
+it('edits an existing profile in a window', () => {
     renderPage();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
-    expect(screen.getByPlaceholderText('Profile name')).toHaveValue('Fabric');
-    fireEvent.change(screen.getByPlaceholderText('Profile name'), { target: { value: 'Fabric 2' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    const dialog = openEdit();
+    expect(dialog.getByText('Edit Fabric')).toBeInTheDocument();
+    expect(dialog.getByPlaceholderText('Profile name')).toHaveValue('Fabric');
+    expect(dialog.getByLabelText('Game folder')).toHaveValue('/games/fabric');
+    // The page's own form stays empty for making a new profile.
+    expect(screen.getAllByPlaceholderText('Profile name')[0]).toHaveValue('');
+    fireEvent.change(dialog.getByPlaceholderText('Profile name'), { target: { value: 'Fabric 2' } });
+    fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
 
     expect(updateProfile).toHaveBeenCalledWith(
         'fabric',
         expect.objectContaining({ name: 'Fabric 2', gameVersion: '1.21' }),
     );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText(/Profile saved/)).toBeInTheDocument();
+});
+
+it('changes nothing when the edit window is cancelled', () => {
+    renderPage();
+
+    const dialog = openEdit();
+    fireEvent.change(dialog.getByPlaceholderText('Profile name'), { target: { value: 'Other' } });
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+
+    expect(updateProfile).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+it('keeps the edit window open and shows the error when saving fails', () => {
+    updateProfile.mockImplementation(() => {
+        throw new Error('Profile name is required.');
+    });
+    renderPage();
+
+    const dialog = openEdit();
+    fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+
+    expect(dialog.getByText('Profile name is required.')).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
 });
 
 it('deletes after confirmation and says where the files are', () => {
@@ -178,10 +232,11 @@ it('keeps the profile when deletion is cancelled', () => {
     expect(deleteProfile).not.toHaveBeenCalled();
 });
 
-it('offers no edit or delete for the default profile and marks the active one', () => {
+it('offers no delete for the default profile and marks the active one', () => {
     renderPage('fabric');
 
-    expect(screen.getAllByRole('button', { name: 'Edit' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /^Edit / })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Delete' })).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Active' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Use' }));
     expect(onSelect).toHaveBeenCalledWith('default');
@@ -238,37 +293,62 @@ it("keeps an edited profile's version selectable even when it is no longer known
     render(<Profiles profiles={[defaultProfile, custom]} activeId='default' onSelect={onSelect} onChange={onChange} />);
     await waitFor(() => expect(versionOptions()).toContain('1.8.9'));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    openEdit('Old');
 
-    expect(screen.getByLabelText('Game version')).toHaveValue('forge-gone');
+    expect(document.getElementById('editProfileVersion')).toHaveValue('forge-gone');
 });
 
-it('installs Fabric and picks it for the profile being made', async () => {
+it('has no Fabric installer on the page itself, only in the edit window', async () => {
+    renderPage();
+    await waitFor(() => expect(versionOptions()).toContain('1.8.9'));
+
+    expect(screen.queryByRole('button', { name: 'Install Fabric' })).not.toBeInTheDocument();
+    expect(openEdit().getByRole('button', { name: 'Install Fabric' })).toBeInTheDocument();
+});
+
+it('installs Fabric from the edit window and picks it for that profile', async () => {
     renderPage();
 
-    const fabricSelect = await screen.findByLabelText('Fabric Minecraft version');
-    await screen.findByRole('option', { name: '1.20.1' });
+    const dialog = openEdit();
+    const fabricSelect = await dialog.findByLabelText('Fabric Minecraft version');
+    await dialog.findByRole('option', { name: '1.20.1' });
     fireEvent.change(fabricSelect, { target: { value: '1.20.1' } });
-    expect(await screen.findByText('Installs Fabric 0.16.5 for Minecraft 1.20.1.')).toBeInTheDocument();
+    expect(await dialog.findByText('Installs Fabric 0.16.5 for Minecraft 1.20.1.')).toBeInTheDocument();
     listGameVersions.mockReturnValue(['latest-release', 'latest-snapshot', 'fabric-loader-0.16.5-1.20.1']);
-    fireEvent.click(screen.getByRole('button', { name: 'Install Fabric' }));
+    fireEvent.click(dialog.getByRole('button', { name: 'Install Fabric' }));
 
-    expect(await screen.findByText(/Installed Minecraft 1.20.1 · Fabric 0.16.5/)).toBeInTheDocument();
+    expect(await dialog.findByText(/Installed Minecraft 1.20.1 · Fabric 0.16.5 and picked it/)).toBeInTheDocument();
     expect(installFabric).toHaveBeenCalledWith('1.20.1', { loaderVersion: '0.16.5' });
-    expect(screen.getByLabelText('Game version')).toHaveValue('fabric-loader-0.16.5-1.20.1');
-    expect(screen.getByRole('option', { name: 'Minecraft 1.20.1 · Fabric 0.16.5 (installed)' })).toBeInTheDocument();
+    expect(document.getElementById('editProfileVersion')).toHaveValue('fabric-loader-0.16.5-1.20.1');
+    expect(dialog.getByRole('option', { name: 'Minecraft 1.20.1 · Fabric 0.16.5 (installed)' })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText('Profile name'), { target: { value: 'Pack' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
-    expect(createProfile).toHaveBeenCalledWith(expect.objectContaining({ gameVersion: 'fabric-loader-0.16.5-1.20.1' }));
+    fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+    expect(updateProfile).toHaveBeenCalledWith(
+        'fabric',
+        expect.objectContaining({ gameVersion: 'fabric-loader-0.16.5-1.20.1' }),
+    );
+});
+
+it('installs Fabric for the default profile without changing it', async () => {
+    renderPage();
+
+    const dialog = openEdit('Default (.minecraft)');
+    await dialog.findByRole('option', { name: '1.21.1' });
+    fireEvent.click(dialog.getByRole('button', { name: 'Install Fabric' }));
+
+    expect(await dialog.findByText(/Pick it in the Minecraft Launcher/)).toBeInTheDocument();
+    fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+    expect(updateProfile).not.toHaveBeenCalled();
+    expect(setProfileManifest).not.toHaveBeenCalled();
 });
 
 it('says when Fabric could not be installed', async () => {
     installFabric.mockRejectedValue(new Error('Network Error'));
     renderPage();
 
-    await screen.findByRole('option', { name: '1.21.1' });
-    fireEvent.click(screen.getByRole('button', { name: 'Install Fabric' }));
+    const dialog = openEdit();
+    await dialog.findByRole('option', { name: '1.21.1' });
+    fireEvent.click(dialog.getByRole('button', { name: 'Install Fabric' }));
 
-    expect(await screen.findByText('Could not install Fabric: Network Error')).toBeInTheDocument();
+    expect(await dialog.findByText('Could not install Fabric: Network Error')).toBeInTheDocument();
 });
