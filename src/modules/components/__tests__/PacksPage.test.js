@@ -22,7 +22,9 @@ import {
     serversOfProfile,
 } from '../../services/bundlePublish';
 import { listProfiles } from '../../services/profiles';
-import { isPinned, setPinned } from '../../services/pins';
+import { isPinned } from '../../services/pins';
+import { fetchPackSetParts, installPackSet, setPackKept } from '../../services/packSets';
+import categories from '../../categories';
 
 jest.mock('../../services/packScan', () => ({ recogniseFiles: jest.fn(), scanProfile: jest.fn() }));
 jest.mock('../../services/mrpack', () => ({
@@ -38,7 +40,17 @@ jest.mock('../../services/mrpack', () => ({
     readPack: jest.fn(),
     restorePackBackup: jest.fn(),
 }));
-jest.mock('../../services/manifest', () => ({ fetchPackUpdates: jest.fn() }));
+jest.mock('../../services/manifest', () => ({
+    fetchPackUpdates: jest.fn(),
+    isPackSet: jest.requireActual('../../services/manifest').isPackSet,
+}));
+jest.mock('../../services/packSets', () => ({
+    fetchPackSetParts: jest.fn(),
+    installPackSet: jest.fn(),
+    installedParts: () => [],
+    partFolders: () => ['mods', 'config'],
+    setPackKept: jest.fn(),
+}));
 jest.mock('../../services/pins', () => ({ PACKS: 'packs', isPinned: jest.fn(), setPinned: jest.fn() }));
 
 // What fetchPackUpdates says for these packs (newest first) and the installed id.
@@ -368,7 +380,7 @@ describe('Import', () => {
         openTab('Import');
 
         fireEvent.click(await screen.findByRole('button', { name: 'Keep this version' }));
-        expect(setPinned).toHaveBeenCalledWith('/game', 'packs', true);
+        expect(setPackKept).toHaveBeenCalledWith('/game', true);
         await waitFor(() => expect(fetchPackUpdates).toHaveBeenCalledTimes(2));
 
         fireEvent.click(screen.getAllByRole('button', { name: 'Preview' })[1]);
@@ -382,6 +394,50 @@ describe('Import', () => {
                 expect.objectContaining({ channelVersion: '1.0.0', keepVersion: true }),
             ),
         );
+    });
+
+    it("installs a pack that is a set of the channel's category versions", async () => {
+        const set = { id: '2.0.0', versions: { mods: '2.1.1', configs: '1.0.1' }, description: 'Everything' };
+        const category = id => categories.find(item => item.id === id);
+        const parts = [
+            { categoryId: 'mods', category: category('mods'), versionId: '2.1.1', version: { id: '2.1.1' } },
+            { categoryId: 'configs', category: category('configs'), versionId: '1.0.1', version: { id: '1.0.1' } },
+        ];
+        fetchPackUpdates.mockResolvedValue(packUpdates([set, { id: '1.0.0', url: 'https://x/1' }]));
+        fetchPackSetParts.mockResolvedValue(parts);
+        installPackSet.mockResolvedValue();
+        show();
+        openTab('Import');
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Open' }));
+        expect(await screen.findByText('Mods 2.1.1')).toBeInTheDocument();
+        expect(screen.getByText('Configs 1.0.1')).toBeInTheDocument();
+        expect(screen.getByText('Everything')).toBeInTheDocument();
+        expect(fetchPackSetParts).toHaveBeenCalledWith(set);
+        expect(downloadPublishedPack).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+        expect(await screen.findByText('This installs into mods/, config/.')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+        expect(
+            await screen.findByText('Installed pack 2.0.0 into Survival: Mods 2.1.1, Configs 1.0.1.'),
+        ).toBeInTheDocument();
+        expect(installPackSet).toHaveBeenCalledWith(set, parts, '/game', { replace: true, keepVersion: false });
+        await waitFor(() => expect(fetchPackUpdates).toHaveBeenCalledTimes(2));
+    });
+
+    it("won't install a pack set listing versions the channel doesn't have", async () => {
+        const set = { id: '2.0.0', versions: { mods: '9' } };
+        fetchPackUpdates.mockResolvedValue(packUpdates([set]));
+        fetchPackSetParts.mockResolvedValue([
+            { categoryId: 'mods', category: categories[0], versionId: '9', version: null },
+        ]);
+        show();
+        openTab('Import');
+        fireEvent.click(await screen.findByRole('button', { name: 'Open' }));
+
+        expect(await screen.findByText(/Your channel doesn't have Mods 9 any more/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Install' })).toBeDisabled();
     });
 
     it('says what is wrong with a file that is not a pack', async () => {
@@ -414,11 +470,24 @@ describe('Publish', () => {
         expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings');
     });
 
-    it('publishes the picked files as a new pack version', async () => {
+    // Ticks categories in the Categories list.
+    function pickCategories(...names) {
+        fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Categories' }));
+        const options = within(screen.getByRole('listbox'));
+        for (const name of names) {
+            fireEvent.click(options.getByRole('option', { name }));
+        }
+        fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
+    }
+
+    it('publishes the picked files as a new mods version', async () => {
         show();
         openTab('Publish');
         expect(await screen.findByDisplayValue('1.0.1')).toBeInTheDocument();
         expect(existingVersions).toHaveBeenCalledWith('Trino11/TMods-bundles', 'packs');
+        pickCategories(/^Mods/);
+        expect(await screen.findByLabelText('Mods version')).toHaveValue('1.0.1');
+        fireEvent.click(screen.getByLabelText('Publish a pack too'));
         fireEvent.change(screen.getByLabelText('What changed (optional)'), { target: { value: 'Added Sodium' } });
         fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
@@ -433,14 +502,14 @@ describe('Publish', () => {
         });
         expect(publishPack).toHaveBeenCalledWith({
             repo: 'Trino11/TMods-bundles',
-            versions: [{ category: 'packs', version: '1.0.1' }],
+            versions: [{ category: 'mods', version: '1.0.1' }],
             data: new Uint8Array([1, 2]),
             description: '',
             changelog: 'Added Sodium',
         });
     });
 
-    it('publishes several picked categories at once, each with its own version', async () => {
+    it('publishes several categories at once, with a pack listing them and the newest of the rest', async () => {
         existingVersions.mockImplementation(async (repo, category) => (category === 'mods' ? ['2.3.0'] : ['1.0.0']));
         show();
         openTab('Publish');
@@ -448,29 +517,59 @@ describe('Publish', () => {
 
         fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Categories' }));
         const options = within(screen.getByRole('listbox'));
+        expect(options.queryByRole('option', { name: /Packs/ })).not.toBeInTheDocument();
         expect(options.getByRole('option', { name: /Shaderpacks/ })).toHaveTextContent(
             'Nothing of this kind to publish',
         );
-        fireEvent.click(options.getByRole('option', { name: /Mods/ }));
-        fireEvent.click(options.getByRole('option', { name: /Configs/ }));
-        expect(await screen.findByDisplayValue('2.3.1')).toBeInTheDocument();
         fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
+        pickCategories(/^Mods/, /^Configs/);
+        expect(await screen.findByDisplayValue('2.3.1')).toBeInTheDocument();
         fireEvent.change(screen.getByLabelText('Configs version'), { target: { value: '5' } });
+
+        expect(screen.getByLabelText('Mods 2.3.1 (published now)')).toBeChecked();
+        expect(screen.getByLabelText('Configs 5 (published now)')).toBeChecked();
+        fireEvent.click(screen.getByLabelText('Schematics 1.0.0'));
         fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
-        expect(
-            await screen.findByText(/Published Packs \(whole pack\) 1.0.1, Mods 2.3.1, Configs 5/),
-        ).toBeInTheDocument();
+        expect(await screen.findByText(/Published Mods 2.3.1, Configs 5, pack 1.0.1/)).toBeInTheDocument();
         expect(publishPack).toHaveBeenCalledWith(
             expect.objectContaining({
                 versions: [
-                    { category: 'packs', version: '1.0.1' },
                     { category: 'mods', version: '2.3.1' },
                     { category: 'configs', version: '5' },
                 ],
+                pack: {
+                    version: '1.0.1',
+                    versions: { mods: '2.3.1', resourcepacks: '1.0.0', configs: '5', shaderpacks: '1.0.0' },
+                },
             }),
         );
         expect(exportMrpack).toHaveBeenCalledTimes(1);
+    });
+
+    it('publishes a pack on its own from the newest published versions', async () => {
+        existingVersions.mockImplementation(async (repo, category) =>
+            category === 'schematics' ? [] : category === 'mods' ? ['2.1.0', '2.1.1'] : ['1.0.0'],
+        );
+        show();
+        openTab('Publish');
+        expect(await screen.findByLabelText('Mods 2.1.1')).toBeChecked();
+        expect(screen.getByLabelText('Schematics: nothing published yet')).toBeDisabled();
+        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+        expect(await screen.findByText(/Published pack 1.0.1/)).toBeInTheDocument();
+        expect(publishPack).toHaveBeenCalledWith({
+            repo: 'Trino11/TMods-bundles',
+            versions: [],
+            data: null,
+            description: '',
+            changelog: '',
+            pack: {
+                version: '1.0.1',
+                versions: { mods: '2.1.1', resourcepacks: '1.0.0', configs: '1.0.0', shaderpacks: '1.0.0' },
+            },
+        });
+        expect(exportMrpack).not.toHaveBeenCalled();
     });
 
     it("won't publish into a category none of the picked files go in", async () => {
@@ -489,6 +588,7 @@ describe('Publish', () => {
         show();
         openTab('Publish');
         await screen.findByDisplayValue('1.0.1');
+        pickCategories(/^Mods/);
         fireEvent.click(screen.getByRole('button', { name: 'A .mrpack file' }));
         await chooseFile(document.getElementById('publishPackFile'));
         expect(
@@ -507,19 +607,17 @@ describe('Publish', () => {
         openTab('Publish');
         await screen.findByDisplayValue('1.0.1');
         fireEvent.click(screen.getByRole('checkbox', { name: 'Include all server list' }));
-        fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Categories' }));
-        fireEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: /Server list/ }));
-        fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
+        pickCategories(/^Mods/, /Server list/);
 
         expect(await screen.findByText(/with these 2 server\(s\): Lobby, Mine/)).toBeInTheDocument();
         expect(screen.queryByLabelText(/Server list .*version/)).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
-        expect(await screen.findByText(/Published Packs \(whole pack\) 1.0.1, Server list/)).toBeInTheDocument();
+        expect(await screen.findByText(/Published Mods 1.0.1, pack 1.0.1, Server list/)).toBeInTheDocument();
         expect(serversOfProfile).toHaveBeenCalledWith('/game');
         expect(publishPack).toHaveBeenCalledWith(
             expect.objectContaining({
-                versions: [{ category: 'packs', version: '1.0.1' }],
+                versions: [{ category: 'mods', version: '1.0.1' }],
                 servers: serversOfProfile.mock.results[0].value,
             }),
         );
@@ -532,29 +630,25 @@ describe('Publish', () => {
         openTab('Publish');
         await screen.findByDisplayValue('1.0.1');
         fireEvent.click(screen.getByRole('checkbox', { name: 'Include all server list' }));
-        fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Categories' }));
-        const options = within(screen.getByRole('listbox'));
-        fireEvent.click(options.getByRole('option', { name: /Packs/ }));
-        fireEvent.click(options.getByRole('option', { name: /Server list/ }));
-        fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
+        pickCategories(/Server list/);
+        fireEvent.click(screen.getByLabelText('Publish a pack too'));
         fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
         await waitFor(() => expect(publishPack).toHaveBeenCalled());
         expect(publishPack.mock.calls[0][0]).toMatchObject({ versions: [], data: null });
+        expect(publishPack.mock.calls[0][0].pack).toBeUndefined();
         expect(exportMrpack).not.toHaveBeenCalled();
     });
 
-    it('says the pack would be empty when the server list is all that is picked', async () => {
+    it('says a category would be empty when the server list is all that is picked', async () => {
         scanProfile.mockReturnValue([serversItem]);
         show();
         openTab('Publish');
         await screen.findByDisplayValue('1.0.1');
         fireEvent.click(screen.getByRole('checkbox', { name: 'Include all server list' }));
-        fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Categories' }));
-        fireEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: /Server list/ }));
-        fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
+        pickCategories(/^Mods/, /Server list/);
 
-        expect(await screen.findByText(/Nothing picked goes in Packs \(whole pack\)\./)).toBeInTheDocument();
+        expect(await screen.findByText(/Nothing picked goes in Mods\./)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Publish' })).toBeDisabled();
     });
 
@@ -576,6 +670,7 @@ describe('Publish', () => {
         show();
         openTab('Publish');
         await screen.findByDisplayValue('1.0.1');
+        pickCategories(/^Mods/);
         fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
         await waitFor(() => expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('30.0 MB')));

@@ -34,6 +34,8 @@ function Home({ profile, gameDir, onSelectProfile, onProfilesChange }) {
     const { t } = useTranslation();
     const [created, setCreated] = useState('');
     const [fabricNotice, setFabricNotice] = useState('');
+    // Bumped after a pack installs, so the updates list looks again at the categories it changed.
+    const [packInstalls, setPackInstalls] = useState(0);
 
     function handleCreated(newProfile) {
         setCreated(newProfile.name);
@@ -74,9 +76,12 @@ function Home({ profile, gameDir, onSelectProfile, onProfilesChange }) {
                 key={`pack-${profile.id}`}
                 profile={profile}
                 gameDir={gameDir}
-                onProfilesChange={onProfilesChange}
+                onProfilesChange={() => {
+                    setPackInstalls(count => count + 1);
+                    onProfilesChange();
+                }}
             />
-            <ChannelUpdates key={profile.id} profile={profile} gameDir={gameDir} />
+            <ChannelUpdates key={`${profile.id}-${packInstalls}`} profile={profile} gameDir={gameDir} />
             <NewProfile onCreated={handleCreated} />
             <FabricInstall
                 title={t('home.fabric.title', { name: profile.name })}

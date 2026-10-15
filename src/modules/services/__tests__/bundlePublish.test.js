@@ -96,31 +96,22 @@ describe('publishPack', () => {
         bridge.github.publish.mockResolvedValue({ commitUrl: 'c', actionsUrl: 'a' });
     });
 
-    it('commits the whole pack and its text as a new packs version', async () => {
+    it('commits each category its own part of the pack, with its text', async () => {
         const result = await service.publishPack({
             repo: 'a/b',
-            versions: [{ category: 'packs', version: '1.2.0' }],
+            versions: [{ category: 'mods', version: '1.2.0' }],
             data: pack,
             description: ' Faster ',
             changelog: '- Added Sodium\n',
         });
 
-        expect(bridge.github.publish).toHaveBeenCalledWith({
-            repo: 'a/b',
-            versions: [
-                {
-                    category: 'packs',
-                    version: '1.2.0',
-                    files: [
-                        { name: 'pack.mrpack', data: pack },
-                        {
-                            name: 'bundle.json',
-                            data: '{\n  "description": "Faster",\n  "changelog": "- Added Sodium"\n}\n',
-                        },
-                    ],
-                },
-            ],
-            message: 'Add packs 1.2.0 from TMods',
+        const request = bridge.github.publish.mock.calls[0][0];
+        expect(request.message).toBe('Add mods 1.2.0 from TMods');
+        const [mods] = request.versions;
+        expect(mods).toMatchObject({ category: 'mods', version: '1.2.0' });
+        expect(mods.files[1]).toEqual({
+            name: 'bundle.json',
+            data: '{\n  "description": "Faster",\n  "changelog": "- Added Sodium"\n}\n',
         });
         expect(result).toEqual({ commitUrl: 'c', actionsUrl: 'a' });
     });
@@ -129,7 +120,6 @@ describe('publishPack', () => {
         await service.publishPack({
             repo: 'a/b',
             versions: [
-                { category: 'packs', version: '2.0.0' },
                 { category: 'mods', version: '1.4.0' },
                 { category: 'configs', version: '3' },
             ],
@@ -138,9 +128,8 @@ describe('publishPack', () => {
 
         expect(bridge.github.publish).toHaveBeenCalledTimes(1);
         const request = bridge.github.publish.mock.calls[0][0];
-        expect(request.message).toBe('Add packs 2.0.0, mods 1.4.0, configs 3 from TMods');
-        const [packs, mods, configs] = request.versions;
-        expect(packs.files).toEqual([{ name: 'pack.mrpack', data: pack }]);
+        expect(request.message).toBe('Add mods 1.4.0, configs 3 from TMods');
+        const [mods, configs] = request.versions;
         expect(mods).toMatchObject({ category: 'mods', version: '1.4.0' });
         expect(contents(mods.files[0].data)).toEqual({ entries: ['modrinth.index.json'], links: ['mods/sodium.jar'] });
         expect(contents(configs.files[0].data)).toEqual({
@@ -149,12 +138,51 @@ describe('publishPack', () => {
         });
     });
 
+    it('adds a pack listing the category versions it installs, with the same text', async () => {
+        await service.publishPack({
+            repo: 'a/b',
+            versions: [{ category: 'mods', version: '2.1.2' }],
+            data: pack,
+            changelog: 'New mods',
+            pack: { version: '2.0.0', versions: { mods: '2.1.2', configs: '1.0.1' } },
+        });
+
+        const request = bridge.github.publish.mock.calls[0][0];
+        expect(request.message).toBe('Add mods 2.1.2, pack 2.0.0 from TMods');
+        expect(request.versions[1]).toEqual({
+            category: 'packs',
+            version: '2.0.0',
+            files: [
+                {
+                    name: 'bundle.json',
+                    data:
+                        JSON.stringify(
+                            { changelog: 'New mods', versions: { mods: '2.1.2', configs: '1.0.1' } },
+                            null,
+                            2,
+                        ) + '\n',
+                },
+            ],
+        });
+    });
+
+    it('publishes a pack on its own, but not an empty one', async () => {
+        await service.publishPack({ repo: 'a/b', pack: { version: '3', versions: { mods: '2.1.1' } } });
+        expect(bridge.github.publish).toHaveBeenLastCalledWith(
+            expect.objectContaining({ message: 'Add pack 3 from TMods' }),
+        );
+        await expect(service.publishPack({ repo: 'a/b', pack: { version: '4', versions: {} } })).rejects.toThrow(
+            'The pack lists no versions.',
+        );
+        expect(bridge.github.publish).toHaveBeenCalledTimes(1);
+    });
+
     it('refuses a category the pack has nothing for, before publishing anything', async () => {
         await expect(
             service.publishPack({
                 repo: 'a/b',
                 versions: [
-                    { category: 'packs', version: '1' },
+                    { category: 'mods', version: '1' },
                     { category: 'shaderpacks', version: '1' },
                 ],
                 data: pack,
@@ -164,36 +192,38 @@ describe('publishPack', () => {
     });
 
     it('knows which categories a pack has files for', () => {
-        expect(service.categoryHasFiles('packs', ['settings'])).toBe(true);
+        expect(service.categoryHasFiles('packs', ['mod'])).toBe(false);
         expect(service.categoryHasFiles('mods', ['mod', 'config'])).toBe(true);
         expect(service.categoryHasFiles('shaderpacks', ['mod', 'config'])).toBe(false);
         expect(service.categoryHasFiles('mods', [])).toBe(false);
     });
 
-    it('refuses packs over the 100 MB GitHub takes', async () => {
-        const big = { length: service.MAX_PACK_BYTES + 1 };
-        const versions = [{ category: 'packs', version: '1' }];
-        await expect(service.publishPack({ repo: 'a/b', versions, data: big })).rejects.toThrow(
+    it('refuses parts over the 100 MB GitHub takes', async () => {
+        let isolated;
+        jest.isolateModules(() => {
+            jest.doMock('../mrpack', () => ({ filterMrpack: () => ({ length: 101 * 1024 * 1024 }) }));
+            isolated = require('../bundlePublish');
+        });
+        jest.dontMock('../mrpack');
+        const versions = [{ category: 'mods', version: '1' }];
+        await expect(isolated.publishPack({ repo: 'a/b', versions, data: pack })).rejects.toThrow(
             /101 MB, and GitHub takes files up to 100 MB/,
         );
         expect(bridge.github.publish).not.toHaveBeenCalled();
     });
 
-    it('offers whole packs first, then every category the main process accepts, then the server list', () => {
+    it('offers every category the main process accepts but packs, then the server list', () => {
         const { CATEGORIES } = require('../../../../public/bundlePublisher');
         expect(service.PUBLISH_CATEGORIES.map(category => category.id)).toEqual([
-            'packs',
             ...CATEGORIES.filter(id => id !== 'packs'),
             'servers',
         ]);
+        expect(CATEGORIES).toContain('packs');
         expect(service.PUBLISH_CATEGORIES.filter(category => !service.isVersioned(category.id)).map(c => c.id)).toEqual(
             ['servers'],
         );
         expect(service.categoryHasFiles('servers', ['mod', 'servers'])).toBe(true);
         expect(service.categoryHasFiles('servers', ['mod'])).toBe(false);
-        expect(service.PUBLISH_CATEGORIES.filter(category => !category.kinds).map(category => category.id)).toEqual([
-            'packs',
-        ]);
     });
 
     it('publishes the server list with the versions, or on its own', async () => {
@@ -208,12 +238,12 @@ describe('publishPack', () => {
 
         await service.publishPack({
             repo: 'a/b',
-            versions: [{ category: 'packs', version: '2' }],
+            versions: [{ category: 'mods', version: '2' }],
             data: pack,
             servers,
         });
         expect(bridge.github.publish).toHaveBeenLastCalledWith(
-            expect.objectContaining({ servers: channel, message: 'Add packs 2, the server list from TMods' }),
+            expect.objectContaining({ servers: channel, message: 'Add mods 2, the server list from TMods' }),
         );
 
         await service.publishPack({ repo: 'a/b', servers });
@@ -249,7 +279,7 @@ describe('publishPack', () => {
                 "Error invoking remote method 'github:publish': Error: packs 1 is already in a/b. Pick a new version.",
             ),
         );
-        const versions = [{ category: 'packs', version: '1' }];
+        const versions = [{ category: 'mods', version: '1' }];
         await expect(service.publishPack({ repo: 'a/b', versions, data: pack })).rejects.toThrow(
             /^packs 1 is already in a\/b. Pick a new version.$/,
         );

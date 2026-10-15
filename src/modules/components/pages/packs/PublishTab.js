@@ -15,7 +15,9 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import PackPicker from './PackPicker';
+import categoryList from '../../../categories';
 import {
     LARGE_PACK_BYTES,
     PACKS_CATEGORY,
@@ -25,6 +27,7 @@ import {
     categoryHasFiles,
     existingVersions,
     isVersioned,
+    newestVersion,
     nextVersion,
     publishPack,
     serversOfPack,
@@ -38,12 +41,16 @@ const FROM_PROFILE = 'profile';
 const FROM_FILE = 'file';
 
 const labelOf = id => PUBLISH_CATEGORIES.find(category => category.id === id)?.label || id;
+// Every folder the repository can have versions in: the categories, then packs.
+const VERSIONED = [...categoryList.map(category => category.id), PACKS_CATEGORY];
 
 // Publishes a new version of each picked category to the player's bundles repository
 // (set up in Settings), in one commit: the files picked in this profile, exported as a
 // .mrpack, or a .mrpack file as it is. Picking the server list category publishes the
-// picked servers.dat as the channel's server list instead, in the same commit.
-// `items` and `selected` are shared with the Export tab.
+// picked servers.dat as the channel's server list instead, in the same commit. "Pack"
+// adds a pack version listing a version of each ticked category: the one published now,
+// or the newest already in the repository, so players can install them together. A pack
+// can go out on its own. `items` and `selected` are shared with the Export tab.
 function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy, run }) {
     const { t } = useTranslation();
     const repo = bundlesRepo();
@@ -51,36 +58,41 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
     const [file, setFile] = useState(null);
     // The categories to publish into, in PUBLISH_CATEGORIES order, and a version for each:
     // the suggested one until the player types their own (`touched`).
-    const [picked, setPicked] = useState([PACKS_CATEGORY]);
+    const [picked, setPicked] = useState([]);
     const [versions, setVersions] = useState({});
     const [touched, setTouched] = useState({});
+    // Whether a pack goes out too, and the categories left out of it.
+    const [withPack, setWithPack] = useState(true);
+    const [leftOut, setLeftOut] = useState(() => new Set());
+    // The version folders already in the repository, by category (packs included).
+    const [existing, setExisting] = useState({});
     const [description, setDescription] = useState('');
     const [changelog, setChangelog] = useState('');
     const [lookupError, setLookupError] = useState('');
     const [published, setPublished] = useState(null);
 
-    // Suggests, for each picked category, the version after the newest one already
-    // published there.
+    // Looks up what each category already has, to suggest the next versions and fill the
+    // pack with the newest ones. Again after every publish.
     useEffect(() => {
         if (!repo) {
             return undefined;
         }
         let active = true;
-        for (const category of picked.filter(id => isVersioned(id) && !touched[id])) {
+        for (const category of VERSIONED) {
             existingVersions(repo, category)
-                .then(existing => {
+                .then(list => {
                     if (!active) {
                         return;
                     }
                     setLookupError('');
-                    setVersions(current => ({ ...current, [category]: nextVersion(existing) }));
+                    setExisting(current => ({ ...current, [category]: list }));
                 })
                 .catch(error => active && setLookupError(error.message));
         }
         return () => {
             active = false;
         };
-    }, [repo, picked, touched, published]);
+    }, [repo, published]);
 
     const filePack = useMemo(() => {
         if (!file) {
@@ -136,8 +148,23 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
         }
     }
 
-    const versionOf = category => (versions[category] || '').trim();
+    // The version a category (or the pack) gets: what the player typed, else the one after
+    // the newest already published.
+    const versionText = category =>
+        touched[category] ? versions[category] || '' : existing[category] ? nextVersion(existing[category]) : '';
+    const versionOf = category => versionText(category).trim();
     const versioned = picked.filter(isVersioned);
+    // The pack's contents: per category, the version published now or the newest one
+    // already there (none when it has neither).
+    const packParts = categoryList.map(category => {
+        const now = versioned.includes(category.id);
+        const version = now ? versionOf(category.id) : newestVersion(existing[category.id] || []);
+        return { id: category.id, label: category.label, version, now, included: !leftOut.has(category.id) };
+    });
+    const packVersions = Object.fromEntries(
+        packParts.filter(part => part.included && part.version).map(part => [part.id, part.version]),
+    );
+    const packReady = !withPack || (Object.keys(packVersions).length > 0 && Boolean(versionOf(PACKS_CATEGORY)));
     const withServers = picked.includes(SERVERS_CATEGORY);
     // When the servers go out as the channel's list, they stay out of the pack, so players
     // don't get them twice.
@@ -152,7 +179,7 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
         }
         return exportMrpack(gameDir, target, {
             name: profile.name,
-            version: versionOf(versioned.includes(PACKS_CATEGORY) ? PACKS_CATEGORY : versioned[0]),
+            version: versionOf(versioned[0]),
             items: packItems,
         }).data;
     }
@@ -177,8 +204,12 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
                 description,
                 changelog,
                 ...(withServers ? { servers: servers.list } : {}),
+                ...(withPack ? { pack: { version: versionOf(PACKS_CATEGORY), versions: packVersions } } : {}),
             });
             const labels = targets.map(({ category, version }) => `${labelOf(category)} ${version}`);
+            if (withPack) {
+                labels.push(t('packs.publish.packLabel', { version: versionOf(PACKS_CATEGORY) }));
+            }
             if (withServers) {
                 labels.push(labelOf(SERVERS_CATEGORY));
             }
@@ -205,11 +236,16 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
     const empty = picked.filter(
         category => !categoryHasFiles(category, category === SERVERS_CATEGORY ? kinds : packKinds),
     );
+    // Files are only needed when a category or the server list gets them.
+    const filesReady =
+        picked.length === 0 ||
+        (source === FROM_FILE ? Boolean(filePack && !filePack.error) : items.some(item => selected.has(item.id)));
     const ready =
-        (source === FROM_FILE ? Boolean(filePack && !filePack.error) : items.some(item => selected.has(item.id))) &&
-        picked.length > 0 &&
+        filesReady &&
+        (picked.length > 0 || withPack) &&
         empty.length === 0 &&
         serversReady &&
+        packReady &&
         versioned.every(category => versionOf(category));
 
     return (
@@ -289,7 +325,7 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
                     id={`publishVersion-${category}`}
                     label={t('packs.publish.versionOf', { category: labelOf(category) })}
                     fullWidth
-                    value={versions[category] || ''}
+                    value={versionText(category)}
                     onChange={event => {
                         const value = event.target.value;
                         setVersions(current => ({ ...current, [category]: value }));
@@ -298,6 +334,74 @@ function PublishTab({ profile, gameDir, target, items, selected, onSelect, busy,
                     slotProps={{ htmlInput: { required: true }, inputLabel: { shrink: true } }}
                 />
             ))}
+            <FormControlLabel
+                control={
+                    <Checkbox
+                        id='publishWithPack'
+                        checked={withPack}
+                        disabled={busy}
+                        onChange={event => setWithPack(event.target.checked)}
+                    />
+                }
+                label={t('packs.publish.withPack')}
+            />
+            {withPack && (
+                <Card variant='outlined'>
+                    <CardContent>
+                        <Stack spacing={1.5}>
+                            <Typography variant='body2' sx={{ color: 'text.secondary' }}>
+                                {t('packs.publish.packHelp')}
+                            </Typography>
+                            <TextField
+                                id={`publishVersion-${PACKS_CATEGORY}`}
+                                label={t('packs.publish.packVersion')}
+                                fullWidth
+                                value={versionText(PACKS_CATEGORY)}
+                                onChange={event => {
+                                    const value = event.target.value;
+                                    setVersions(current => ({ ...current, [PACKS_CATEGORY]: value }));
+                                    setTouched(current => ({ ...current, [PACKS_CATEGORY]: true }));
+                                }}
+                                slotProps={{ htmlInput: { required: true }, inputLabel: { shrink: true } }}
+                            />
+                            <Stack>
+                                {packParts.map(part => (
+                                    <FormControlLabel
+                                        key={part.id}
+                                        control={
+                                            <Checkbox
+                                                id={`packPart-${part.id}`}
+                                                size='small'
+                                                checked={part.included && Boolean(part.version)}
+                                                disabled={busy || !part.version}
+                                                onChange={event =>
+                                                    setLeftOut(current => {
+                                                        const next = new Set(current);
+                                                        if (event.target.checked) {
+                                                            next.delete(part.id);
+                                                        } else {
+                                                            next.add(part.id);
+                                                        }
+                                                        return next;
+                                                    })
+                                                }
+                                            />
+                                        }
+                                        label={
+                                            part.version
+                                                ? t(part.now ? 'packs.publish.packPartNew' : 'packs.publish.packPart', {
+                                                      category: part.label,
+                                                      version: part.version,
+                                                  })
+                                                : t('packs.publish.packPartNone', { category: part.label })
+                                        }
+                                    />
+                                ))}
+                            </Stack>
+                        </Stack>
+                    </CardContent>
+                </Card>
+            )}
             {withServers && servers?.error && <Alert severity='error'>{servers.error}</Alert>}
             {withServers && servers?.list?.length > 0 && (
                 <Alert severity='info'>

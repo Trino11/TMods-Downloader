@@ -5,8 +5,10 @@
 //   <name>.mrpack a Modrinth modpack: its listed downloads plus its overrides
 //   bundle.json   "modrinth": { "<project>": "<version>" } and "files": [{ path, url, hash }]
 //
-// A version of the packs category is different: it is one .mrpack, published as it is
-// so players can import the whole pack into a profile (readPack).
+// A version of the packs category is different (readPack): a set of exact versions of
+// the other categories (bundle.json "versions": { "mods": "2.1.1", ... }), which players
+// install together, or, for packs published before sets existed, one .mrpack published as
+// it is.
 //
 // Nothing is downloaded here. Each input gets a `key` that names exactly what it is
 // (a file's hash, a download's hash, a pinned Modrinth version), so a version whose keys
@@ -19,7 +21,7 @@ const { readZip } = require('./unzip');
 const METADATA_FILE = 'bundle.json';
 const CHANGELOG_FILE = 'CHANGELOG.md';
 const TEXT_KEYS = ['description', 'target', 'changelog'];
-const METADATA_KEYS = [...TEXT_KEYS, 'modrinth', 'files'];
+const METADATA_KEYS = [...TEXT_KEYS, 'modrinth', 'files', 'versions'];
 const HASHES = ['sha512', 'sha256', 'sha1'];
 const IGNORED_FILES = new Set(['.gitkeep', '.DS_Store', 'Thumbs.db']);
 
@@ -35,6 +37,8 @@ const PACK_LOADERS = {
 const FORMAT = 'tmods-bundle-2';
 // The same for packs, which are published as the .mrpack itself.
 const PACK_FORMAT = 'tmods-pack-1';
+// The same for packs that are sets of category versions.
+const PACK_SET_FORMAT = 'tmods-pack-set-1';
 
 function sha256(data) {
     return crypto.createHash('sha256').update(data).digest('hex');
@@ -239,6 +243,9 @@ function mrpackInputs(data, where) {
 // manifest's text fields and `key` changes whenever the zip's contents would.
 function readVersion(versionDir, label) {
     const metadata = readMetadata(versionDir, label);
+    if (metadata.versions !== undefined) {
+        throw new Error(`${label}/${METADATA_FILE}: only a pack can list "versions" of other categories.`);
+    }
     const inputs = [];
     const packs = [];
     for (const { name, full } of listFiles(versionDir)) {
@@ -284,23 +291,53 @@ function textOf(metadata, defaults) {
     return text;
 }
 
-// Reads a version of the packs category: exactly one .mrpack, plus the optional text
-// files. Returns { metadata, data, inputs, key }: `data` is the pack to publish as it is,
-// `inputs` its downloads and overrides (fetched only to check every link still works),
-// and `key` changes whenever the pack's bytes do.
+// The "versions" of a pack set: { "<category>": "<version id>" }, at least one. Whether
+// each category and version exists is checked against the whole bundles folder later.
+function setVersions(versions, where) {
+    if (!isObject(versions) || Object.keys(versions).length === 0) {
+        throw new Error(`${where}: "versions" must map categories to versions, like { "mods": "2.1.1" }.`);
+    }
+    const set = {};
+    for (const [category, version] of Object.entries(versions)) {
+        if (typeof version !== 'string' || !version.trim()) {
+            throw new Error(`${where}: "${category}" needs the version of it the pack installs.`);
+        }
+        set[category] = version.trim();
+    }
+    return set;
+}
+
+// Reads a version of the packs category. Either a set of category versions: a bundle.json
+// with "versions" (and the optional text) and no other files, which returns
+// { metadata, set, key }; or, for packs published before sets, exactly one .mrpack plus
+// the optional text files, which returns { metadata, data, inputs, key }: `data` is the
+// pack to publish as it is, `inputs` its downloads and overrides (fetched only to check
+// every link still works). `key` changes whenever what players get would.
 function readPack(versionDir, label) {
     const metadata = readMetadata(versionDir, label);
     for (const key of ['modrinth', 'files']) {
         if (metadata[key] !== undefined) {
             throw new Error(
-                `${label}/${METADATA_FILE}: a pack is published as its .mrpack, so "${key}" can't add to it.`,
+                `${label}/${METADATA_FILE}: a pack lists "versions" of other categories, so "${key}" can't add to it.`,
             );
         }
     }
     const files = listFiles(versionDir).filter(({ name }) => name !== METADATA_FILE && name !== CHANGELOG_FILE);
+    if (metadata.versions !== undefined) {
+        if (files.length > 0) {
+            throw new Error(
+                `${label} is a set of category versions, so it holds only ${METADATA_FILE} (and an optional ${CHANGELOG_FILE}).`,
+            );
+        }
+        const set = setVersions(metadata.versions, `${label}/${METADATA_FILE}`);
+        const listed = Object.entries(set)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([category, version]) => `${category}@${version}`);
+        return { metadata: textOf(metadata, {}), set, key: sha256([PACK_SET_FORMAT, ...listed].join('\n')) };
+    }
     if (files.length !== 1 || !/^[^/]+\.mrpack$/i.test(files[0].name)) {
         throw new Error(
-            `${label} must hold exactly one .mrpack file (plus an optional ${METADATA_FILE} or ${CHANGELOG_FILE}).`,
+            `${label} needs a ${METADATA_FILE} listing "versions" of other categories, like { "versions": { "mods": "2.1.1" } }.`,
         );
     }
     const data = fs.readFileSync(files[0].full);
@@ -309,4 +346,13 @@ function readPack(versionDir, label) {
     return { metadata: textOf(metadata, result), data, inputs: result.inputs, key };
 }
 
-module.exports = { FORMAT, PACK_FORMAT, METADATA_FILE, CHANGELOG_FILE, readPack, readVersion, safePath };
+module.exports = {
+    FORMAT,
+    PACK_FORMAT,
+    PACK_SET_FORMAT,
+    METADATA_FILE,
+    CHANGELOG_FILE,
+    readPack,
+    readVersion,
+    safePath,
+};

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import axios from 'axios';
 import Home from '../pages/home/home';
 import { checkChannels, installChannelUpdates } from '../../services/channelUpdates';
 import { installBundle } from '../../services/bundleInstaller';
@@ -9,17 +10,25 @@ import { installFabric, listFabricGameVersions } from '../../services/fabric';
 import { detectTarget, gameVersionOf } from '../../services/gameTarget';
 import { checkUpdates, readModList, setTargetVersion, updateChangelog, updateMod } from '../../services/modrinthMods';
 import { fetchPackUpdates } from '../../services/manifest';
-import { downloadPublishedPack, importMrpack, packWarnings, readInstalledPack, readPack } from '../../services/mrpack';
+import {
+    downloadPublishedPack,
+    importMrpack,
+    packWarnings,
+    readInstalledPack,
+    readPack,
+    writeInstalledPack,
+} from '../../services/mrpack';
 import { isPinned, setPinned } from '../../services/pins';
 
 jest.mock('axios', () => ({ get: jest.fn() }));
 jest.mock('../../services/channelUpdates', () => ({ checkChannels: jest.fn(), installChannelUpdates: jest.fn() }));
-jest.mock('../../services/bundleInstaller', () => ({ installBundle: jest.fn() }));
+jest.mock('../../services/bundleInstaller', () => ({ installBundle: jest.fn(), readInstalledVersion: () => '' }));
 jest.mock('../../services/profiles', () => ({
     DEFAULT_PROFILE_ID: 'default',
     LATEST_RELEASE: 'latest-release',
     LATEST_SNAPSHOT: 'latest-snapshot',
     createProfile: jest.fn(),
+    getActiveProfile: () => ({ id: 'fabric' }),
     updateProfile: jest.fn(),
     listGameVersions: jest.fn(),
     listProfiles: jest.fn(),
@@ -36,7 +45,9 @@ jest.mock('../../services/mrpack', () => ({
     importMrpack: jest.fn(),
     packWarnings: jest.fn(),
     readInstalledPack: jest.fn(),
+    readInstalledPackVersions: () => null,
     readPack: jest.fn(),
+    writeInstalledPack: jest.fn(),
 }));
 jest.mock('../../services/pins', () => ({ PACKS: 'packs', isPinned: jest.fn(), setPinned: jest.fn() }));
 jest.mock('../../services/gameVersions', () => ({
@@ -396,6 +407,34 @@ it('downloads the latest pack and imports it into the active profile', async () 
     });
     expect(onProfilesChange).toHaveBeenCalled();
     expect(fetchPackUpdates).toHaveBeenCalledTimes(2);
+});
+
+it('installs a pack that is a set of category versions, then checks the updates again', async () => {
+    const set = { id: '2.0.0', versions: { mods: '2.1.1' }, target: 'Fabric 26.3' };
+    const modsVersion = { id: '2.1.1', url: 'https://x/mods-2.1.1.zip', target: 'Fabric 26.3' };
+    localStorage.setItem('tmods.manifestUrl', 'https://x/manifest.json');
+    axios.get.mockResolvedValue({ data: { versions: { mods: [modsVersion] }, packSets: [set] } });
+    fetchPackUpdates.mockResolvedValue(packUpdates(set));
+    installBundle.mockResolvedValue();
+    renderHome();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Download' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByText('Mods 2.1.1')).toBeInTheDocument();
+    expect(downloadPublishedPack).not.toHaveBeenCalled();
+    expect(checkChannels).toHaveBeenCalledTimes(1);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Install' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Install' }));
+
+    expect(await screen.findByText('Installed pack 2.0.0 into Fabric: Mods 2.1.1.')).toBeInTheDocument();
+    expect(installBundle).toHaveBeenCalledWith(expect.objectContaining({ id: 'mods' }), modsVersion, '/games/fabric', {
+        replace: true,
+    });
+    expect(writeInstalledPack).toHaveBeenCalledWith('/games/fabric', '2.0.0', 'https://x/manifest.json', {
+        mods: '2.1.1',
+    });
+    expect(setPinned).toHaveBeenCalledWith('/games/fabric', 'mods', false);
+    await waitFor(() => expect(checkChannels).toHaveBeenCalledTimes(2));
 });
 
 it('shows why the latest pack could not be loaded', async () => {

@@ -103,9 +103,23 @@ export async function fetchLatestVersions(categoryIds) {
     return Object.fromEntries(categoryIds.map(id => [id, latestVersion(manifest, id)]));
 }
 
-// The whole packs the channel publishes (its packs category) and where a profile stands
-// with them, from a single fetch of the manifest. `installedId` is the pack version the
-// profile has (null when none) and `pinned` whether the profile keeps it (services/pins.js).
+// Whether a pack is a set of exact versions of the other categories ({ id, versions:
+// { mods: '2.1.1', ... } }, from the manifest's packSets), as opposed to a pack published
+// before sets as one .mrpack (versions.packs, with a url).
+export function isPackSet(pack) {
+    return Boolean(pack?.versions) && typeof pack.versions === 'object' && !Array.isArray(pack.versions);
+}
+
+// Every pack the channel publishes, newest first: the sets (packSets) and the .mrpack
+// packs published before sets (versions.packs).
+export function packVersions(manifest) {
+    const sets = Array.isArray(manifest?.packSets) ? manifest.packSets.filter(isPackSet) : [];
+    return [...sets, ...versionsNewestFirst(manifest, 'packs')].sort(compareIdsDescending);
+}
+
+// The packs the channel publishes and where a profile stands with them, from a single
+// fetch of the manifest. `installedId` is the pack version the profile has (null when
+// none) and `pinned` whether the profile keeps it (services/pins.js).
 // Returns { packs, latest, installed, pinned, newer, outdated, changes }: `packs` newest
 // first, `latest` the one with the highest version number (null when there are none),
 // `newer` whether the profile has an older (or other) one than `latest`, `outdated`
@@ -114,11 +128,11 @@ export async function fetchLatestVersions(categoryIds) {
 // version's when the profile is up to date or has no pack yet.
 export async function fetchPackUpdates(installedId = null, pinned = false) {
     const manifest = await fetchCurrentManifest();
-    const packs = versionsNewestFirst(manifest, 'packs');
+    const packs = packVersions(manifest);
     const latest = packs[0] || null;
     const newer = Boolean(installedId && latest && latest.id !== installedId);
     const kept = Boolean(installedId && pinned);
-    const changes = newer ? versionsSince(manifest, 'packs', installedId, latest) : latest ? [latest] : [];
+    const changes = newer ? since(packs, installedId, latest) : latest ? [latest] : [];
     return {
         packs,
         latest,
@@ -139,10 +153,14 @@ export function changelogOf(version) {
 // from `latest` down to (but not including) the installed one. When the installed one
 // isn't listed (or nothing is installed), only `latest` is returned.
 export function versionsSince(manifest, categoryId, installedId, latest = latestVersion(manifest, categoryId)) {
+    return since(versionsNewestFirst(manifest, categoryId), installedId, latest);
+}
+
+// versionsSince over a list of versions already newest first.
+function since(versions, installedId, latest) {
     if (!latest) {
         return [];
     }
-    const versions = versionsNewestFirst(manifest, categoryId);
     const from = versions.indexOf(latest);
     const to = installedId ? versions.findIndex(version => version.id === installedId) : -1;
     return from !== -1 && to > from ? versions.slice(from, to) : [latest];

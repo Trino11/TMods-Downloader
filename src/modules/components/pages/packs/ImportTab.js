@@ -11,10 +11,12 @@ import { ChangelogButton } from '../../utils/Changelog';
 import { KeepVersionButton } from '../../utils/KeepVersion';
 import FabricInstall from '../profiles/FabricInstall';
 import PackImporter from './PackImporter';
+import PackSetInstaller from './PackSetInstaller';
 import { PackStatusChip, describePackStatus } from './PackStatus';
-import { fetchPackUpdates } from '../../../services/manifest';
+import { fetchPackUpdates, isPackSet } from '../../../services/manifest';
 import { downloadPublishedPack, listPackBackups, readInstalledPack, restorePackBackup } from '../../../services/mrpack';
-import { PACKS, isPinned, setPinned } from '../../../services/pins';
+import { PACKS, isPinned } from '../../../services/pins';
+import { setPackKept } from '../../../services/packSets';
 import { updateProfile } from '../../../services/profiles';
 import { formatDateTime, useTranslation } from '../../../i18n';
 
@@ -102,7 +104,7 @@ function ChannelPacks({ profile, gameDir, checks, busy, onPick, onKeepChange }) 
                         key={pack.id}
                         actions={
                             <Button variant='outlined' disabled={busy} onClick={() => onPick(pack, status.latest.id)}>
-                                {t('packs.import.preview')}
+                                {isPackSet(pack) ? t('packs.import.open') : t('packs.import.preview')}
                             </Button>
                         }
                     >
@@ -143,6 +145,10 @@ function ImportTab({ profile, gameDir, busy, run, onChanged }) {
     }
 
     function pickChannelPack(pack, latestId) {
+        if (isPackSet(pack)) {
+            setPending({ set: pack, latestId });
+            return;
+        }
         run(async () => {
             setPending({ data: await downloadPublishedPack(pack), pack, latestId });
             return '';
@@ -150,7 +156,7 @@ function ImportTab({ profile, gameDir, busy, run, onChanged }) {
     }
 
     function handleKeepChange(keep) {
-        setPinned(gameDir, PACKS, keep);
+        setPackKept(gameDir, keep);
         setChecks(count => count + 1);
     }
 
@@ -185,6 +191,24 @@ function ImportTab({ profile, gameDir, busy, run, onChanged }) {
         onChanged();
     }
 
+    if (pending?.set) {
+        return (
+            <PackSetInstaller
+                pack={pending.set}
+                latestId={pending.latestId}
+                profile={profile}
+                gameDir={gameDir}
+                busy={busy}
+                run={run}
+                onInstalled={() => {
+                    setPending(null);
+                    setChecks(count => count + 1);
+                    onChanged();
+                }}
+                onCancel={() => setPending(null)}
+            />
+        );
+    }
     if (pending) {
         return (
             <PackImporter
