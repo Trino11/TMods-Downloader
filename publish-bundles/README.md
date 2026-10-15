@@ -28,7 +28,7 @@ bundles/
       config/sodium-options.json
   packs/
     1.0.0/
-      pack.mrpack        a whole pack, imported into a profile
+      bundle.json        a pack: the versions of mods, configs... it installs
 .github/workflows/publish.yml
 ```
 
@@ -36,7 +36,7 @@ bundles/
   [Multiplayer servers](#multiplayer-servers).
 - Each folder under `bundles/` is a category: `mods`, `schematics`, `resourcepacks`,
   `configs`, `shaderpacks` or `packs`. Any other name stops the publish, to catch typos.
-  `packs` works differently from the rest; see [Whole packs](#whole-packs).
+  `packs` works differently from the rest; see [Packs](#packs).
 - Each folder inside a category is one version; its name is the version id players see.
 - Versions are listed newest first, comparing numbers as numbers (`1.10.0` before
   `1.9.0`), and the highest one is the latest.
@@ -84,19 +84,31 @@ Every download is checked against its checksum, and two inputs landing on the sa
 stop the publish. Neither `bundle.json`, `CHANGELOG.md` nor the `.mrpack` itself goes
 into the zip.
 
-### Whole packs
+### Packs
 
-A version in `packs/` is a whole pack: mods, resource packs, shaders, configs and
-anything else, installed together into one profile. It holds exactly one `.mrpack`, plus
-an optional `bundle.json` (only `description`, `target` and `changelog`) or
-`CHANGELOG.md`.
+A version in `packs/` is a pack: a set of exact versions of the other categories that
+players install together, for example "the mods, configs and shaders for 1.21.1". It
+holds only a `bundle.json` listing them (plus, optionally, `description`, `target`,
+`changelog` or a `CHANGELOG.md`):
 
-The `.mrpack` is published as it is, not zipped: players open the app's Packs page,
-Import tab, pick it from your channel and choose a profile for it (the current one, or a
-new one). Before publishing, the action still downloads every file the pack links to
-and checks its checksum, so a broken link stops the publish instead of reaching players.
+```json
+{
+  "description": "Everything for Fabric 1.21.1",
+  "versions": { "mods": "2.1.1", "configs": "1.0.1", "shaderpacks": "1.0.1" }
+}
+```
 
-Apps from before the Packs page ignore the `packs` category.
+Each version it lists must be in this repository (`bundles/mods/2.1.1/` and so on), or
+the publish stops, so a typo never reaches players. Nothing extra is uploaded: when a
+player installs pack 2.0.0, the app installs mods 2.1.1, configs 1.0.1 and shaderpacks
+1.0.1 exactly as their own pages would, so every category then shows as up to date.
+Without its own `target`, a pack shows its mods version's.
+
+Packs go in the manifest's `packSets`, which apps from before pack sets don't read.
+
+Packs published before sets were one `.mrpack`, published as it is. Those folders still
+work (keep them: players may have installed them), and the action still checks every
+link they hold. New packs should be sets.
 
 ### Multiplayer servers
 
@@ -130,8 +142,10 @@ only reach that repository, with Contents set to read and write. TMods checks th
 and keeps it encrypted on that computer. Then the Packs page's Publish tab commits a new
 version folder: the files you tick in the active profile, exported as a `.mrpack`, or a
 `.mrpack` file you already have, with an optional description and changelog in
-`bundle.json`. It goes into `packs` by default, or any other category you pick. It
-suggests the version after the newest one already published, and refuses to overwrite
+`bundle.json`, into each category you pick (each gets only the files of its kind).
+Ticking "Pack" too adds a pack version listing the versions being published, plus the
+newest published version of each other category you leave ticked; a pack can also be
+published on its own. It suggests the version after the newest one already published, and refuses to overwrite
 one that exists. Picking "Server list" there (with the profile's server list ticked)
 replaces `bundles/servers.json` with that profile's servers in the same commit. The
 workflow below picks the commit up and publishes it.
@@ -193,7 +207,7 @@ It always serves the newest release's manifest, so it never changes.
 
 ## How releases work
 
-Each publish creates one release holding `manifest.json` and the zips (and packs) that
+Each publish creates one release holding `manifest.json` and the zips (and older .mrpack packs) that
 are new or changed. Each manifest entry records what its zip was built from (`source`: the files'
 checksums and the pinned versions), so a version that didn't change keeps pointing at
 the release it was first uploaded to, and nothing is downloaded or zipped for it again.

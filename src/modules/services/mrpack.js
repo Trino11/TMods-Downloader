@@ -312,11 +312,28 @@ export function readInstalledPack(gameDir, manifestUrl = activeManifestUrl()) {
     }
 }
 
-function writeInstalledPack(gameDir, id, manifest) {
+// The category versions of the channel pack last installed into a game folder, when that
+// pack was a set ({ mods: '2.1.1', ... }), or null.
+export function readInstalledPackVersions(gameDir) {
+    try {
+        const { versions } = JSON.parse(fs.readFileSync(inGame(gameDir, PACK_FILE), 'utf-8'));
+        return versions && typeof versions === 'object' && !Array.isArray(versions) ? versions : null;
+    } catch {
+        return null;
+    }
+}
+
+// Records the channel pack installed into a game folder: its id, the manifest it came
+// from and, for a pack that is a set, the category versions it installed.
+export function writeInstalledPack(gameDir, id, manifest, versions) {
     fs.mkdirSync(path.join(gameDir, STATE_FOLDER), { recursive: true });
     fs.writeFileSync(
         inGame(gameDir, PACK_FILE),
-        JSON.stringify({ id, manifest, importedAt: new Date().toISOString() }, null, 2),
+        JSON.stringify(
+            { id, manifest, ...(versions ? { versions } : {}), importedAt: new Date().toISOString() },
+            null,
+            2,
+        ),
     );
 }
 
@@ -540,7 +557,7 @@ export async function downloadModrinthModpack(projectId, title) {
     return downloadVerified([file.url], file.hashes);
 }
 
-// Downloads a pack published in the player's channel (the manifest's packs category),
+// Downloads a pack published in the player's channel as a .mrpack (before pack sets),
 // checking it against the manifest's checksum. Returns its bytes.
 export async function downloadPublishedPack(version) {
     const { data } = await axios.get(version.url, { responseType: 'arraybuffer' });

@@ -59,6 +59,7 @@ const packs = {
         channelLoading: "Loading your channel's packs...",
         channelEmpty: 'Your channel has no packs yet. Publish one from the Publish tab.',
         preview: 'Preview',
+        open: 'Open',
         confirmUndo: 'Undo the import of {pack}?',
         thisPack: 'this pack',
         restored: 'Put {profile} back the way it was before importing {pack}.',
@@ -73,6 +74,17 @@ const packs = {
         undo: 'Undo',
         aPack: 'A pack',
         importedAt: 'Imported {date}',
+    },
+    set: {
+        title: 'Pack {id}',
+        intro: 'Installs these versions into {profile}, each the way its own page would:',
+        loading: 'Loading what the pack installs...',
+        alreadyChip: 'Already installed',
+        missing: "Your channel doesn't have {parts} any more, so this pack can't be installed.",
+        backupNote: 'Each folder is backed up first; you can restore it from its own page.',
+        keepVersion: "Keep pack {version}: don't offer newer packs, or newer versions of what it installs, as updates",
+        install: 'Install',
+        installed: 'Installed pack {id} into {profile}: {parts}.',
     },
     importer: {
         keepVersion: "Keep pack {version}: don't offer newer packs as updates",
@@ -105,8 +117,7 @@ const packs = {
         chooseFile: 'Choose file',
         fileInfo: '{file}: {name}, Minecraft {gameVersion}, {count} item(s), {size}.',
         categories: 'Categories',
-        categoriesHelp:
-            'Each category gets its own new version. Packs get the whole pack; the others only the files of their kind.',
+        categoriesHelp: 'Each category gets its own new version, with only the files of its kind.',
         nothingOfKind: 'Nothing of this kind to publish',
         versionOf: '{category} version',
         emptyCategories: 'Nothing picked goes in {categories}. Pick files of that kind or untick the category.',
@@ -118,6 +129,14 @@ const packs = {
         publish: 'Publish',
         publishedBefore: 'Published {label}. GitHub is building the release;',
         follow: 'follow it on GitHub',
+        withPack: 'Publish a pack too',
+        packHelp:
+            'A pack lists one version of each ticked category, so players install them together with one click: the version published now, or the newest one already in your repository.',
+        packVersion: 'Pack version',
+        packPart: '{category} {version}',
+        packPartNew: '{category} {version} (published now)',
+        packPartNone: '{category}: nothing published yet',
+        packLabel: 'pack {version}',
     },
 };
 

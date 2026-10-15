@@ -5,6 +5,7 @@ import {
     fetchPackUpdates,
     fetchLatestVersions,
     fetchVersions,
+    isPackSet,
     latestVersion,
     RETRY_DELAYS_MS,
     validateManifestUrl,
@@ -161,6 +162,19 @@ describe('fetchPackUpdates', () => {
         expect(result.latest).toEqual(packs[1]);
         expect(result.outdated).toBe(false);
         expect(result.changes).toEqual([{ id: '1.2.0', label: '1.2.0', text: 'Adds shaders' }]);
+    });
+
+    it('lists packs that are sets of category versions with the older .mrpack ones', async () => {
+        const sets = [
+            { id: '2.0.0', versions: { mods: '2.1.1' }, changelog: 'Now a set' },
+            { id: 'broken', url: 'not a set' },
+        ];
+        axios.get.mockResolvedValue({ data: { versions: { packs }, packSets: sets } });
+        const result = await fetchPackUpdates('1.1.0');
+        expect(result.packs.map(pack => pack.id)).toEqual(['2.0.0', '1.2.0', '1.1.0', '1.0.0']);
+        expect(isPackSet(result.latest)).toBe(true);
+        expect(isPackSet(packs[0])).toBe(false);
+        expect(result.changes.map(entry => entry.id)).toEqual(['2.0.0', '1.2.0']);
     });
 
     it('says an older installed pack is outdated, with the changelogs of what updating brings', async () => {

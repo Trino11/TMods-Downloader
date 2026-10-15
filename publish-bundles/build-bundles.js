@@ -5,7 +5,8 @@
 //   <source>/<category>/<version id>/<name>.mrpack   optional: a Modrinth modpack to bundle
 //   <source>/<category>/<version id>/bundle.json     optional: text, Modrinth versions, links
 //   <source>/<category>/<version id>/CHANGELOG.md    optional: the changelog, as text
-//   <source>/packs/<version id>/<name>.mrpack        a whole pack, published as the .mrpack
+//   <source>/packs/<version id>/bundle.json          a pack: "versions" of the other categories
+//   <source>/packs/<version id>/<name>.mrpack        a pack from before sets, published as the .mrpack
 //   <source>/servers.json                            optional: servers for players' Multiplayer list
 //
 // (sources.js reads a version folder) and writes the manifest plus the zips (and packs)
@@ -22,9 +23,10 @@ const { readPack, readVersion } = require('./sources');
 // The manifest categories the app installs as zips (src/modules/categories.js; a test
 // keeps them in sync).
 const CATEGORIES = ['mods', 'schematics', 'resourcepacks', 'configs', 'shaderpacks'];
-// Whole packs: each version is a .mrpack, uploaded as it is, that players import into a
-// profile from the app's Packs page. Older apps don't read this category, so it is new
-// without breaking anything.
+// Packs: each version is a set of exact versions of the categories above, which the app
+// installs together. They go in the manifest's `packSets` (nothing to upload), so apps
+// from before sets never see them. Packs published before sets are a .mrpack, uploaded as
+// it is and listed under versions.packs, where every app finds them.
 const PACKS = 'packs';
 const ALL_CATEGORIES = [...CATEGORIES, PACKS];
 
@@ -113,6 +115,26 @@ function previousEntry(previous, category, id) {
     return Array.isArray(versions) ? versions.find(version => version.id === id) : undefined;
 }
 
+// The manifest entry of a pack that is a set of category versions, once every category
+// version is in `manifest`: each one it lists must be published in this same release, so a
+// typo never reaches players. Without its own target, the pack takes its mods version's.
+function packSet(manifest, { id, label, set, key, metadata }) {
+    for (const [category, version] of Object.entries(set)) {
+        if (!CATEGORIES.includes(category)) {
+            throw new Error(`${label} lists "${category}", which is not a category. Use: ${CATEGORIES.join(', ')}.`);
+        }
+        if (!manifest.versions[category]?.some(entry => entry.id === version)) {
+            const have = (manifest.versions[category] || []).map(entry => entry.id);
+            throw new Error(
+                `${label} lists ${category} ${version}, which isn't in bundles/${category}/` +
+                    (have.length ? ` (it has ${have.join(', ')}).` : ' (it has no versions).'),
+            );
+        }
+    }
+    const target = metadata.target ?? manifest.versions.mods?.find(entry => entry.id === set.mods)?.target;
+    return { id, versions: set, source: key, ...metadata, ...(target ? { target } : {}) };
+}
+
 // Reads `source` and returns { manifest, uploads: [{ name, data, label, replaced }] }.
 // `downloadBase` is the URL new assets will be downloadable under (the new release's
 // download folder). `remote` fetches Modrinth versions and downloads (see remote.js).
@@ -146,7 +168,12 @@ async function buildBundles({ source, downloadBase, previous = null, remote = cr
 
     const manifest = { versions: {} };
     const uploads = [];
-    for (const { category, id, label, name, metadata, inputs, key, data } of plan) {
+    const sets = [];
+    for (const { category, id, label, name, metadata, inputs, key, data, set } of plan) {
+        if (set) {
+            sets.push({ id, label, set, key, metadata });
+            continue;
+        }
         const before = previousEntry(previous, category, id);
         let entry;
         if (before?.source === key && before.url && before.sha256) {
@@ -169,12 +196,16 @@ async function buildBundles({ source, downloadBase, previous = null, remote = cr
         manifest.versions[category].push({ id, ...entry, source: key, ...metadata });
     }
 
+    if (sets.length > 0) {
+        manifest.packSets = sets.map(pack => packSet(manifest, pack));
+    }
+
     // Read last, so a broken servers.json is reported even when nothing else changed.
     const servers = readServers(source);
     if (servers) {
         manifest.servers = servers;
     }
-    if (Object.keys(manifest.versions).length === 0 && !servers?.length) {
+    if (Object.keys(manifest.versions).length === 0 && !manifest.packSets && !servers?.length) {
         throw new Error(`${source} has no bundles. Add folders like ${source}/mods/1.0.0/mods/<your jars>.`);
     }
     return { manifest, uploads };
@@ -189,6 +220,11 @@ function releaseNotes(manifest, uploads) {
     ];
     for (const [category, versions] of Object.entries(manifest.versions)) {
         lines.push(`| ${category} | ${versions[0].id} |`);
+    }
+    if (manifest.packSets?.length) {
+        const pack = manifest.packSets[0];
+        const parts = Object.entries(pack.versions).map(([category, version]) => `${category} ${version}`);
+        lines.push(`| pack | ${pack.id} (${parts.join(', ')}) |`);
     }
     if (manifest.servers?.length) {
         lines.push('', `Servers: ${manifest.servers.map(server => `${server.name} (${server.address})`).join(', ')}`);
@@ -242,6 +278,11 @@ async function main(argv) {
     const manifestUrl = `${repoUrl}/releases/latest/download/manifest.json`;
     for (const [category, versions] of Object.entries(manifest.versions)) {
         console.log(`${category}: ${versions.map(v => v.id).join(', ')} (latest ${versions[0].id})`);
+    }
+    if (manifest.packSets) {
+        console.log(
+            `pack sets: ${manifest.packSets.map(pack => pack.id).join(', ')} (latest ${manifest.packSets[0].id})`,
+        );
     }
     if (manifest.servers) {
         console.log(`servers: ${manifest.servers.map(server => server.address).join(', ') || 'none'}`);

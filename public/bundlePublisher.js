@@ -9,7 +9,7 @@
 const API = 'https://api.github.com';
 const REPO_PATTERN = /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/;
 // The app's categories (src/modules/categories.js; a test keeps them in sync), plus
-// packs: whole packs, imported into a profile from the Packs page.
+// packs: sets of versions of those categories, installed together from the Packs page.
 const CATEGORIES = ['mods', 'schematics', 'resourcepacks', 'configs', 'shaderpacks', 'packs'];
 // What a version folder may be called, so it stays one safe path segment.
 const VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/;

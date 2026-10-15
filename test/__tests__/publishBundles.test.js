@@ -400,9 +400,9 @@ describe('bundles built from references', () => {
                 },
                 /doesn't match its sha512 checksum/,
             ],
-            [{ 'packs/1/a.mrpack': mrpack(packIndex), 'packs/1/config/x.txt': 'x' }, /exactly one .mrpack/],
-            [{ 'packs/1/a.mrpack': mrpack(packIndex), 'packs/1/b.mrpack': mrpack(packIndex) }, /exactly one .mrpack/],
-            [{ 'packs/1/bundle.json': JSON.stringify({ description: 'x' }) }, /exactly one .mrpack/],
+            [{ 'packs/1/a.mrpack': mrpack(packIndex), 'packs/1/config/x.txt': 'x' }, /listing "versions"/],
+            [{ 'packs/1/a.mrpack': mrpack(packIndex), 'packs/1/b.mrpack': mrpack(packIndex) }, /listing "versions"/],
+            [{ 'packs/1/bundle.json': JSON.stringify({ description: 'x' }) }, /listing "versions"/],
             [
                 {
                     'packs/1/a.mrpack': mrpack(packIndex),
@@ -411,8 +411,98 @@ describe('bundles built from references', () => {
                 /"modrinth" can't add to it/,
             ],
             [{ 'packs/1/a.mrpack': 'not a zip' }, /can't be read/],
-        ])('refuses a pack that is not one working .mrpack (%#)', async (files, message) => {
+        ])('refuses a pack that is neither a set nor one working .mrpack (%#)', async (files, message) => {
             await expect(build(files)).rejects.toThrow(message);
+        });
+    });
+
+    describe('packs that are sets of category versions', () => {
+        const categories = {
+            'mods/2.1.1/bundle.json': JSON.stringify({ target: 'Fabric 1.21.1', modrinth: { sodium: '0.6.0' } }),
+            'mods/2.0.0/bundle.json': JSON.stringify({ modrinth: { sodium: '0.6.0' } }),
+            'configs/1.0.1/config/sodium.json': '{}',
+        };
+
+        it('lists the versions in the manifest, apart from the zips, with nothing to upload', async () => {
+            const { manifest, uploads } = await build({
+                ...categories,
+                'packs/2.0.0/bundle.json': JSON.stringify({
+                    description: 'Everything for 1.21.1',
+                    versions: { mods: '2.1.1', configs: '1.0.1' },
+                }),
+                'packs/2.0.0/CHANGELOG.md': 'New mods.\n',
+                'packs/1.10.0/bundle.json': JSON.stringify({ versions: { mods: '2.0.0' } }),
+            });
+
+            expect(manifest.versions.packs).toBeUndefined();
+            expect(uploads.map(upload => upload.name)).toEqual([
+                'mods-2.1.1.zip',
+                'mods-2.0.0.zip',
+                'configs-1.0.1.zip',
+            ]);
+            expect(manifest.packSets).toEqual([
+                {
+                    id: '2.0.0',
+                    versions: { mods: '2.1.1', configs: '1.0.1' },
+                    source: expect.stringMatching(/^[0-9a-f]{64}$/),
+                    description: 'Everything for 1.21.1',
+                    changelog: 'New mods.',
+                    target: 'Fabric 1.21.1',
+                },
+                { id: '1.10.0', versions: { mods: '2.0.0' }, source: expect.stringMatching(/^[0-9a-f]{64}$/) },
+            ]);
+        });
+
+        it('keeps packs published as a .mrpack where older apps find them', async () => {
+            const { manifest, uploads } = await build({
+                ...categories,
+                'packs/1.0.0/pack.mrpack': mrpack(packIndex),
+                'packs/2.0.0/bundle.json': JSON.stringify({ versions: { mods: '2.1.1' } }),
+            });
+            expect(manifest.versions.packs.map(pack => pack.id)).toEqual(['1.0.0']);
+            expect(manifest.packSets.map(pack => pack.id)).toEqual(['2.0.0']);
+            expect(uploads.map(upload => upload.name)).toContain('packs-1.0.0.mrpack');
+        });
+
+        it('publishes a repository that only has packs once its versions are there', async () => {
+            await expect(build({ 'packs/1/bundle.json': JSON.stringify({ versions: { mods: '1' } }) })).rejects.toThrow(
+                /mods 1, which isn't in bundles\/mods\/ \(it has no versions\)/,
+            );
+        });
+
+        it.each([
+            [
+                { versions: { mods: '9.9.9' } },
+                /lists mods 9.9.9, which isn't in bundles\/mods\/ \(it has 2.1.1, 2.0.0\)/,
+            ],
+            [{ versions: { packs: '1.0.0' } }, /"packs", which is not a category/],
+            [{ versions: { mod: '2.1.1' } }, /"mod", which is not a category/],
+            [{ versions: {} }, /"versions" must map categories/],
+            [{ versions: ['mods'] }, /"versions" must map categories/],
+            [{ versions: { mods: '' } }, /"mods" needs the version/],
+            [{ versions: { mods: '2.1.1' }, modrinth: { sodium: '0.6.0' } }, /"modrinth" can't add to it/],
+        ])('refuses a pack listing versions that are not there (%#)', async (metadata, message) => {
+            await expect(build({ ...categories, 'packs/3/bundle.json': JSON.stringify(metadata) })).rejects.toThrow(
+                message,
+            );
+        });
+
+        it('refuses files next to the list', async () => {
+            await expect(
+                build({
+                    ...categories,
+                    'packs/3/bundle.json': JSON.stringify({ versions: { mods: '2.1.1' } }),
+                    'packs/3/pack.mrpack': mrpack(packIndex),
+                }),
+            ).rejects.toThrow(/holds only bundle.json/);
+        });
+
+        it('refuses "versions" outside packs', async () => {
+            await expect(
+                build({
+                    'mods/1/bundle.json': JSON.stringify({ versions: { mods: '1' }, modrinth: { sodium: '0.6.0' } }),
+                }),
+            ).rejects.toThrow(/only a pack can list "versions"/);
         });
     });
 });

@@ -47,6 +47,7 @@ jobs:
           test "$(jq -r '.versions.mods[0].id' "$manifest")" = "1.10.0"
           jq -e '.versions.mods[0].changelog | length > 0' "$manifest"
           test "$(jq -r '.servers[0].address' "$manifest")" = "lobby.example.com"
+          test "$(jq -r '.packSets[0].versions.mods' "$manifest")" = "1.10.0"
           # Every listed zip is there, matches its sha256 and unpacks cleanly.
           jq -r '.versions[][] | "\(.sha256)  \(.url | split("/") | last)"' "$manifest" > "$OUT/sums"
           (cd "$OUT/assets" && sha256sum --check ../sums && for zip in *.zip; do unzip -tq "$zip"; done)

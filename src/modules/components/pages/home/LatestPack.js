@@ -12,10 +12,12 @@ import Downloadspinner from '../../utils/Downloadspinner';
 import { ChangelogButton } from '../../utils/Changelog';
 import { KeepVersionButton } from '../../utils/KeepVersion';
 import PackImporter from '../packs/PackImporter';
+import PackSetInstaller from '../packs/PackSetInstaller';
 import { PackStatusChip, describePackStatus } from '../packs/PackStatus';
-import { fetchPackUpdates } from '../../../services/manifest';
+import { fetchPackUpdates, isPackSet } from '../../../services/manifest';
 import { downloadPublishedPack, readInstalledPack } from '../../../services/mrpack';
-import { PACKS, isPinned, setPinned } from '../../../services/pins';
+import { PACKS, isPinned } from '../../../services/pins';
+import { setPackKept } from '../../../services/packSets';
 import { useTranslation } from '../../../i18n';
 
 // Quick action: the newest whole pack the channel publishes, and whether the active
@@ -62,6 +64,10 @@ function LatestPack({ profile, gameDir, onProfilesChange }) {
     }, []);
 
     function download() {
+        if (isPackSet(pack)) {
+            setPending({ pack });
+            return;
+        }
         run(async () => {
             setPending({ data: await downloadPublishedPack(pack), pack });
             return '';
@@ -69,7 +75,7 @@ function LatestPack({ profile, gameDir, onProfilesChange }) {
     }
 
     function handleKeepChange(keep) {
-        setPinned(gameDir, PACKS, keep);
+        setPackKept(gameDir, keep);
         setChecks(count => count + 1);
     }
 
@@ -146,7 +152,19 @@ function LatestPack({ profile, gameDir, onProfilesChange }) {
             </CardContent>
             <Dialog open={Boolean(pending)} onClose={() => setPending(null)} maxWidth='md' fullWidth>
                 <DialogContent sx={{ p: 0 }}>
-                    {pending && (
+                    {pending && isPackSet(pending.pack) && (
+                        <PackSetInstaller
+                            pack={pending.pack}
+                            latestId={status.latest.id}
+                            profile={profile}
+                            gameDir={gameDir}
+                            busy={busy}
+                            run={run}
+                            onInstalled={handleImported}
+                            onCancel={() => setPending(null)}
+                        />
+                    )}
+                    {pending && !isPackSet(pending.pack) && (
                         <PackImporter
                             data={pending.data}
                             channelPack={pending.pack}

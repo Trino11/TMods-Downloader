@@ -1,8 +1,9 @@
-// Publishing a pack as a new version in the player's bundles repository: a .mrpack (a
-// profile's picked files exported by the Packs page, or a file the player already has)
-// committed as bundles/<category>/<version>/pack.mrpack, into one or more categories. The repository's publish
-// workflow then builds the release players read: whole packs in the packs category, or
-// a zip for the other categories.
+// Publishing to the player's bundles repository: a .mrpack (a profile's picked files
+// exported by the Packs page, or a file the player already has) committed as
+// bundles/<category>/<version>/pack.mrpack into one or more categories, each getting only
+// the files of its kind, and optionally a pack: bundles/packs/<version>/bundle.json
+// listing the category versions players install together. The repository's publish
+// workflow then builds the release players read.
 import categories from '../categories';
 import { filterMrpack } from './mrpack';
 import { RESOURCE_PACK, readServers, readServersData } from './servers';
@@ -13,9 +14,9 @@ import { t } from '../i18n';
 
 const MANIFEST_ON_GITHUB = /^https:\/\/github\.com\/([A-Za-z0-9-]+\/[A-Za-z0-9._-]+)\/releases\//;
 
-// Where a published pack can go: whole packs first (the default), then the categories
-// the bundle pages install as zips. `kinds` are the pack kinds (packKinds.js) a category
-// takes; packs take every kind.
+// Where a published .mrpack's files can go: the categories the bundle pages install as
+// zips, and the server list. `kinds` are the pack kinds (packKinds.js) a category takes.
+// Packs aren't one of them: a pack lists versions of these (publishPack's `pack`).
 export const PACKS_CATEGORY = 'packs';
 // Not a versioned category: the channel's Multiplayer server list (bundles/servers.json),
 // which every player's profiles follow. Publishing it replaces the list.
@@ -28,14 +29,6 @@ const CATEGORY_KINDS = {
     shaderpacks: ['shader'],
 };
 export const PUBLISH_CATEGORIES = [
-    {
-        id: PACKS_CATEGORY,
-        // A getter, so the label follows the language picked after this module loaded.
-        get label() {
-            return t('services.bundlePublish.packsCategory');
-        },
-        kinds: null,
-    },
     ...categories.map(category => ({
         id: category.id,
         get label() {
@@ -84,10 +77,16 @@ export function bundlesRepo() {
     return getBundlesRepo() || manifestRepo();
 }
 
+// The newest of `existing` (folder names), comparing numbers as numbers like the
+// publisher does, or undefined when there are none.
+export function newestVersion(existing) {
+    return [...existing].sort((a, b) => b.localeCompare(a, 'en', { numeric: true, sensitivity: 'base' }))[0];
+}
+
 // The version to suggest after `existing` (folder names): the newest one with its last
-// number raised by one, comparing numbers as numbers like the publisher does.
+// number raised by one.
 export function nextVersion(existing) {
-    const newest = [...existing].sort((a, b) => b.localeCompare(a, 'en', { numeric: true, sensitivity: 'base' }))[0];
+    const newest = newestVersion(existing);
     const match = newest?.match(/^(.*?)(\d+)(\D*)$/);
     if (!match) {
         return '1.0.0';
@@ -122,13 +121,15 @@ export function existingVersions(repo, category) {
     return github.versions(repo, category);
 }
 
-// Publishes a pack (its bytes) as a new version of each of `versions` ([{ category,
-// version }]), all in one commit: packs get the whole pack, every other category a pack
-// with only the files of its kind. The optional text goes in each version's bundle.json.
-// `servers` (the server list's entries, as servers.js reads them), when given, replace
-// the channel's server list in the same commit; `versions` may then be empty.
+// Publishes a .mrpack (its bytes) as a new version of each of `versions` ([{ category,
+// version }]), all in one commit: each category gets a pack with only the files of its
+// kind. The optional text goes in each version's bundle.json. `pack` ({ version, versions:
+// { mods: '2.1.1', ... } }), when given, adds that pack version, listing the category
+// versions it installs (the ones published here among them). `servers` (the server
+// list's entries, as servers.js reads them), when given, replace the channel's server
+// list in the same commit. `versions` may be empty when a pack or the servers go out.
 // Resolves to { commitUrl, actionsUrl }.
-export async function publishPack({ repo, versions = [], data, description = '', changelog = '', servers }) {
+export async function publishPack({ repo, versions = [], data, description = '', changelog = '', servers, pack }) {
     const metadata = {};
     if (description.trim()) {
         metadata.description = description.trim();
@@ -138,7 +139,7 @@ export async function publishPack({ repo, versions = [], data, description = '',
     }
     const published = versions.map(({ category, version }) => {
         const { kinds, label } = publishCategory(category);
-        const part = kinds ? filterMrpack(data, kinds) : data;
+        const part = filterMrpack(data, kinds);
         if (!part) {
             throw new Error(t('services.bundlePublish.nothingFor', { category: label }));
         }
@@ -152,6 +153,18 @@ export async function publishPack({ repo, versions = [], data, description = '',
         return { category, version, files };
     });
     const summary = versions.map(({ category, version }) => `${category} ${version}`);
+    if (pack) {
+        if (Object.keys(pack.versions).length === 0) {
+            throw new Error(t('services.bundlePublish.emptyPack'));
+        }
+        const list = { ...metadata, versions: pack.versions };
+        published.push({
+            category: PACKS_CATEGORY,
+            version: pack.version,
+            files: [{ name: 'bundle.json', data: JSON.stringify(list, null, 2) + '\n' }],
+        });
+        summary.push(`pack ${pack.version}`);
+    }
     if (servers) {
         summary.push('the server list');
     }
@@ -159,6 +172,6 @@ export async function publishPack({ repo, versions = [], data, description = '',
         repo,
         versions: published,
         ...(servers ? { servers: channelServers(servers) } : {}),
-        message: `${versions.length ? 'Add' : 'Update'} ${summary.join(', ')} from TMods`,
+        message: `${published.length ? 'Add' : 'Update'} ${summary.join(', ')} from TMods`,
     });
 }

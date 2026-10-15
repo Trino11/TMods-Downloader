@@ -60,6 +60,7 @@ const packs = {
         channelLoading: 'Cargando los packs de tu canal...',
         channelEmpty: 'Tu canal aún no tiene packs. Publica uno desde la pestaña Publicar.',
         preview: 'Vista previa',
+        open: 'Abrir',
         confirmUndo: '¿Deshacer la importación de {pack}?',
         thisPack: 'este pack',
         restored: '{profile} volvió a estar como antes de importar {pack}.',
@@ -74,6 +75,18 @@ const packs = {
         undo: 'Deshacer',
         aPack: 'Un pack',
         importedAt: 'Importado el {date}',
+    },
+    set: {
+        title: 'Pack {id}',
+        intro: 'Instala estas versiones en {profile}, cada una como lo haría su propia página:',
+        loading: 'Cargando lo que instala el pack...',
+        alreadyChip: 'Ya instalado',
+        missing: 'Tu canal ya no tiene {parts}, así que este pack no se puede instalar.',
+        backupNote: 'Antes se hace una copia de seguridad de cada carpeta; puedes restaurarla desde su propia página.',
+        keepVersion:
+            'Mantener el pack {version}: no ofrecer packs más nuevos, ni versiones más nuevas de lo que instala, como actualización',
+        install: 'Instalar',
+        installed: 'Se instaló el pack {id} en {profile}: {parts}.',
     },
     importer: {
         keepVersion: 'Mantener el pack {version}: no ofrecer packs más nuevos como actualización',
@@ -106,8 +119,7 @@ const packs = {
         chooseFile: 'Elegir archivo',
         fileInfo: '{file}: {name}, Minecraft {gameVersion}, {count} elemento(s), {size}.',
         categories: 'Categorías',
-        categoriesHelp:
-            'Cada categoría recibe su propia versión nueva. Packs recibe el pack completo; las demás, solo los archivos de su tipo.',
+        categoriesHelp: 'Cada categoría recibe su propia versión nueva, solo con los archivos de su tipo.',
         nothingOfKind: 'No hay nada de este tipo para publicar',
         versionOf: 'Versión de {category}',
         emptyCategories: 'Nada de lo elegido va en {categories}. Elige archivos de ese tipo o desmarca la categoría.',
@@ -119,6 +131,14 @@ const packs = {
         publish: 'Publicar',
         publishedBefore: 'Se publicó {label}. GitHub está generando la release;',
         follow: 'síguela en GitHub',
+        withPack: 'Publicar también un pack',
+        packHelp:
+            'Un pack lista una versión de cada categoría marcada, para que los jugadores las instalen juntas con un clic: la versión que se publica ahora, o la más nueva que ya está en tu repositorio.',
+        packVersion: 'Versión del pack',
+        packPart: '{category} {version}',
+        packPartNew: '{category} {version} (se publica ahora)',
+        packPartNone: '{category}: aún no hay nada publicado',
+        packLabel: 'pack {version}',
     },
 };
 

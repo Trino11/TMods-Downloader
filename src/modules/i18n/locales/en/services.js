@@ -101,9 +101,13 @@ const services = {
         notZip: 'The download of {id} is not a valid zip.',
         backupNotFound: 'Backup {id} not found for {category}',
     },
+    packSets: {
+        missing: "Pack {id} can't be installed: your channel doesn't have {parts}.",
+        failed: 'Pack {id} was only partly installed. These failed: {failures}. Try installing the pack again.',
+    },
     bundlePublish: {
         serversCategory: 'Server list (every player gets it)',
-        packsCategory: 'Packs (whole pack)',
+        emptyPack: 'The pack lists no versions. Tick at least one category that has one.',
         nothingFor: 'The pack has nothing that goes in {category}.',
         tooLarge:
             'The pack is {size} MB, and GitHub takes files up to 100 MB. Leave out large files that are copied rather than linked from Modrinth.',
