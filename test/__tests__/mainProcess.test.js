@@ -4,6 +4,7 @@ const {
     externalLinkHandler,
     isAppUrl,
     canAutoUpdate,
+    linuxPasswordStore,
     startAutoUpdates,
     createUpdateActions,
     registerUpdateHandlers,
@@ -206,5 +207,26 @@ describe('canAutoUpdate', () => {
         expect(canAutoUpdate('win32')).toBe(true);
         expect(canAutoUpdate('linux')).toBe(true);
         expect(canAutoUpdate('darwin')).toBe(false);
+    });
+});
+
+describe('linuxPasswordStore', () => {
+    test('points window managers Chromium has no keyring for at the Secret Service', () => {
+        expect(linuxPasswordStore('linux', { XDG_CURRENT_DESKTOP: 'Hyprland' }, false)).toBe('gnome-libsecret');
+        expect(linuxPasswordStore('linux', { DESKTOP_SESSION: 'i3' }, false)).toBe('gnome-libsecret');
+        expect(linuxPasswordStore('linux', {}, false)).toBe('gnome-libsecret');
+        expect(linuxPasswordStore('linux', { XDG_CURRENT_DESKTOP: 'ubuntu:GNOME' }, false)).toBe('gnome-libsecret');
+    });
+
+    test('leaves KDE on KWallet', () => {
+        expect(linuxPasswordStore('linux', { XDG_CURRENT_DESKTOP: 'KDE' }, false)).toBeNull();
+        expect(linuxPasswordStore('linux', { DESKTOP_SESSION: 'plasmawayland' }, false)).toBeNull();
+        expect(linuxPasswordStore('linux', { KDE_FULL_SESSION: 'true' }, false)).toBeNull();
+    });
+
+    test('respects a --password-store the user passed, and other systems', () => {
+        expect(linuxPasswordStore('linux', { XDG_CURRENT_DESKTOP: 'sway' }, true)).toBeNull();
+        expect(linuxPasswordStore('win32', {}, false)).toBeNull();
+        expect(linuxPasswordStore('darwin', {}, false)).toBeNull();
     });
 });

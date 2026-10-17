@@ -103,7 +103,7 @@ const request = {
 describe('the GitHub token', () => {
     it('is checked, then saved encrypted, and never comes back out', async () => {
         const { publisher, calls } = makePublisher(publishRoutes());
-        await expect(publisher.status()).resolves.toEqual({ hasToken: false });
+        await expect(publisher.status()).resolves.toEqual({ hasToken: false, canEncrypt: true });
 
         await publisher.saveToken(`  ${TOKEN} `);
 
@@ -117,7 +117,7 @@ describe('the GitHub token', () => {
         });
 
         publisher.forgetToken();
-        await expect(publisher.status()).resolves.toEqual({ hasToken: false });
+        await expect(publisher.status()).resolves.toEqual({ hasToken: false, canEncrypt: true });
     });
 
     it('is not saved when GitHub refuses it', async () => {

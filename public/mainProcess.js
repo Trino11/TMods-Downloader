@@ -137,6 +137,22 @@ function canAutoUpdate(platform) {
     return platform !== 'darwin';
 }
 
+// Linux keeps the GitHub token encrypted with the desktop's keyring. Chromium only looks
+// for one on desktops it knows (GNOME, KDE, XFCE...), so on i3, Sway, Hyprland and the like
+// it finds none, even with GNOME Keyring running. Outside KDE (which uses KWallet) this
+// points it at the Secret Service; where none is running it falls back as before. Returns
+// the --password-store value to use, or null to leave the choice alone.
+function linuxPasswordStore(platform, env, hasSwitch) {
+    if (platform !== 'linux' || hasSwitch) {
+        return null;
+    }
+    const desktop = `${env.XDG_CURRENT_DESKTOP || ''}:${env.DESKTOP_SESSION || ''}`.toLowerCase();
+    if (env.KDE_FULL_SESSION || /kde|plasma/.test(desktop)) {
+        return null;
+    }
+    return 'gnome-libsecret';
+}
+
 // The window opens at this share of the screen's work area (the screen minus the taskbar)...
 const DEFAULT_SCREEN_SHARE = 0.8;
 // ...and can't be made smaller than this, the smallest size the pages are laid out for.
@@ -262,6 +278,7 @@ module.exports = {
     isAppUrl,
     externalLinkHandler,
     canAutoUpdate,
+    linuxPasswordStore,
     startAutoUpdates,
     createUpdateActions,
     UPDATE_CHANNELS,

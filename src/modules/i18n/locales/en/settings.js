@@ -41,6 +41,8 @@ const settings = {
         forget: 'Forget token',
         needToken: 'Add a GitHub token to publish.',
         ready: 'Ready to publish to {repo}.',
+        noKeyring:
+            "TMods can't save a token on this computer because no keyring is running to encrypt it. On Linux, install and unlock one (GNOME Keyring, KDE Wallet or KeePassXC), then restart TMods.",
     },
     logs: {
         title: 'Logs',

@@ -14,6 +14,7 @@ const {
     externalLinkHandler,
     canAutoUpdate,
     createUpdateActions,
+    linuxPasswordStore,
     initialWindowState,
     isAppUrl,
     loadWindowState,
@@ -35,6 +36,11 @@ const appUrl = isDev ? DEV_SERVER_URL : pathToFileURL(indexFile).href;
 // Same identity as the installer's shortcuts, so pins and notifications belong to them.
 if (process.platform === 'win32') {
     app.setAppUserModelId(APP_USER_MODEL_ID);
+}
+
+const passwordStore = linuxPasswordStore(process.platform, process.env, app.commandLine.hasSwitch('password-store'));
+if (passwordStore) {
+    app.commandLine.appendSwitch('password-store', passwordStore);
 }
 
 let mainWindow = null;
@@ -146,6 +152,9 @@ app.whenReady().then(() => {
     registerLogHandlers(ipcMain, shell, fs, path, () => log.transports.file.getFile().path);
     // One line per start, so the log file exists for the Settings page to open.
     log.info(`TMods Downloader ${app.getVersion()} started`);
+    if (process.platform === 'linux') {
+        log.info(`Token storage: ${safeStorage.getSelectedStorageBackend()}`);
+    }
     createWindow();
     // There are no releases to update to from a development checkout.
     if (app.isPackaged && canAutoUpdate(process.platform)) {
