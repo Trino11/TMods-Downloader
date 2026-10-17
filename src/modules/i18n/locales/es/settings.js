@@ -42,6 +42,8 @@ const settings = {
         forget: 'Olvidar token',
         needToken: 'Añade un token de GitHub para publicar.',
         ready: 'Listo para publicar en {repo}.',
+        noKeyring:
+            'TMods no puede guardar un token en este equipo porque no hay ningún llavero activo para cifrarlo. En Linux, instala y desbloquea uno (GNOME Keyring, KDE Wallet o KeePassXC) y reinicia TMods.',
     },
     logs: {
         title: 'Registros',

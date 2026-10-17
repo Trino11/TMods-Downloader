@@ -152,10 +152,11 @@ function createBundlePublisher({ fetch, safeStorage, fs, tokenFile, userAgent })
     }
 
     // Whether a token is saved, and when a repository is given, whether it can publish there.
+    // Without one, also whether this computer can encrypt one (Linux needs a keyring).
     async function status(repo) {
         const token = readToken();
         if (!token) {
-            return { hasToken: false };
+            return { hasToken: false, canEncrypt: safeStorage.isEncryptionAvailable() };
         }
         if (!repo) {
             return { hasToken: true };

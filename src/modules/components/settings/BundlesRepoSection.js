@@ -21,6 +21,7 @@ function BundlesRepoSection() {
     const [repo, setRepo] = useState(bundlesRepo);
     const [token, setToken] = useState('');
     const [hasToken, setHasToken] = useState(false);
+    const [canEncrypt, setCanEncrypt] = useState(true);
     const [checking, setChecking] = useState(false);
     const [error, setError] = useState('');
     const [ready, setReady] = useState('');
@@ -29,7 +30,12 @@ function BundlesRepoSection() {
         let active = true;
         github
             .status()
-            .then(status => active && setHasToken(status.hasToken))
+            .then(status => {
+                if (active) {
+                    setHasToken(status.hasToken);
+                    setCanEncrypt(status.canEncrypt !== false);
+                }
+            })
             .catch(statusError => active && setError(statusError.message));
         return () => {
             active = false;
@@ -43,7 +49,7 @@ function BundlesRepoSection() {
         setError('');
         setReady('');
         try {
-            if (token.trim()) {
+            if (token.trim() && canEncrypt) {
                 await github.saveToken(token.trim());
                 setToken('');
                 setHasToken(true);
@@ -107,9 +113,10 @@ function BundlesRepoSection() {
                 fullWidth
                 value={token}
                 onChange={event => setToken(event.target.value)}
-                disabled={checking}
+                disabled={checking || !canEncrypt}
                 slotProps={{ inputLabel: { shrink: true } }}
             />
+            {!canEncrypt && <Alert severity='warning'>{t('settings.bundlesRepo.noKeyring')}</Alert>}
             <Stack direction='row' spacing={1}>
                 <Button type='submit' variant='contained' disabled={checking} sx={{ minWidth: 96 }}>
                     {checking ? <Downloadspinner /> : t('settings.bundlesRepo.save')}
